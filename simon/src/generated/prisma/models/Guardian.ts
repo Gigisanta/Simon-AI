@@ -495,6 +495,7 @@ export type GuardianCreateOrConnectWithoutGuardianUserInput = {
 
 export type GuardianCreateManyGuardianUserInputEnvelope = {
   data: Prisma.GuardianCreateManyGuardianUserInput | Prisma.GuardianCreateManyGuardianUserInput[]
+  skipDuplicates?: boolean
 }
 
 export type GuardianCreateWithoutChildUserInput = {
@@ -1371,6 +1372,7 @@ export type GuardianCreateManyArgs<ExtArgs extends runtime.Types.Extensions.Inte
    * The data used to create many Guardians.
    */
   data: Prisma.GuardianCreateManyInput | Prisma.GuardianCreateManyInput[]
+  skipDuplicates?: boolean
 }
 
 /**
@@ -1389,6 +1391,7 @@ export type GuardianCreateManyAndReturnArgs<ExtArgs extends runtime.Types.Extens
    * The data used to create many Guardians.
    */
   data: Prisma.GuardianCreateManyInput | Prisma.GuardianCreateManyInput[]
+  skipDuplicates?: boolean
   /**
    * Choose, which related nodes to fetch as well
    */

@@ -404,6 +404,7 @@ export type UserMemoryCreateOrConnectWithoutUserInput = {
 
 export type UserMemoryCreateManyUserInputEnvelope = {
   data: Prisma.UserMemoryCreateManyUserInput | Prisma.UserMemoryCreateManyUserInput[]
+  skipDuplicates?: boolean
 }
 
 export type UserMemoryUpsertWithWhereUniqueWithoutUserInput = {
@@ -1194,6 +1195,7 @@ export type UserMemoryCreateManyArgs<ExtArgs extends runtime.Types.Extensions.In
    * The data used to create many UserMemories.
    */
   data: Prisma.UserMemoryCreateManyInput | Prisma.UserMemoryCreateManyInput[]
+  skipDuplicates?: boolean
 }
 
 /**
@@ -1212,6 +1214,7 @@ export type UserMemoryCreateManyAndReturnArgs<ExtArgs extends runtime.Types.Exte
    * The data used to create many UserMemories.
    */
   data: Prisma.UserMemoryCreateManyInput | Prisma.UserMemoryCreateManyInput[]
+  skipDuplicates?: boolean
   /**
    * Choose, which related nodes to fetch as well
    */

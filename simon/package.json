@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma generate && prisma migrate deploy && next build",
     "start": "next start",
     "lint": "eslint",
     "crisis-suite": "tsx scripts/crisis-suite.ts",
@@ -18,7 +18,8 @@
   "dependencies": {
     "@ai-sdk/openai-compatible": "^3.0.6",
     "@ai-sdk/react": "^4.0.19",
-    "@prisma/adapter-better-sqlite3": "^7.8.0",
+    "@neondatabase/serverless": "^1.1.0",
+    "@prisma/adapter-neon": "^7.8.0",
     "@prisma/client": "^7.8.0",
     "ai": "^7.0.18",
     "better-auth": "^1.6.23",
@@ -45,8 +46,7 @@
     "onlyBuiltDependencies": [
       "@prisma/engines",
       "prisma",
-      "@prisma/client",
-      "better-sqlite3"
+      "@prisma/client"
     ]
   }
 }

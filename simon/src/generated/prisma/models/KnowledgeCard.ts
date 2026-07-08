@@ -1100,6 +1100,7 @@ export type KnowledgeCardCreateManyArgs<ExtArgs extends runtime.Types.Extensions
    * The data used to create many KnowledgeCards.
    */
   data: Prisma.KnowledgeCardCreateManyInput | Prisma.KnowledgeCardCreateManyInput[]
+  skipDuplicates?: boolean
 }
 
 /**
@@ -1118,6 +1119,7 @@ export type KnowledgeCardCreateManyAndReturnArgs<ExtArgs extends runtime.Types.E
    * The data used to create many KnowledgeCards.
    */
   data: Prisma.KnowledgeCardCreateManyInput | Prisma.KnowledgeCardCreateManyInput[]
+  skipDuplicates?: boolean
 }
 
 /**

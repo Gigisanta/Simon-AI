@@ -428,6 +428,7 @@ export type SafetyEventCreateOrConnectWithoutUserInput = {
 
 export type SafetyEventCreateManyUserInputEnvelope = {
   data: Prisma.SafetyEventCreateManyUserInput | Prisma.SafetyEventCreateManyUserInput[]
+  skipDuplicates?: boolean
 }
 
 export type SafetyEventUpsertWithWhereUniqueWithoutUserInput = {
@@ -1229,6 +1230,7 @@ export type SafetyEventCreateManyArgs<ExtArgs extends runtime.Types.Extensions.I
    * The data used to create many SafetyEvents.
    */
   data: Prisma.SafetyEventCreateManyInput | Prisma.SafetyEventCreateManyInput[]
+  skipDuplicates?: boolean
 }
 
 /**
@@ -1247,6 +1249,7 @@ export type SafetyEventCreateManyAndReturnArgs<ExtArgs extends runtime.Types.Ext
    * The data used to create many SafetyEvents.
    */
   data: Prisma.SafetyEventCreateManyInput | Prisma.SafetyEventCreateManyInput[]
+  skipDuplicates?: boolean
   /**
    * Choose, which related nodes to fetch as well
    */
