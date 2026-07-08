@@ -1,0 +1,19 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "simon-next",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "simon", "run", "dev"],
+      "port": 3100,
+      "autoPort": true
+    },
+    {
+      "name": "simon-prod",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "simon", "run", "start"],
+      "port": 3200,
+      "autoPort": true
+    }
+  ]
+}

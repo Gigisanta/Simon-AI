@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Simón — Acompañamos cada paso</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<div class="demo-banner">
+  <span>Maqueta de demostración · contenido de ejemplo sin validar</span>
+</div>
+
+<header class="topbar">
+  <div class="brand">
+    <div class="brand-mark">S</div>
+    <div class="brand-text">
+      <span class="brand-name">Simón</span>
+      <span class="brand-tag">Acompañamos cada paso</span>
+    </div>
+  </div>
+  <nav class="topnav">
+    <button class="nav-link active" data-view="inicio"><i class="ic">chat</i>Chat</button>
+    <button class="nav-link" data-view="ruta"><i class="ic">route</i>Mi ruta</button>
+    <button class="nav-link" data-view="diagnosticos"><i class="ic">map</i>Diagnósticos</button>
+    <button class="nav-link" data-view="conectar"><i class="ic">users</i>Conectar</button>
+  </nav>
+</header>
+
+<main>
+
+  <!-- ============ INICIO / CHAT ============ -->
+  <section class="view active" id="view-inicio">
+    <div class="hero">
+      <div class="hero-mark">S</div>
+      <h1>Hola, soy Simón</h1>
+      <p class="hero-sub">Contame tu situación y te ayudo a dar el próximo paso. Sin vueltas, con información confiable.</p>
+    </div>
+
+    <div class="chat">
+      <div class="chat-log" id="chatLog">
+        <div class="msg bot">
+          <div class="msg-avatar">S</div>
+          <div class="msg-bubble">
+            ¿Por dónde querés empezar? Tocá una de estas preguntas o escribime lo que necesites.
+          </div>
+        </div>
+      </div>
+
+      <div class="chat-chips" id="chatChips">
+        <button class="chip" data-q="diagnostico">Mi hijo acaba de recibir un diagnóstico, ¿por dónde empiezo?</button>
+        <button class="chip" data-q="cud">¿Cómo tramito el CUD?</button>
+        <button class="chip" data-q="obrasocial">La obra social me rechazó una prestación</button>
+      </div>
+
+      <div class="chat-input">
+        <input type="text" placeholder="Escribile a Simón..." id="chatInput" disabled />
+        <button class="send-btn" aria-label="Enviar"><i class="ic">send</i></button>
+      </div>
+      <p class="chat-note">En la maqueta las respuestas son de ejemplo. En el producto real cada respuesta cita su fuente oficial.</p>
+    </div>
+
+    <div class="access-grid">
+      <button class="access-card" data-view="ruta">
+        <i class="ic big">route</i>
+        <h3>Mi ruta</h3>
+        <p>Tu recorrido paso a paso según tu situación</p>
+      </button>
+      <button class="access-card" data-view="diagnosticos">
+        <i class="ic big">map</i>
+        <h3>Mapa de diagnósticos</h3>
+        <p>Conocé cada condición, sus apoyos y derechos</p>
+      </button>
+      <button class="access-card" data-view="conectar">
+        <i class="ic big">users</i>
+        <h3>Conectar</h3>
+        <p>Hablá con una familia que ya pasó por esto</p>
+      </button>
+      <button class="access-card" data-view="ruta">
+        <i class="ic big">scale</i>
+        <h3>Derechos y trámites</h3>
+        <p>CUD, obra social, transporte, educación</p>
+      </button>
+    </div>
+  </section>
+
+  <!-- ============ MI RUTA ============ -->
+  <section class="view" id="view-ruta">
+    <div class="page-head">
+      <h1>Mi ruta</h1>
+      <p>Un recorrido armado para tu situación. A medida que avanzás, Simón te muestra el próximo paso.</p>
+    </div>
+
+    <div class="profile-card">
+      <div class="profile-row">
+        <span class="profile-label">Perfil de ejemplo</span>
+        <button class="profile-edit">Editar</button>
+      </div>
+      <div class="profile-tags">
+        <span class="ptag">Simón, 4 años</span>
+        <span class="ptag">Neuquén</span>
+        <span class="ptag">TEA · nivel 2</span>
+        <span class="ptag">Obra social provincial</span>
+        <span class="ptag">Inicia jardín</span>
+      </div>
+    </div>
+
+    <div class="stepper" id="stepper">
+      <div class="step done">
+        <div class="step-dot"><i class="ic">check</i></div>
+        <div class="step-body">
+          <h4>Reunir la documentación inicial</h4>
+          <p>DNI, resumen de historia clínica y el informe del diagnóstico.</p>
+        </div>
+      </div>
+      <div class="step current">
+        <div class="step-dot">1</div>
+        <div class="step-body">
+          <h4>Tramitar el CUD (Certificado Único de Discapacidad)</h4>
+          <p>Es la llave que abre casi todos los derechos: prestaciones, transporte, asignaciones.</p>
+          <div class="step-actions">
+            <button class="btn-primary" data-view="diagnosticos-cud">Ver cómo se tramita</button>
+            <button class="btn-ghost step-check">Marcar como hecho</button>
+          </div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-dot">2</div>
+        <div class="step-body">
+          <h4>Presentar el CUD en la obra social</h4>
+          <p>Con el CUD, la obra social debe cubrir el 100% de las prestaciones (Ley 24.901).</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-dot">3</div>
+        <div class="step-body">
+          <h4>Solicitar las terapias</h4>
+          <p>Según el diagnóstico: fonoaudiología, terapia ocupacional, acompañante externo.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-dot">4</div>
+        <div class="step-body">
+          <h4>Gestionar la integración escolar</h4>
+          <p>Maestra de apoyo a la integración y adecuaciones para el jardín.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-dot">5</div>
+        <div class="step-body">
+          <h4>Evaluar transporte y asignaciones</h4>
+          <p>Transporte escolar cubierto y asignación por hijo con discapacidad (ANSES).</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ DIAGNÓSTICOS ============ -->
+  <section class="view" id="view-diagnosticos">
+    <div class="page-head">
+      <h1>Mapa de diagnósticos</h1>
+      <p>Explorá por grupo o buscá directamente. Tocá una condición para ver qué es, qué apoyos suele necesitar y qué derechos activa.</p>
+    </div>
+
+    <div class="dx-search">
+      <i class="ic">search</i>
+      <input type="text" id="dxSearch" placeholder="Buscar un diagnóstico..." />
+    </div>
+
+    <div class="dx-cats" id="dxCats"></div>
+    <div class="dx-grid" id="dxGrid"></div>
+  </section>
+
+  <!-- ============ CONECTAR ============ -->
+  <section class="view" id="view-conectar">
+    <div class="page-head">
+      <h1>Conectar</h1>
+      <p>Nadie entiende mejor un camino que quien ya lo recorrió. Te ponemos en contacto con una familia con una experiencia parecida a la tuya.</p>
+    </div>
+
+    <div class="how-row">
+      <div class="how-step"><span class="how-num">1</span><p>Contanos tu situación</p></div>
+      <div class="how-step"><span class="how-num">2</span><p>Buscamos una familia afín</p></div>
+      <div class="how-step"><span class="how-num">3</span><p>Los conectamos con cuidado</p></div>
+    </div>
+
+    <h3 class="section-title">Familias dispuestas a acompañar</h3>
+    <div class="family-grid">
+      <div class="family-card">
+        <div class="fam-avatar">M</div>
+        <div class="fam-info">
+          <h4>Mariana</h4>
+          <p class="fam-meta">Neuquén · mamá de Tomás (7)</p>
+          <p class="fam-tags"><span>TEA</span><span>Integración escolar</span></p>
+        </div>
+      </div>
+      <div class="family-card">
+        <div class="fam-avatar">C</div>
+        <div class="fam-info">
+          <h4>Carla</h4>
+          <p class="fam-meta">Roca · mamá de Lu (5)</p>
+          <p class="fam-tags"><span>S. de Down</span><span>Obra social</span></p>
+        </div>
+      </div>
+      <div class="family-card">
+        <div class="fam-avatar">D</div>
+        <div class="fam-info">
+          <h4>Diego</h4>
+          <p class="fam-meta">Cipolletti · papá de Juan (9)</p>
+          <p class="fam-tags"><span>TDAH</span><span>Escuela</span></p>
+        </div>
+      </div>
+    </div>
+
+    <div class="connect-form">
+      <h3>Quiero que me conecten</h3>
+      <div class="form-row">
+        <label>Diagnóstico o situación</label>
+        <input type="text" placeholder="Ej: autismo, recién diagnosticado" />
+      </div>
+      <div class="form-row">
+        <label>Provincia</label>
+        <input type="text" placeholder="Ej: Neuquén" />
+      </div>
+      <div class="form-row">
+        <label>¿Qué te gustaría charlar?</label>
+        <textarea rows="3" placeholder="Contanos brevemente qué te preocupa hoy..."></textarea>
+      </div>
+      <button class="btn-primary full" id="connectSubmit">Solicitar conexión</button>
+      <p class="form-done" id="connectDone">Recibimos tu pedido. En la versión real, una persona del equipo revisa cada solicitud antes de conectar.</p>
+    </div>
+  </section>
+
+</main>
+
+<nav class="bottomnav">
+  <button class="bn-link active" data-view="inicio"><i class="ic">chat</i><span>Chat</span></button>
+  <button class="bn-link" data-view="ruta"><i class="ic">route</i><span>Mi ruta</span></button>
+  <button class="bn-link" data-view="diagnosticos"><i class="ic">map</i><span>Mapa</span></button>
+  <button class="bn-link" data-view="conectar"><i class="ic">users</i><span>Conectar</span></button>
+</nav>
+
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
