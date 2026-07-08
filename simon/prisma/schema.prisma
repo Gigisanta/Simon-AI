@@ -1,0 +1,194 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// ---------- Auth (better-auth) ----------
+
+model User {
+  id            String    @id
+  name          String
+  email         String    @unique
+  emailVerified Boolean   @default(false)
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Rol dentro del modelo tutor-first: "guardian" (adulto que se registra y
+  // da de alta menores) | "child" (menor creado por su tutor/a).
+  role          String    @default("guardian")
+  // Solo el AÑO de nacimiento (minimización de datos, Ley 25.326): nunca la
+  // fecha completa. Se usa para franja etaria, no para identificar.
+  birthYear     Int?
+
+  sessions      Session[]
+  accounts      Account[]
+  conversations Conversation[]
+  memories      UserMemory[]
+  safetyEvents  SafetyEvent[]
+
+  // Menores a cargo de este usuario (si es tutor/a).
+  guardianOf    Guardian[] @relation("guardianOf")
+  // Vínculo de tutela de este usuario (si es menor). Único: un menor tiene un
+  // solo tutor/a por ahora.
+  guardedBy     Guardian?  @relation("guardedBy")
+
+  @@map("user")
+}
+
+// ---------- Tutela y consentimiento (Ley 25.326) ----------
+
+// Vincula un tutor/a (guardianUserId) con un menor (childUserId), ambos filas
+// de `User`. Registra el consentimiento verificable exigido antes de que el
+// menor pueda usar el chat: timestamp + IP + user-agent como evidencia.
+model Guardian {
+  id               String    @id @default(cuid())
+  guardianUserId   String
+  guardianUser     User      @relation("guardianOf", fields: [guardianUserId], references: [id], onDelete: Cascade)
+  // Un menor tiene un único tutor/a por ahora.
+  childUserId      String    @unique
+  childUser        User      @relation("guardedBy", fields: [childUserId], references: [id], onDelete: Cascade)
+  // Consentimiento: null hasta que el tutor/a lo otorga explícitamente.
+  consentAt        DateTime?
+  consentIp        String?
+  consentUserAgent String?
+  // Alertas de crisis al tutor/a (M-P2). Activadas por defecto.
+  alertsEnabled    Boolean   @default(true)
+  createdAt        DateTime  @default(now())
+
+  @@index([guardianUserId])
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@map("account")
+}
+
+model Verification {
+  id         String    @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime? @default(now())
+  updatedAt  DateTime? @updatedAt
+
+  @@map("verification")
+}
+
+// ---------- Chat ----------
+
+model Conversation {
+  id        String    @id @default(cuid())
+  title     String    @default("Nueva conversación")
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages  Message[]
+  // Capa 2 de memoria (research-architecture §4.1): resumen ≤120 palabras en
+  // tercera persona, SIN datos identificables. Se genera lazy (lib/ai/memory)
+  // cuando la conversación quedó "cerrada" (>1h sin actividad).
+  summary      String?
+  // Marca de procesamiento: no-null = ya pasó por summarizeStaleConversation
+  // (aunque haya quedado sin summary por ser muy corta o por parse fallido).
+  summarizedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([userId, updatedAt])
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           String // "user" | "assistant"
+  content        String
+  // Marcado por la capa de seguridad (ej: "crisis", "derivacion")
+  safetyFlag     String?
+  createdAt      DateTime     @default(now())
+
+  @@index([conversationId, createdAt])
+}
+
+// ---------- Eventos de seguridad (anonimizados) ----------
+
+// Registro anonimizado de cada activación de las capas de seguridad. NO guarda
+// el contenido del mensaje: solo la categoría y en qué capa se disparó. Sirve
+// para auditoría y, en una fase posterior, para alertar a un tutor (notifiedAt).
+model SafetyEvent {
+  id             String    @id @default(cuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversationId String?
+  // Valor del SafetyFlag ("crisis"|"abuso"|"riesgo"|"alimentario") o la
+  // topCategory devuelta por la Moderation API.
+  category       String
+  // "keyword" | "moderation-input" | "moderation-output"
+  layer          String
+  createdAt      DateTime  @default(now())
+  // Se completa cuando se avisó a un tutor (alertas — fase posterior).
+  notifiedAt     DateTime?
+
+  @@index([userId, createdAt])
+}
+
+// ---------- Base de conocimiento (RAG liviano) ----------
+
+model KnowledgeCard {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  category  String // neuro | intel | motora | sensorial | pocofrec | tramites
+  title     String
+  body      String // contenido en texto plano/markdown
+  source    String? // ley / organismo que respalda
+  reviewed  Boolean  @default(false) // true cuando un profesional la validó
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([category])
+}
+
+// ---------- Memoria por usuario (aprendizaje) ----------
+
+model UserMemory {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind      String // "fact" | "preference" | "context"
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}

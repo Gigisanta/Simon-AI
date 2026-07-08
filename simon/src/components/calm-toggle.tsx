@@ -1,0 +1,71 @@
+"use client";
+
+import { useSyncExternalStore } from "react";
+
+/**
+ * Toggle manual de "modo calma" (research-ux §1.5 / §1.6 item 3):
+ * independiente de prefers-reduced-motion porque en dispositivos compartidos
+ * (tablet familiar) la preferencia del OS no es por usuario. Activa data-calm
+ * en <html> (ver globals.css) y persiste en localStorage. Un script inline en
+ * layout.tsx lo re-aplica antes del primer paint.
+ *
+ * La fuente de verdad es el atributo data-calm del DOM (lo setea el script
+ * inline antes de hidratar), así que se lee con useSyncExternalStore.
+ */
+
+const STORAGE_KEY = "simon-calm";
+
+function subscribe(onChange: () => void) {
+  const observer = new MutationObserver(onChange);
+  observer.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ["data-calm"],
+  });
+  return () => observer.disconnect();
+}
+
+function getSnapshot() {
+  return document.documentElement.hasAttribute("data-calm");
+}
+
+export function CalmToggle() {
+  const calm = useSyncExternalStore(subscribe, getSnapshot, () => false);
+
+  function toggle() {
+    const next = !calm;
+    if (next) {
+      document.documentElement.setAttribute("data-calm", "");
+    } else {
+      document.documentElement.removeAttribute("data-calm");
+    }
+    try {
+      localStorage.setItem(STORAGE_KEY, next ? "1" : "0");
+    } catch {
+      // sin localStorage (modo privado): el toggle vale solo para esta visita
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      aria-pressed={calm}
+      className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-stone-300 px-3 text-sm font-medium text-stone-700 hover:border-stone-500 dark:border-stone-700 dark:text-stone-300 dark:hover:border-stone-500"
+    >
+      {/* Media luna geométrica */}
+      <svg
+        viewBox="0 0 24 24"
+        fill={calm ? "currentColor" : "none"}
+        stroke="currentColor"
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+        className="size-4 shrink-0"
+      >
+        <path d="M20 14.5A8.5 8.5 0 0 1 9.5 4 8.5 8.5 0 1 0 20 14.5z" />
+      </svg>
+      Modo calma
+    </button>
+  );
+}

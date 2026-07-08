@@ -1,0 +1,52 @@
+{
+  "name": "simon",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "crisis-suite": "tsx scripts/crisis-suite.ts",
+    "rate-limit-suite": "tsx scripts/rate-limit-suite.ts",
+    "moderation-suite": "tsx scripts/moderation-suite.ts",
+    "guardian-suite": "tsx scripts/guardian-suite.ts",
+    "alerts-suite": "tsx scripts/alerts-suite.ts",
+    "memory-suite": "tsx scripts/memory-suite.ts",
+    "db:seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@ai-sdk/openai-compatible": "^3.0.6",
+    "@ai-sdk/react": "^4.0.19",
+    "@prisma/adapter-better-sqlite3": "^7.8.0",
+    "@prisma/client": "^7.8.0",
+    "ai": "^7.0.18",
+    "better-auth": "^1.6.23",
+    "next": "16.2.10",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "resend": "^6.17.1",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "dotenv": "^17.4.2",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.10",
+    "prisma": "^7.8.0",
+    "tailwindcss": "^4",
+    "tsx": "^4.23.0",
+    "typescript": "^5"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/engines",
+      "prisma",
+      "@prisma/client",
+      "better-sqlite3"
+    ]
+  }
+}
