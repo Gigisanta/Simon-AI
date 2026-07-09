@@ -222,20 +222,42 @@ export function resolveUnmoderatedOutput(
 }
 
 /**
+ * Derivación LIVIANA para el tier "riesgo" (angustia moderada, sin peligro
+ * inmediato). No es el bloque de emergencia completo (CRISIS_RESOURCES_AR):
+ * volcar 911 + línea del suicida + 137 + 144 ante una soledad o un agobio sin
+ * riesgo inminente resultaba frío y alarmista (hallazgo del QA de consistencia).
+ * Se mantiene una red real —adulto de confianza + Línea 102 (niñez y
+ * adolescencia)— con tono cálido. Las señales fuertes (crisis/abuso) NO pasan
+ * por acá: se resuelven con plantilla fija y su bloque completo de recursos.
+ */
+export const RIESGO_DERIVATION_AR =
+  "Si querés hablar con alguien más, podés apoyarte en un adulto de confianza (un familiar, un/a docente) y también está la Línea 102, gratuita y pensada para chicas, chicos y adolescentes.";
+
+/**
  * Instrucción extra que se antepone cuando se detecta angustia elevada
- * ("riesgo"): el modelo SÍ responde, pero debe priorizar contención +
- * derivación, sin dar consejos clínicos. Crisis/abuso/alimentario no llegan
- * acá porque se resuelven con plantilla fija.
+ * ("riesgo"): el modelo SÍ responde, priorizando CALIDEZ y una derivación
+ * liviana, sin dar consejos clínicos. Crisis/abuso/alimentario no llegan acá
+ * (se resuelven con plantilla fija); el camino no-"riesgo" queda como defensa
+ * por si en el futuro se invoca con otra señal.
  */
 export function crisisSystemAddendum(flag: Exclude<SafetyFlag, null>): string {
+  if (flag === "riesgo") {
+    return `ATENCIÓN: el último mensaje muestra angustia elevada (soledad, agobio, tristeza fuerte) SIN señales de peligro inmediato. En tu respuesta DEBÉS:
+1. Ante todo, validar la emoción con calidez y cercanía: que se sienta escuchada/o, no evaluada/o. La contención va primero.
+2. Recordar con suavidad que sos una IA y no un profesional, y que compartir esto con una persona adulta de confianza ayuda.
+3. Ofrecer, de forma cálida y NADA alarmista, esta derivación liviana (NO enumeres teléfonos de emergencia ni líneas de crisis):
+${RIESGO_DERIVATION_AR}
+4. NO dar técnicas, diagnósticos ni promesas ("todo va a estar bien").
+5. Mantener la respuesta corta, humana y centrada en la persona, no en los recursos.`;
+  }
+  // Camino defensivo (no usado en prod: estas señales van por plantilla fija):
+  // señal fuerte → recursos de emergencia completos.
   const senal =
     flag === "crisis"
       ? "posible ideación suicida o autolesión"
       : flag === "abuso"
         ? "posible situación de abuso o violencia"
-        : flag === "alimentario"
-          ? "posible trastorno alimentario"
-          : "angustia elevada";
+        : "posible trastorno alimentario";
   return `ATENCIÓN: el último mensaje contiene señales de ${senal}. En tu respuesta DEBÉS:
 1. Validar la emoción con calidez, sin dramatizar ni minimizar.
 2. Decir con claridad que no sos un profesional y que esto es importante hablarlo con una persona adulta de confianza y con profesionales.

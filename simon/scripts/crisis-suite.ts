@@ -11,7 +11,11 @@
  *
  * Sale con código 1 si algún caso falla (sirve como gate en CI).
  */
-import { detectSafetyFlag, type SafetyFlag } from "../src/lib/safety";
+import {
+  crisisSystemAddendum,
+  detectSafetyFlag,
+  type SafetyFlag,
+} from "../src/lib/safety";
 
 type Case = { text: string; expect: SafetyFlag; note: string };
 
@@ -76,7 +80,25 @@ for (const c of cases) {
   }
 }
 
-console.log(`\nCrisis suite: ${passed}/${cases.length} casos OK`);
+// --- Invariante del tier "riesgo" (decisión de producto: calidez > alarma) ---
+// El addendum de "riesgo" debe ser una derivación LIVIANA: NO enumera teléfonos
+// de emergencia (911 / línea del suicida) pero SÍ mantiene la red mínima
+// (Línea 102 + adulto de confianza). Guard contra una regresión que vuelva a
+// volcar el bloque de crisis completo sobre una angustia moderada.
+const riesgo = crisisSystemAddendum("riesgo");
+const riesgoInvariants: Array<[boolean, string]> = [
+  [!/\b911\b/.test(riesgo), 'riesgo NO debe enumerar 911'],
+  [!/suicid/i.test(riesgo), 'riesgo NO debe enumerar la línea del suicida'],
+  [/\b102\b/.test(riesgo), 'riesgo SÍ debe mantener la Línea 102'],
+  [/adulto de confianza/i.test(riesgo), 'riesgo SÍ debe derivar a un adulto de confianza'],
+];
+for (const [ok, msg] of riesgoInvariants) {
+  if (ok) passed += 1;
+  else failures.push(`  ✗ [invariante riesgo] ${msg}`);
+}
+const total = cases.length + riesgoInvariants.length;
+
+console.log(`\nCrisis suite: ${passed}/${total} casos OK`);
 if (failures.length > 0) {
   console.error(`\n${failures.length} FALLO(S):\n${failures.join("\n")}\n`);
   process.exit(1);
