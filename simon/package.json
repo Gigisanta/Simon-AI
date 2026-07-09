@@ -10,6 +10,7 @@
     "crisis-suite": "tsx scripts/crisis-suite.ts",
     "rate-limit-suite": "tsx scripts/rate-limit-suite.ts",
     "moderation-suite": "tsx scripts/moderation-suite.ts",
+    "retrieval-suite": "tsx scripts/retrieval-suite.ts",
     "guardian-suite": "tsx scripts/guardian-suite.ts",
     "alerts-suite": "tsx scripts/alerts-suite.ts",
     "memory-suite": "tsx scripts/memory-suite.ts",
