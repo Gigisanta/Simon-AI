@@ -35,17 +35,20 @@ export function AuthForm() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
   function switchAudience(next: Audience) {
     setAudience(next);
     setMode("signin");
     setError(null);
+    setNotice(null);
   }
 
   async function handleSubmit(e: { preventDefault(): void }) {
     e.preventDefault();
     setError(null);
+    setNotice(null);
     setPending(true);
     try {
       let res;
@@ -64,7 +67,7 @@ export function AuthForm() {
         setError(null);
         setMode("signin");
         setPassword("");
-        alert(
+        setNotice(
           "Te enviamos un email para verificar tu cuenta. Confirmalo y después iniciá sesión.",
         );
       } else {
@@ -114,6 +117,12 @@ export function AuthForm() {
           ? "Usá el usuario y la contraseña que te dio tu tutor/a."
           : "Simón — un espacio para hablar y aprender."}
       </p>
+
+      {notice && (
+        <div className="mt-4 rounded-2xl border border-brand/40 bg-brand-soft p-3 text-sm text-brand-strong">
+          {notice}
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-3">
         {audience === "adult" && mode === "signup" && (
@@ -189,6 +198,7 @@ export function AuthForm() {
           onClick={() => {
             setMode(mode === "signin" ? "signup" : "signin");
             setError(null);
+            setNotice(null);
           }}
           className="mt-2 inline-flex min-h-11 items-center text-sm font-semibold text-brand-strong underline-offset-2 hover:underline"
         >

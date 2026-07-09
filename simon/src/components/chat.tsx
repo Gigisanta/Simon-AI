@@ -1,7 +1,7 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport } from "ai";
+import { DefaultChatTransport, type UIMessage } from "ai";
 import { useEffect, useRef, useState } from "react";
 import { MoodChips } from "@/components/mood-chips";
 import { SessionTimer } from "@/components/session-timer";
@@ -10,6 +10,25 @@ import { SESSION_WARN_APPENDIX } from "@/lib/session-limit";
 
 /** El aviso de pausa lo emite el server (session-limit); acá solo se detecta. */
 const WARN_MARKER = SESSION_WARN_APPENDIX.trim();
+
+/** Conversación previa que se puede retomar (la devuelve /api/chat/resume). */
+type Resumable = {
+  id: string;
+  updatedAt: string;
+  messages: { id: string; role: string; content: string }[];
+};
+
+/** Fecha relativa en es-AR: "hace 2 horas", "ayer". */
+function relativeTime(iso: string): string {
+  const rtf = new Intl.RelativeTimeFormat("es-AR", { numeric: "auto" });
+  const diffSec = Math.round((new Date(iso).getTime() - Date.now()) / 1000);
+  const abs = Math.abs(diffSec);
+  if (abs < 60) return rtf.format(diffSec, "second");
+  if (abs < 3600) return rtf.format(Math.round(diffSec / 60), "minute");
+  if (abs < 86400) return rtf.format(Math.round(diffSec / 3600), "hour");
+  if (abs < 2592000) return rtf.format(Math.round(diffSec / 86400), "day");
+  return rtf.format(Math.round(diffSec / 2592000), "month");
+}
 
 const quickStartIconProps = {
   viewBox: "0 0 24 24",
@@ -93,9 +112,45 @@ export function Chat() {
       }),
   );
 
-  const { messages, sendMessage, status, error } = useChat({
+  const { messages, sendMessage, setMessages, status, error } = useChat({
     transport,
   });
+
+  // Retomar conversación: al montar con el chat vacío, se consulta la última
+  // conversación. Falla silenciosa → estado sin resume (nunca rompe el chat).
+  const [resumable, setResumable] = useState<Resumable | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/chat/resume", { cache: "no-store" });
+        if (!res.ok) return;
+        const data = (await res.json()) as { resumable?: Resumable | null };
+        if (!cancelled && data?.resumable) setResumable(data.resumable);
+      } catch {
+        // sin resume
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // La elección es explícita: nunca se reinyecta el historial en silencio
+  // (control del chico sobre retomar un tema sensible).
+  function handleResume() {
+    if (!resumable) return;
+    const uiMessages: UIMessage[] = resumable.messages
+      .filter((m) => m.role === "user" || m.role === "assistant")
+      .map((m) => ({
+        id: m.id,
+        role: m.role as UIMessage["role"],
+        parts: [{ type: "text", text: m.content }],
+      }));
+    setMessages(uiMessages);
+    conversationIdRef.current = resumable.id;
+    setResumable(null);
+  }
 
   useEffect(() => {
     // Sin mensajes no hay nada que seguir: evita dejar el empty state
@@ -163,10 +218,41 @@ export function Chat() {
         >
           {messages.length === 0 && (
             <div className="my-auto flex flex-col items-center gap-7 py-8">
+              {resumable && (
+                <div className="w-full max-w-sm rounded-card bg-card p-4 text-center shadow-[0_10px_30px_-12px_rgb(57_53_41/0.15)]">
+                  <p className="text-base font-bold text-ink">
+                    ¿Seguimos donde quedamos?
+                  </p>
+                  <p className="mt-1 text-sm text-ink-soft">
+                    Tu última charla fue {relativeTime(resumable.updatedAt)}.
+                  </p>
+                  <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:justify-center">
+                    <button
+                      type="button"
+                      onClick={handleResume}
+                      className="min-h-11 rounded-full bg-brand px-5 text-sm font-bold text-brand-fg transition-colors hover:bg-brand-strong"
+                    >
+                      Continuar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setResumable(null)}
+                      className="min-h-11 rounded-full border border-line px-5 text-sm font-bold text-ink transition-colors hover:bg-sand"
+                    >
+                      Empezar de nuevo
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div className="flex flex-col items-center gap-3">
                 <SimonAvatar className="size-14" />
                 <p className="max-w-sm text-center text-base text-ink">
                   Hola, soy Simón. ¿De qué querés hablar hoy?
+                </p>
+                <p className="max-w-sm text-center text-sm text-ink-soft">
+                  No hace falta que cuentes datos personales. Si veo que estás en
+                  peligro, aviso a tu tutor/a para que te cuiden.
                 </p>
               </div>
 
@@ -223,8 +309,8 @@ export function Chat() {
               <div
                 className={
                   m.role === "user"
-                    ? "rounded-2xl rounded-br-sm bg-peach px-4 py-2.5 text-base text-ink"
-                    : "rounded-2xl rounded-bl-sm bg-brand-soft px-4 py-2.5 text-base text-ink"
+                    ? "rounded-2xl rounded-br-sm bg-peach px-4 py-2.5 text-base leading-relaxed text-ink"
+                    : "rounded-2xl rounded-bl-sm bg-brand-soft px-4 py-2.5 text-base leading-relaxed text-ink"
                 }
               >
                 {m.parts.map((part, i) =>

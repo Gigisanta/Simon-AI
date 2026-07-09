@@ -204,7 +204,7 @@ export function LearnExplorer({ cards }: { cards: KnowledgeCardRow[] }) {
                 Contenido en revisión profesional
               </span>
             )}
-            <p className="mt-4 whitespace-pre-wrap text-base text-ink">
+            <p className="mt-4 whitespace-pre-wrap text-base leading-relaxed text-ink">
               {selected.body.split("\n").map((line, i, arr) => {
                 // "Etiqueta: texto" -> etiqueta en negrita para escaneo rápido
                 const m = line.match(/^([A-ZÁÉÍÓÚ][^:]{0,30}):\s/);
