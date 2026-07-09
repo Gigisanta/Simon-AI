@@ -1,15 +1,18 @@
 import {
-  convertToModelMessages,
   createUIMessageStream,
   createUIMessageStreamResponse,
   generateText,
+  type ModelMessage,
   type UIMessage,
 } from "ai";
 import { after } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { aiConfigured, chatModel, generationTimeoutMs } from "@/lib/ai/provider";
-import { sanitizeClientMessages } from "@/lib/chat-messages";
+import {
+  historyToModelMessages,
+  lastClientUserMessage,
+} from "@/lib/chat-messages";
 import {
   buildSystemPrompt,
   selectRelevantCards,
@@ -126,21 +129,12 @@ export async function POST(req: Request) {
   if (!Array.isArray(body.messages)) {
     return Response.json({ error: "messages debe ser una lista" }, { status: 400 });
   }
-  // Anti-injection (H2): del historial del cliente SOLO se conservan turnos
-  // "user"/"assistant"; un role "system"/"tool" fabricado por el cliente
-  // rodearía toda la defensa (system prompt, addendum de contención, moderación).
-  // El system prompt lo arma siempre el servidor. Después se recorta la ventana.
-  const rawMessages = body.messages as UIMessage[];
-  const messages = sanitizeClientMessages(rawMessages, MAX_HISTORY_MESSAGES);
-  const droppedByRole = rawMessages.filter(
-    (m) => m?.role !== "user" && m?.role !== "assistant",
-  ).length;
-  if (droppedByRole > 0) {
-    console.warn(
-      `[chat] descartados ${droppedByRole} mensaje(s) del cliente con role no permitido (anti-injection)`,
-    );
-  }
-  const lastUser = [...messages].reverse().find((m) => m.role === "user");
+  // Anti-injection / anti-priming (H2 → F1): del body del cliente se toma SOLO
+  // el ÚLTIMO mensaje con role "user". Todo lo demás (turnos assistant
+  // fabricables para primear al modelo, users previos que la moderación de
+  // entrada nunca vería, roles system/tool inyectados) se IGNORA: el contexto
+  // conversacional lo reconstruye el servidor desde la DB más abajo.
+  const lastUser = lastClientUserMessage(body.messages as UIMessage[]);
   const userText = lastUser ? messageText(lastUser) : "";
   if (!userText.trim()) {
     return Response.json({ error: "Mensaje vacío" }, { status: 400 });
@@ -163,6 +157,23 @@ export async function POST(req: Request) {
       select: { id: true },
     });
     if (!owned) conversationId = null; // nunca escribir en conversaciones ajenas
+  }
+  // --- F1: el contexto conversacional es del SERVIDOR ---
+  // Si la conversación ya existía (y es del usuario), el historial se carga
+  // desde la DB — mensajes reales que este mismo servidor persistió — ANTES de
+  // guardar el mensaje nuevo (así no se duplica). El modelo verá
+  // [historial de DB] + [último mensaje user del cliente]; el array que mande
+  // el cliente jamás llega al modelo.
+  let dbHistory: ModelMessage[] = [];
+  if (conversationId) {
+    const rows = await prisma.message.findMany({
+      where: { conversationId },
+      orderBy: { createdAt: "desc" }, // los últimos N...
+      take: MAX_HISTORY_MESSAGES,
+      select: { role: true, content: true },
+    });
+    // ...en orden cronológico para el modelo.
+    dbHistory = historyToModelMessages(rows.reverse(), MAX_HISTORY_MESSAGES);
   }
   if (!conversationId) {
     const created = await prisma.conversation.create({
@@ -362,18 +373,13 @@ export async function POST(req: Request) {
   const systemForParallel =
     regexFlag === "riesgo" ? baseSystem + riesgoAddendum : baseSystem;
 
-  // Conversión defensiva: mensajes malformados → 400, nunca 500.
-  // Tipo explícito: `modelMessages` se captura en el closure generateReply, así
-  // que TS no puede inferirlo desde el punto de asignación (quedaría implicit any).
-  let modelMessages: Awaited<ReturnType<typeof convertToModelMessages>>;
-  try {
-    modelMessages = await convertToModelMessages(messages);
-  } catch {
-    return Response.json(
-      { error: "Formato de mensajes inválido" },
-      { status: 400 },
-    );
-  }
+  // Mensajes para el modelo (F1): historial reconstruido desde la DB + el
+  // único mensaje del cliente que se acepta (userText, ya validado, moderado y
+  // persistido). Strings planos: UserContent/AssistantContent los aceptan.
+  const modelMessages: ModelMessage[] = [
+    ...dbHistory,
+    { role: "user", content: userText },
+  ];
 
   // Genera la respuesta completa (no streaming) para poder moderar la salida
   // ANTES de mostrarla. Nunca lanza: envuelve el error en un sentinel para que

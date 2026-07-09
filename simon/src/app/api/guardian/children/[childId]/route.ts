@@ -10,9 +10,9 @@
  * - Solo el tutor/a del menor: si el childId no es un menor SUYO → 404 (nunca
  *   se revela si la cuenta existe).
  * - DELETE exige `{ confirm: true }` literal en el body (400 si falta).
- * - Las relaciones tienen onDelete: Cascade en schema + migraciones, y el
- *   runtime corre con PRAGMA foreign_keys=ON (verificado); igual se re-verifica
- *   post-borrado que no queden restos.
+ * - Las relaciones tienen onDelete: Cascade en schema + migraciones; la DB es
+ *   Postgres (Neon), que aplica las FK con ON DELETE CASCADE siempre; igual se
+ *   re-verifica post-borrado que no queden restos.
  */
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";

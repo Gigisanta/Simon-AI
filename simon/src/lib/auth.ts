@@ -8,13 +8,19 @@ import {
   isChildEmail,
 } from "@/lib/guardian";
 import { assertProdEnv } from "@/lib/env-check";
+import { upstashSecondaryStorage } from "@/lib/auth-secondary-storage";
 
 // Bootstrap: en producción valida la config mínima al primer import
 // server-side (lanza si faltan BETTER_AUTH_SECRET / BETTER_AUTH_URL https).
 assertProdEnv();
 
+// F3 (A1): con env de Upstash, el rate limit de better-auth pasa a storage
+// COMPARTIDO entre instancias (ver lib/auth-secondary-storage.ts). Sin env,
+// undefined → comportamiento actual intacto (memory por instancia).
+const secondaryStorage = upstashSecondaryStorage();
+
 export const auth = betterAuth({
-  database: prismaAdapter(prisma, { provider: "sqlite" }),
+  database: prismaAdapter(prisma, { provider: "postgresql" }),
   // CSRF/origen: solo se confía en el origin propio de la app (B2).
   trustedOrigins: process.env.BETTER_AUTH_URL
     ? [process.env.BETTER_AUTH_URL]
@@ -92,28 +98,29 @@ export const auth = betterAuth({
       await deliverVerificationEmail(user.email, url);
     },
   },
+  // F3 (A1): secondaryStorage global solo si hay Upstash. Con él, better-auth
+  // movería las sesiones a Redis; `storeSessionInDatabase: true` lo evita:
+  // Postgres sigue siendo la fuente de verdad de las sesiones (un miss o caída
+  // de Redis cae a la DB — internal-adapter de better-auth 1.6) y Redis queda
+  // para lo que se busca acá: el rate limit compartido.
+  ...(secondaryStorage ? { secondaryStorage } : {}),
   session: {
     expiresIn: 60 * 60 * 24 * 7, // 7 días
     updateAge: 60 * 60 * 24,
+    ...(secondaryStorage ? { storeSessionInDatabase: true } : {}),
   },
   // Frena brute-force de contraseñas y spam de registros.
   // (better-auth lo activa solo en producción por defecto; acá es explícito
   // y con ventana más estricta para los endpoints sensibles.)
   //
-  // GAP DOCUMENTADO (A1): este rate limit usa el storage "memory" de
-  // better-auth (por instancia). La alternativa 1.6 es
-  // `rateLimit.storage: "secondary-storage"`, pero exige configurar
-  // `secondaryStorage` GLOBAL, y better-auth entonces también mueve las
-  // SESIONES a ese storage — un cambio de comportamiento demasiado invasivo
-  // para colarlo por el rate limiting (no es "limpio"). El rate limiting de
-  // la APP (lib/rate-limit.ts) sí es compartido vía Upstash cuando hay env;
-  // para better-auth queda memory + este comentario. Si algún día se adopta
-  // secondaryStorage (Redis) de forma deliberada, activar acá
-  // `storage: "secondary-storage"`.
+  // A1: con Upstash configurado (secondaryStorage) el contador es COMPARTIDO
+  // entre instancias serverless ("secondary-storage"); sin env queda el
+  // storage "memory" por instancia, como antes.
   rateLimit: {
     enabled: true,
     window: 60,
     max: 30,
+    ...(secondaryStorage ? { storage: "secondary-storage" as const } : {}),
     customRules: {
       "/sign-in/email": { window: 60, max: 5 },
       "/sign-up/email": { window: 60, max: 3 },

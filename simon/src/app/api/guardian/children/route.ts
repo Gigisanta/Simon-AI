@@ -27,15 +27,14 @@ import { z } from "zod";
 // Alta de menores: acotado por tutor/a (evita scripting de creación masiva).
 const CREATE_RATE_LIMIT_PER_MINUTE = 10;
 
-/** IP del cliente: primer valor de x-forwarded-for, o x-real-ip. */
+/** IP del cliente (evidencia de consentimiento, F5). */
 function clientIp(req: Request): string | null {
-  const xff = req.headers.get("x-forwarded-for");
-  if (xff) {
-    const first = xff.split(",")[0]?.trim();
-    if (first) return first;
-  }
+  // x-real-ip lo setea Vercel (no spoofeable por el cliente); x-forwarded-for
+  // puede traer valores inyectados antes del proxy, así que es solo fallback.
   const real = req.headers.get("x-real-ip");
-  return real ? real.trim() : null;
+  if (real?.trim()) return real.trim();
+  const first = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+  return first || null;
 }
 
 export async function POST(req: Request) {
