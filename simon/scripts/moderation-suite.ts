@@ -58,6 +58,11 @@ const mapCases: MapCase[] = [
   { categories: ["violence", "self-harm"], expect: "crisis", note: "crisis gana a riesgo" },
   { categories: ["harassment", "sexual/minors"], expect: "abuso", note: "abuso gana a riesgo" },
   { categories: ["self-harm", "sexual/minors"], expect: "crisis", note: "crisis gana a abuso" },
+  { categories: ["self-harm/instructions", "sexual/minors", "violence"], expect: "crisis", note: "mezcla triple → crisis gana" },
+  { categories: ["harassment", "violence", "hate"], expect: "riesgo", note: "varias no-graves → riesgo" },
+  // límites del set de crisis: SOLO self-harm, /intent y /instructions son crisis
+  { categories: ["self-harm/ideation"], expect: "riesgo", note: "variante /ideation NO listada → riesgo" },
+  { categories: ["Self-Harm"], expect: "riesgo", note: "case-sensitive: 'Self-Harm' no matchea → riesgo (conservador)" },
   // sin categorías → null
   { categories: [], expect: null, note: "nada flaggeado → null" },
 ];
@@ -162,6 +167,36 @@ const llmParseCases: LlmParseCase[] = [
     raw: '{"flagged": true, "category": "banana"}',
     expect: { available: true, flagged: true, mappedFlag: "riesgo", source: "llm" },
     note: "flaggeado con categoría inesperada → conservador: riesgo",
+  },
+  {
+    raw: '{"flagged": true, "category": "none"}',
+    expect: { available: true, flagged: true, mappedFlag: "riesgo", source: "llm" },
+    note: "flagged=true con 'none' → conservador: riesgo (no se descarta la señal)",
+  },
+  {
+    raw: '{"flagged": true, "category": null}',
+    expect: { available: true, flagged: true, mappedFlag: "riesgo", source: "llm" },
+    note: "category null (no-string) + flagged → conservador: riesgo",
+  },
+  {
+    raw: '{"flagged": true}',
+    expect: { available: true, flagged: true, mappedFlag: "riesgo", source: "llm" },
+    note: "sin category + flagged → conservador: riesgo",
+  },
+  {
+    raw: '{"flagged": "true", "category": "self-harm"}',
+    expect: { available: false, flagged: false, mappedFlag: null, source: "none" },
+    note: "flagged string (no booleano) → available:false (no se confía)",
+  },
+  {
+    raw: "   \n\t  ",
+    expect: { available: false, flagged: false, mappedFlag: null, source: "none" },
+    note: "solo whitespace → available:false",
+  },
+  {
+    raw: '{"flagged":false}{"flagged":true,"category":"self-harm"}',
+    expect: { available: false, flagged: false, mappedFlag: null, source: "none" },
+    note: "dos objetos JSON: el match greedy rompe el parse → available:false (fail-safe)",
   },
 ];
 
