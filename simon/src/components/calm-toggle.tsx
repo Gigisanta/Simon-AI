@@ -50,7 +50,8 @@ export function CalmToggle() {
       type="button"
       onClick={toggle}
       aria-pressed={calm}
-      className={`inline-flex min-h-11 items-center gap-1.5 rounded-full border px-4 text-sm font-bold transition-colors ${
+      aria-label="Modo calma"
+      className={`inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-sm font-bold transition-colors lg:px-4 ${
         calm
           ? "border-brand bg-brand-soft text-brand-strong"
           : "border-line bg-card text-ink-soft hover:border-brand hover:text-brand-strong"
@@ -69,7 +70,8 @@ export function CalmToggle() {
       >
         <path d="M20 14.5A8.5 8.5 0 0 1 9.5 4 8.5 8.5 0 1 0 20 14.5z" />
       </svg>
-      Modo calma
+      {/* Icon-only en pantallas chicas: el aria-label mantiene el nombre accesible */}
+      <span className="hidden lg:inline">Modo calma</span>
     </button>
   );
 }

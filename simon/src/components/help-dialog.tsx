@@ -25,7 +25,7 @@ export function HelpDialog() {
       <button
         type="button"
         onClick={() => dialogRef.current?.showModal()}
-        className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-brand/40 bg-brand-soft px-4 text-sm font-bold text-brand-strong transition-colors hover:bg-brand hover:text-brand-fg"
+        className="inline-flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-brand/40 bg-brand-soft px-3 text-sm font-bold text-brand-strong transition-colors hover:bg-brand hover:text-brand-fg lg:px-4"
       >
         {/* Salvavidas geométrico */}
         <svg
@@ -40,7 +40,9 @@ export function HelpDialog() {
           <circle cx="12" cy="12" r="4" />
           <path d="M5.6 5.6 9 9M15 15l3.4 3.4M18.4 5.6 15 9M9 15l-3.4 3.4" />
         </svg>
-        ¿Necesitás ayuda urgente?
+        {/* Label compacta en pantallas chicas para que el header entre en una fila */}
+        <span className="lg:hidden">Ayuda</span>
+        <span className="hidden lg:inline">Ayuda urgente</span>
       </button>
 
       <dialog

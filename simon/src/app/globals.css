@@ -25,14 +25,30 @@
   --color-brand: #5a7f61;
   --color-brand-strong: #4a6a50;
   --color-brand-soft: #d9eede;
+  --color-brand-ill: #7fa184;
   --color-brand-fg: #fdfcf8;
   --color-accent: #e2a983;
   --color-accent-deep: #503223;
+  --color-terra: #a85a28;
   --color-peach: #fbe7d8;
+  --color-blush: #f2c4a7;
   --color-sky: #c2e0f2;
   --color-sky-strong: #5b8caf;
   --color-danger: #d9544b;
   --radius-card: 1.25rem;
+
+  /* Tints de feature cards (36px, sin borde) */
+  --color-peach-tint: #fbe9dc;
+  --color-green-tint: #e4f1e6;
+  --color-sky-tint: #e3eff8;
+
+  /* Colores por categoría de ficha (/aprender): kicker + arco izquierdo, AA sobre blanco */
+  --color-neuro: #6d5bd0;
+  --color-intel: #3a7d54;
+  --color-motora: #c14b43;
+  --color-sensorial: #b8447a;
+  --color-pocofrec: #a06b14;
+  --color-tramites: #46708c;
 }
 
 @theme inline {
@@ -41,8 +57,14 @@
   --font-sans: var(--font-nunito);
 }
 
+/* Fallback detrás del gradiente fixed (iOS Safari lo ignora en scroll largo) */
+html {
+  background: var(--color-cream);
+}
+
 body {
-  background: var(--background);
+  /* Wash vertical de fondo (design system): cálido -> verde suave -> cálido */
+  background: linear-gradient(180deg, #f7f2e5 0%, #eef0dd 45%, #f6efe2 100%) fixed;
   color: var(--foreground);
   font-family: var(--font-nunito), ui-sans-serif, system-ui, sans-serif;
 }

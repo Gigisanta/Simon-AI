@@ -1,0 +1,124 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { CalmToggle } from "@/components/calm-toggle";
+import { HelpDialog } from "@/components/help-dialog";
+import { SimonAvatar } from "@/components/simon-avatar";
+import { authClient, useSession } from "@/lib/auth-client";
+
+const iconProps = {
+  viewBox: "0 0 24 24",
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: 2,
+  strokeLinecap: "round",
+  strokeLinejoin: "round",
+  "aria-hidden": true,
+} as const;
+
+function ChatIcon({ className = "size-4" }: { className?: string }) {
+  return (
+    <svg {...iconProps} className={`shrink-0 ${className}`}>
+      <path d="M21 11.5a8.4 8.4 0 0 1-8.4 8.4 8.3 8.3 0 0 1-3.8-.9L3 21l1.9-5.8a8.3 8.3 0 0 1-.9-3.8A8.4 8.4 0 0 1 12.5 3a8.4 8.4 0 0 1 8.4 8.4Z" />
+    </svg>
+  );
+}
+
+function LearnIcon({ className = "size-4" }: { className?: string }) {
+  return (
+    <svg {...iconProps} className={`shrink-0 ${className}`}>
+      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z" />
+    </svg>
+  );
+}
+
+function TutorIcon({ className = "size-4" }: { className?: string }) {
+  return (
+    <svg {...iconProps} className={`shrink-0 ${className}`}>
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4 21c0-4 3.6-7 8-7s8 3 8 7" />
+    </svg>
+  );
+}
+
+/** Ítems del nav compartidos entre el pill de escritorio y la bottom-nav mobile. */
+export const NAV_ITEMS: {
+  href: string;
+  label: string;
+  Icon: React.ComponentType<{ className?: string }>;
+  guardianOnly?: boolean;
+}[] = [
+  { href: "/", label: "Chat", Icon: ChatIcon },
+  { href: "/aprender", label: "Aprender", Icon: LearnIcon, guardianOnly: true },
+  { href: "/tutor", label: "Tutor", Icon: TutorIcon, guardianOnly: true },
+];
+
+export function SiteHeader() {
+  const pathname = usePathname();
+  const { data: session } = useSession();
+  const isGuardian = session?.user.role === "guardian";
+  const items = NAV_ITEMS.filter((item) => !item.guardianOnly || isGuardian);
+
+  return (
+    <header className="sticky top-0 z-40 border-b border-line/70 bg-card/80 px-3 shadow-[0_1px_3px_rgb(0_0_0/0.1),0_1px_2px_-1px_rgb(0_0_0/0.1)] backdrop-blur sm:px-4">
+      {/* Una sola fila SIEMPRE: nada wrappea ni solapa contenido de la página */}
+      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-2 md:h-16">
+        <Link href="/" className="flex shrink-0 items-center gap-2.5">
+          <SimonAvatar className="size-9 md:size-10" />
+          <span className="flex flex-col leading-tight">
+            <span className="text-lg font-extrabold text-ink">Simón</span>
+            <span className="hidden text-xs text-ink-soft md:inline">
+              Acompañamos cada paso
+            </span>
+          </span>
+        </Link>
+
+        <div className="flex min-w-0 items-center gap-1.5 md:gap-2">
+          {/* Nav pill solo en desktop: en mobile navega el bottom-nav */}
+          <nav
+            aria-label="Navegación principal"
+            className="hidden shrink-0 items-center gap-1 rounded-full border border-line/70 bg-card/80 p-1 shadow-sm md:flex"
+          >
+            {items.map((item) => {
+              const active = pathname === item.href;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  aria-current={active ? "page" : undefined}
+                  className={`flex min-h-11 items-center gap-1.5 whitespace-nowrap rounded-full px-4 text-sm font-bold transition-colors ${
+                    active
+                      ? "bg-brand text-brand-fg"
+                      : "text-ink-soft hover:text-ink"
+                  }`}
+                >
+                  <item.Icon />
+                  {item.label}
+                </Link>
+              );
+            })}
+          </nav>
+
+          <HelpDialog />
+          <CalmToggle />
+          {session && (
+            <span className="hidden max-w-[10rem] truncate text-sm text-ink-soft lg:inline">
+              {session.user.name || session.user.email}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={() =>
+              void authClient.signOut().then(() => window.location.reload())
+            }
+            className="inline-flex min-h-11 shrink-0 items-center px-2 text-sm font-semibold text-ink-soft underline-offset-2 hover:text-ink hover:underline"
+          >
+            Salir
+          </button>
+        </div>
+      </div>
+    </header>
+  );
+}

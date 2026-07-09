@@ -83,7 +83,7 @@ export function AuthForm() {
     }`;
 
   return (
-    <div className="w-full max-w-sm mx-auto rounded-card border border-line bg-card p-6 shadow-sm">
+    <div className="w-full max-w-sm mx-auto rounded-card border border-line bg-card p-6 shadow-[0_10px_30px_-12px_rgb(57_53_41/0.15)]">
       {/* --- Tabs de audiencia --- */}
       <div className="mb-5 flex gap-1 rounded-full bg-sand p-1">
         <button

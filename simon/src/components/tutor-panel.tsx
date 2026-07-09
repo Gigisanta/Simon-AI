@@ -262,7 +262,7 @@ export function TutorPanel({
       </section>
 
       {/* --- Alta de menor + consentimiento --- */}
-      <section className="mt-8 rounded-card border border-line bg-card p-6 shadow-sm">
+      <section className="mt-8 rounded-card border border-line bg-card p-6 shadow-[0_10px_30px_-12px_rgb(57_53_41/0.15)]">
         <h2 className="text-lg font-extrabold text-ink">Dar de alta a un menor</h2>
 
         <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-3">

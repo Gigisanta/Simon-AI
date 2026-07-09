@@ -98,7 +98,7 @@ export function MoodChips({ onPick }: { onPick: (message: string) => void }) {
           type="button"
           aria-label={`Decirle a Simón: ${mood.message}`}
           onClick={() => onPick(mood.message)}
-          className="inline-flex min-h-11 items-center gap-2 rounded-full border border-line bg-white py-1 pl-1.5 pr-4 text-base font-semibold text-ink transition-colors hover:border-brand hover:text-brand-strong"
+          className="inline-flex min-h-11 items-center gap-2 rounded-full border border-line bg-white py-1 pl-1.5 pr-4 text-base font-semibold text-ink shadow-sm transition-[color,border-color,transform,box-shadow] motion-safe:hover:-translate-y-0.5 hover:border-brand hover:text-brand-strong hover:shadow-md"
         >
           <span
             className={`flex size-8 items-center justify-center rounded-full ${mood.circle}`}
