@@ -1,7 +1,7 @@
 # Simón AI — Arquitectura
 
-> Fecha: 2026-07-08 · Estado: **implementado hasta Fase 2 parcial** — ver "Estado de implementación" al final
-> LLM en producción local: DeepSeek V4 Flash REAL vía gateway OpenCode Go (`https://opencode.ai/zen/go/v1`, suscripción $0/token) con `AI_EXTRA_BODY={"thinking":{"type":"disabled"}}` (sin ese param el modelo quema el presupuesto en reasoning y devuelve content vacío)
+> Fecha: 2026-07-09 · Estado: **EN PRODUCCIÓN** en `https://simon-ai-sigma.vercel.app` — ver "Estado de implementación" al final
+> LLM en producción: DeepSeek V4 Flash REAL vía gateway OpenCode Go (`https://opencode.ai/zen/go/v1`, suscripción $0/token) con `AI_EXTRA_BODY={"thinking":{"type":"disabled"}}` (sin ese param el modelo quema el presupuesto en reasoning y devuelve content vacío)
 > Docs complementarios: [research-architecture.md](research-architecture.md) (LLM/RAG/moderación), [research-safety.md](research-safety.md) (protocolo de crisis, regulación, UX para menores — **lectura obligatoria antes de tocar el chat**)
 
 Simón: acompañante emocional con IA para niños y adolescentes (6–18, con y sin discapacidad), español rioplatense, Argentina-first. **No es un terapeuta ni lo simula.** Toda decisión de diseño está subordinada al protocolo de seguridad de `research-safety.md`.
@@ -175,9 +175,11 @@ Prompt por mensaje ≈ 4.5K tokens input (system 1.2K + fichas 1.5K + memoria 0.
 
 ---
 
-## Estado de implementación (2026-07-08, fin de sesión de orquestación)
+## Estado de implementación (2026-07-09 — EN PRODUCCIÓN)
 
-Gate objetivo (desde `simon/`): `pnpm crisis-suite && pnpm moderation-suite && pnpm guardian-suite && pnpm alerts-suite && pnpm memory-suite && pnpm rate-limit-suite && pnpm lint && pnpm build` — **verde tras dos auditorías** (security review + code review con fixes H1/H2/M1/M2/M3/L1/L2/L5 aplicados: anti-injection de roles en historial, sweep del rate limiter por ventana propia, plantilla de crisis inmune a fallos de DB, alta de menor transaccional, timeout de generación).
+**Producción:** `https://simon-ai-sigma.vercel.app` (Vercel proyecto `simon-ai`, team giolivos-projects; deploy por CLI `vercel deploy --prod` desde `simon/` — el push a GitHub NO dispara deploy). DB: Neon managed vía Vercel Marketplace (runtime pooled, migraciones/seed con `DATABASE_URL_UNPOOLED`). 18 fichas seedeadas y actualizadas (Secretaría Nacional de Discapacidad, Decreto 942/2025).
+
+Gate objetivo (desde `simon/`): **`pnpm test`** (runner unificado `scripts/run-suites.ts`: crisis, moderation, memory, guardian, alerts, rate-limit, retrieval — 221 casos) `&& pnpm lint && pnpm build` — **verde tras dos auditorías** (security review + code review con fixes H1/H2/M1/M2/M3/L1/L2/L5 aplicados: anti-injection de roles en historial, sweep del rate limiter por ventana propia, plantilla de crisis inmune a fallos de DB, alta de menor transaccional, timeout de generación). `scripts/conversation-eval.ts` es el harness exploratorio con LLM real (no determinístico, fuera del gate) usado por el loop de QA/entrenamiento.
 
 **Hecho y verificado E2E (curl + Playwright contra dev server real, LLM real):**
 - Chat con DeepSeek V4 Flash real (gateway OpenCode Go, thinking desactivado). Respuestas reales usando fichas (fix de tokenizer para siglas CUD/TEA/TEL).
@@ -187,20 +189,24 @@ Gate objetivo (desde `simon/`): `pnpm crisis-suite && pnpm moderation-suite && p
 - Seguridad post-auditoría: fixes C1/A1/A2/M1/M3/M4/B2 aplicados (Origin check, rate limit Upstash-ready, env bootstrap, delimitadores anti-injection, sin tokens en logs prod).
 - Memoria: resumen lazy de conversación previa (modelo small) + extracción de hechos sin PII + TTL 90 días lazy + inyección delimitada.
 - Sesión: disclosure IA determinístico cada 10 turnos, aviso a los 30 min, cierre suave a los 45 (server-side).
-- UI calm design (stone + teal): chips de check-in emocional, avatar blob sin cara, etiquetas de rol, botón de ayuda permanente con dialog nativo, modo calma persistido, `prefers-reduced-motion`, timer ascendente, AA en contrastes y touch targets. Verificado con screenshots (light/dark/mobile/calma).
+- UI design system "simon-mocha" (spec: [DESIGN-SYSTEM.md](DESIGN-SYSTEM.md)): Nunito, paleta crema/salvia/terracota con gradiente de fondo, logo squircle + ilustración hero, header sticky con nav de píldoras, bottom-nav mobile flotante, chat a viewport fijo (h-dvh + `interactiveWidget: resizes-content` para el teclado), quick-start cards, mood chips, typing indicator, modo calma, AA en contrastes y touch ≥44px. Verificado con screenshots desktop/mobile en prod.
+- `/aprender`: mapa de diagnósticos y trámites con las 18 fichas reales de la DB (filtros por categoría, búsqueda, detalle en dialog con fuente legal y badge de revisión). Solo tutores.
+- Retomar conversación: `GET /api/chat/resume` (auth, sin safetyFlag) + tarjeta "¿Seguimos donde quedamos?" con elección explícita Continuar/Empezar de nuevo.
+- Tier "riesgo" cálido (QA loop): `crisisSystemAddendum("riesgo")` con derivación liviana (adulto de confianza + Línea 102, sin volcar el bloque de emergencia) + invariantes de regresión en crisis-suite. Crisis/abuso/alimentario siguen con plantilla fija intocable.
 - Latencia optimizada: moderación de entrada en paralelo con generación (regeneración solo en el caso raro riesgo-por-API) — p50 medido 5.3s → **3.6s**.
+- Páginas de framework (`error/not-found/loading`), favicon propio, `alert()` eliminados, viewport fix iOS.
 
 **Pendiente (backlog ordenado):**
-1. Deploy producción (Vercel + Neon + Upstash + dominio Resend verificado) — código listo, falta ops. Registrar base ante AAIP.
+1. Dominio propio verificado en Resend + `EMAIL_FROM` (hoy `onboarding@resend.dev`: solo entrega al dueño de la cuenta). Upstash en prod para rate limit distribuido. Registrar base ante AAIP.
 2. `OPENAI_API_KEY` real de OpenAI (gratis, más rápida que el clasificador LLM; la cascada la toma sola al reiniciar).
-3. Resumen semanal de temas al tutor (M-P2 parte 2).
-4. Capa 3 de detección (trayectoria de sentimiento en la sesión, M-S1).
-5. Voice input (Web Speech es-AR), mood-trend del usuario, modo alto contraste, rebrand visual completo (item 12 research-ux).
+3. Resumen semanal de temas al tutor (M-P2 parte 2) y score de riesgo acumulado en el panel (anti "crisis fatigue").
+4. Capa 3 de detección (trayectoria de sentimiento en la sesión, M-S1). Ejercicio de respiración al cierre de sesión de chat.
+5. Voice input (Web Speech es-AR), mood-trend del usuario, modo alto contraste, vocabulario emocional por franja etaria.
 6. Revisión clínica de fichas (`reviewed: false` hoy) y co-diseño con grupos de usuarios con discapacidad antes de launch real.
-7. Reparar gitlink de `simon/` (registrado como submódulo sin `.git`; los cambios no están versionados — resolver antes de cualquier commit).
+7. Cambio de contraseña en la UI (hoy solo por soporte).
 
 ## Riesgos aceptados
 
 1. **DeepSeek alignment débil** → mitigado con moderación pre/post obligatoria y plantillas de crisis sin LLM; si falla en la suite de crisis, swap inmediato a `gpt-4.1-nano` (2 env vars).
 2. **Datos fuera de Argentina** (Vercel/Neon/DeepSeek US) → Ley 25.326 art. 12 exige nivel adecuado de protección en el receptor: cifrado, DPA de cada proveedor, y consentimiento informado del tutor que lo declare. Registrar base ante AAIP (Fase 1).
-3. **Deprecación DeepSeek:** IDs legacy `deepseek-chat`/`deepseek-reasoner` mueren el 2026-07-24 — actualizar `AI_MODEL` a `deepseek-v4-flash` antes de esa fecha (está en `.env.example` con el ID viejo).
+3. **Deprecación DeepSeek:** IDs legacy `deepseek-chat`/`deepseek-reasoner` mueren el 2026-07-24 — la app ya usa `deepseek-v4-flash` en `.env.example`, local y producción.
