@@ -92,4 +92,4 @@ if (failures.length > 0) {
   console.log(`\nRetrieval suite: FALLÓ (${failures.length} caso/s hard).`);
   process.exit(1);
 }
-console.log(`\nRetrieval suite: ${CASES.length}/${CASES.length} presencia@4 OK.`);
+console.log(`\nRetrieval suite: ${CASES.length}/${CASES.length} casos OK (presencia@4).`);

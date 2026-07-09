@@ -7,6 +7,7 @@
     "build": "prisma generate && prisma migrate deploy && next build",
     "start": "next start",
     "lint": "eslint",
+    "test": "tsx scripts/run-suites.ts",
     "crisis-suite": "tsx scripts/crisis-suite.ts",
     "rate-limit-suite": "tsx scripts/rate-limit-suite.ts",
     "moderation-suite": "tsx scripts/moderation-suite.ts",

@@ -25,6 +25,11 @@ const CRISIS_PATTERNS: RegExp[] = [
   /\b(quiero|quisiera|quiere|quieren) (morir(me|te|se)?|desaparecer|no despertar)\b(?!\s+de\s+(risa|hambre|sue[ñn]o|calor|fr[ií]o|amor|aburrimiento|verg[üu]enza|los? nervios))/i,
   /(matarse|morirse|suicidarse)/i,
   /(terminar|acabar) con (todo|mi vida)/i,
+  // Eufemismo sueño-muerte. Anclado para no flaggear "dormir tarde/temprano":
+  // - "no despertar/despertarme MÁS/NUNCA/JAMÁS" (permanencia explícita).
+  /\bno (despertar|despertarme)( m[aá]s| nunca| jam[aá]s)/i,
+  // - "dormir(me) ... no despertar" (clásico), salvo "no despertar A alguien".
+  /\bdormir(me)?\b.{0,10}\bno (despertar|despertarme)\b(?!\s+a\b)/i,
 
   // --- T2: ideación suicida indirecta ---
   /mejor sin m[ií]/i, // "todos estarían mejor sin mí"

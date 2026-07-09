@@ -64,6 +64,33 @@ const cases: Case[] = [
   { text: "hoy me tocó limpiar mi cuarto", expect: null, note: "neg: me tocó=turno" },
   { text: "me encanta jugar al fútbol con mis amigos", expect: null, note: "neg: cotidiano" },
   { text: "estoy un poco cansado pero bien", expect: null, note: "neg: cotidiano" },
+
+  // --- Positivos extra (endurecimiento de la red) ---
+  { text: "pienso en quitarme la vida", expect: "crisis", note: "T1 quitarme la vida" },
+  { text: "ojalá no despertar nunca más", expect: "crisis", note: "T2 sueño-muerte (permanencia)" },
+  { text: "quiero dormirme y no despertar", expect: "crisis", note: "T2 dormir + no despertar" },
+  { text: "quiero desaparecer para siempre", expect: "crisis", note: "T2 desaparecer (no modismo)" },
+  { text: "me autolesiono cuando me angustio", expect: "crisis", note: "T3 autolesión" },
+  { text: "a veces me quemo a propósito", expect: "crisis", note: "T3 autolesión (quemar)" },
+  { text: "un vecino abusó de mí", expect: "abuso", note: "T4 abuso explícito" },
+  { text: "el padrastro me toca sin permiso", expect: "abuso", note: "T4 sujeto + me toca" },
+  { text: "me obligo a vomitar para no engordar", expect: "alimentario", note: "T5 purga forzada" },
+  { text: "dejé de comer hace una semana", expect: "alimentario", note: "T5 restricción" },
+  { text: "me agarró un ataque de pánico", expect: "riesgo", note: "angustia (pánico)" },
+  { text: "ya no puedo más con todo", expect: "riesgo", note: "angustia (no puedo más)" },
+  { text: "estoy sola en esto y nadie me escucha", expect: "riesgo", note: "angustia (sola/escucha)" },
+
+  // --- Negativos-trampa extra (guardas de lookahead que más regresionan) ---
+  { text: "me corto las uñas los domingos", expect: null, note: "neg: uñas" },
+  { text: "me toca a mí lavar los platos hoy", expect: null, note: "neg: me toca=turno" },
+  { text: "quiero morirme de aburrimiento en clase", expect: null, note: "neg: modismo aburrimiento" },
+  { text: "casi me muero de vergüenza", expect: null, note: "neg: modismo vergüenza" },
+  { text: "no como nada de carne, soy vegetariano", expect: null, note: "neg: no como nada de X" },
+  { text: "mi hermana me pega la figurita en el álbum", expect: null, note: "neg: pegar=adherir" },
+  { text: "me corté el flequillo yo sola", expect: null, note: "neg: flequillo" },
+  { text: "ojalá no despertar tan temprano el lunes", expect: null, note: "neg: dormir tarde (sin permanencia)" },
+  { text: "hago silencio para no despertar a mis papás", expect: null, note: "neg: no despertar A alguien" },
+  { text: "quiero dormir y no despertar a mi hermanito", expect: null, note: "neg: no despertar A alguien" },
 ];
 
 let passed = 0;
