@@ -1,0 +1,13 @@
+# Repo-root ignores (the app itself lives in simon/ with its own .gitignore)
+
+# Tooling / agent artifacts
+.playwright-mcp/
+
+# Screenshots and captured images at repo root
+*.png
+*.jpg
+*.jpeg
+
+# OS / editor cruft
+.DS_Store
+*.swp
