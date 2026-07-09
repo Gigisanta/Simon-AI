@@ -1,13 +1,14 @@
 /**
  * Chips de check-in emocional (research-ux §1.3 / §1.6 items 1+6): entrada
  * guiada de baja fricción para literacidad baja o dificultad motora.
- * Iconos pictográficos geométricos (no emoji como único portador semántico).
- * Touch target ≥ 44px (WCAG 2.5.5).
+ * Iconos pictográficos geométricos (no emoji como único portador semántico)
+ * en círculos pastel (design system simon-mocha). Touch target ≥ 44px.
  */
 
 type Mood = {
   label: string;
   message: string;
+  circle: string; // color pastel del círculo del icono
   icon: React.ReactNode;
 };
 
@@ -19,13 +20,14 @@ const iconProps = {
   strokeLinecap: "round",
   strokeLinejoin: "round",
   "aria-hidden": true,
-  className: "size-5 shrink-0",
+  className: "size-4 shrink-0",
 } as const;
 
 const MOODS: Mood[] = [
   {
     label: "Contento/a",
     message: "Me siento contento/a",
+    circle: "bg-peach text-accent-deep",
     // Sol: círculo con rayos
     icon: (
       <svg {...iconProps}>
@@ -37,6 +39,7 @@ const MOODS: Mood[] = [
   {
     label: "Triste",
     message: "Me siento triste",
+    circle: "bg-sky text-sky-strong",
     // Gota
     icon: (
       <svg {...iconProps}>
@@ -47,6 +50,7 @@ const MOODS: Mood[] = [
   {
     label: "Nervioso/a",
     message: "Me siento nervioso/a",
+    circle: "bg-sand text-ink-soft",
     // Ondas
     icon: (
       <svg {...iconProps}>
@@ -58,6 +62,7 @@ const MOODS: Mood[] = [
   {
     label: "Enojado/a",
     message: "Me siento enojado/a",
+    circle: "bg-peach text-danger",
     // Rayo
     icon: (
       <svg {...iconProps}>
@@ -68,6 +73,7 @@ const MOODS: Mood[] = [
   {
     label: "No sé",
     message: "No sé cómo me siento",
+    circle: "bg-brand-soft text-brand-strong",
     // Signo de pregunta en círculo
     icon: (
       <svg {...iconProps}>
@@ -92,9 +98,13 @@ export function MoodChips({ onPick }: { onPick: (message: string) => void }) {
           type="button"
           aria-label={`Decirle a Simón: ${mood.message}`}
           onClick={() => onPick(mood.message)}
-          className="inline-flex min-h-11 items-center gap-2 rounded-full border border-stone-300 bg-white px-4 text-base text-stone-800 transition-colors hover:border-teal-700 hover:text-teal-800 calm:hover:border-stone-500 calm:hover:text-stone-800 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-200 dark:hover:border-teal-400 dark:hover:text-teal-300 dark:calm:hover:border-stone-500 dark:calm:hover:text-stone-200"
+          className="inline-flex min-h-11 items-center gap-2 rounded-full border border-line bg-white py-1 pl-1.5 pr-4 text-base font-semibold text-ink transition-colors hover:border-brand hover:text-brand-strong"
         >
-          {mood.icon}
+          <span
+            className={`flex size-8 items-center justify-center rounded-full ${mood.circle}`}
+          >
+            {mood.icon}
+          </span>
           {mood.label}
         </button>
       ))}

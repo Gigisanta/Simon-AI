@@ -25,7 +25,7 @@ export function HelpDialog() {
       <button
         type="button"
         onClick={() => dialogRef.current?.showModal()}
-        className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-teal-700 bg-teal-50 px-3 text-sm font-medium text-teal-900 hover:bg-teal-100 calm:border-stone-400 calm:bg-stone-100 calm:text-stone-800 calm:hover:bg-stone-200 dark:border-teal-500 dark:bg-teal-950 dark:text-teal-100 dark:hover:bg-teal-900 dark:calm:border-stone-500 dark:calm:bg-stone-900 dark:calm:text-stone-200"
+        className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-brand/40 bg-brand-soft px-4 text-sm font-bold text-brand-strong transition-colors hover:bg-brand hover:text-brand-fg"
       >
         {/* Salvavidas geométrico */}
         <svg
@@ -46,16 +46,13 @@ export function HelpDialog() {
       <dialog
         ref={dialogRef}
         aria-labelledby="help-dialog-title"
-        className="m-auto w-[calc(100%-2rem)] max-w-md rounded-2xl border border-stone-200 bg-white p-0 text-stone-900 shadow-xl backdrop:bg-stone-950/50 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100"
+        className="m-auto w-[calc(100%-2rem)] max-w-md rounded-card border border-line bg-card p-0 text-ink shadow-xl backdrop:bg-ink/50"
       >
         <div className="p-6">
-          <h2
-            id="help-dialog-title"
-            className="text-lg font-bold text-stone-900 dark:text-stone-50"
-          >
+          <h2 id="help-dialog-title" className="text-lg font-extrabold text-ink">
             Ayuda urgente
           </h2>
-          <p className="mt-2 text-base text-stone-700 dark:text-stone-300">
+          <p className="mt-2 text-base text-ink-soft">
             Si estás en peligro o la estás pasando muy mal, estas líneas te
             pueden ayudar ahora. Son gratuitas y podés llamar vos.
           </p>
@@ -63,19 +60,19 @@ export function HelpDialog() {
             {RESOURCE_ITEMS.map((item) => (
               <li
                 key={item}
-                className="rounded-lg bg-stone-100 px-3 py-2 text-base text-stone-800 dark:bg-stone-800 dark:text-stone-200"
+                className="rounded-2xl bg-sand px-4 py-2.5 text-base text-ink"
               >
                 {item}
               </li>
             ))}
           </ul>
-          <p className="mt-4 text-base font-medium text-teal-900 calm:text-stone-800 dark:text-teal-200 dark:calm:text-stone-200">
+          <p className="mt-4 text-base font-bold text-brand-strong">
             {URGENT_LINE}
           </p>
           <form method="dialog" className="mt-6 flex justify-end">
             <button
               type="submit"
-              className="min-h-11 rounded-full bg-stone-900 px-5 text-base font-medium text-white hover:bg-stone-700 dark:bg-stone-100 dark:text-stone-900 dark:hover:bg-stone-300"
+              className="min-h-11 rounded-full bg-brand px-6 text-base font-bold text-brand-fg transition-colors hover:bg-brand-strong"
             >
               Cerrar
             </button>

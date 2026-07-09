@@ -17,9 +17,9 @@ const currentYear = new Date().getFullYear();
 const minYear = currentYear - MAX_CHILD_AGE;
 const maxYear = currentYear - MIN_CHILD_AGE;
 
-// Tokens compartidos con auth-form/chat (paleta stone/teal, touch target ≥44px).
+// Tokens compartidos con auth-form/chat (design system simon-mocha, touch ≥44px).
 const inputClass =
-  "min-h-11 rounded-lg border border-stone-300 bg-white px-3 text-base text-stone-900 outline-none placeholder:text-stone-600 focus:border-teal-700 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-100 dark:placeholder:text-stone-400 dark:focus:border-teal-400";
+  "min-h-11 rounded-2xl border border-line bg-white px-4 text-base text-ink outline-none placeholder:text-ink-soft focus:border-brand";
 
 /** Mensaje de error de una respuesta de API (o un fallback). */
 async function apiError(res: Response, fallback: string): Promise<string> {
@@ -92,33 +92,33 @@ function ChildCard({ child, onChanged }: { child: ChildRow; onChanged(): void })
   }
 
   return (
-    <li className="rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm dark:border-stone-800 dark:bg-stone-900">
-      <div className="flex items-center justify-between">
-        <span className="text-stone-900 dark:text-stone-100">
-          {child.name} <span className="text-stone-500">· @{child.username}</span>
+    <li className="rounded-2xl border border-line bg-card px-4 py-3 text-sm shadow-sm">
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-semibold text-ink">
+          {child.name} <span className="font-normal text-ink-soft">· @{child.username}</span>
           {child.birthYear ? (
-            <span className="text-stone-500"> · {child.birthYear}</span>
+            <span className="font-normal text-ink-soft"> · {child.birthYear}</span>
           ) : null}
         </span>
         <span
           className={
             child.consentAt
-              ? "text-emerald-700 dark:text-emerald-400"
-              : "text-amber-700 dark:text-amber-400"
+              ? "rounded-full bg-brand-soft px-3 py-1 text-xs font-bold text-brand-strong"
+              : "rounded-full bg-peach px-3 py-1 text-xs font-bold text-accent-deep"
           }
         >
           {child.consentAt ? "Consentimiento OK" : "Sin consentimiento"}
         </span>
       </div>
 
-      <div className="mt-2 flex items-center justify-between border-t border-stone-100 pt-2 dark:border-stone-800">
-        <label className="flex min-h-11 items-center gap-2 text-stone-600 dark:text-stone-300">
+      <div className="mt-2 flex items-center justify-between border-t border-line pt-2">
+        <label className="flex min-h-11 items-center gap-2 text-ink-soft">
           <input
             type="checkbox"
             checked={alertsEnabled}
             onChange={toggleAlerts}
             disabled={pending}
-            className="size-4 accent-teal-700 dark:accent-teal-400"
+            className="size-4 accent-brand"
           />
           Alertas de crisis por email
         </label>
@@ -127,7 +127,7 @@ function ChildCard({ child, onChanged }: { child: ChildRow; onChanged(): void })
             type="button"
             onClick={() => setConfirming(true)}
             disabled={pending}
-            className="inline-flex min-h-11 items-center text-red-700 underline-offset-2 hover:underline disabled:opacity-50 dark:text-red-400"
+            className="inline-flex min-h-11 items-center font-semibold text-danger underline-offset-2 hover:underline disabled:opacity-50"
           >
             Eliminar cuenta y datos
           </button>
@@ -135,18 +135,18 @@ function ChildCard({ child, onChanged }: { child: ChildRow; onChanged(): void })
       </div>
 
       {confirming && (
-        <div className="mt-2 rounded-lg border border-red-300 bg-red-50 p-3 text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
+        <div className="mt-2 rounded-2xl border border-danger/40 bg-red-50 p-4 text-red-900">
           <p>
             Se borra la cuenta de <strong>{child.name}</strong> y{" "}
             <strong>todos sus datos</strong> (conversaciones, memorias y eventos
             de seguridad). <strong>No se puede deshacer.</strong>
           </p>
-          <div className="mt-2 flex gap-2">
+          <div className="mt-3 flex flex-wrap gap-2">
             <button
               type="button"
               onClick={deleteChild}
               disabled={pending}
-              className="min-h-11 rounded-lg bg-red-600 px-3 py-1.5 font-medium text-white hover:bg-red-700 disabled:opacity-50"
+              className="min-h-11 rounded-full bg-danger px-4 py-1.5 font-bold text-white hover:bg-red-700 disabled:opacity-50"
             >
               {pending ? "Eliminando…" : "Sí, eliminar definitivamente"}
             </button>
@@ -154,7 +154,7 @@ function ChildCard({ child, onChanged }: { child: ChildRow; onChanged(): void })
               type="button"
               onClick={() => setConfirming(false)}
               disabled={pending}
-              className="min-h-11 rounded-lg border border-stone-300 px-3 py-1.5 text-stone-700 hover:bg-stone-100 disabled:opacity-50 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
+              className="min-h-11 rounded-full border border-line bg-card px-4 py-1.5 font-semibold text-ink hover:bg-sand disabled:opacity-50"
             >
               Cancelar
             </button>
@@ -162,7 +162,7 @@ function ChildCard({ child, onChanged }: { child: ChildRow; onChanged(): void })
         </div>
       )}
 
-      {error && <p className="mt-2 text-red-700 dark:text-red-400">{error}</p>}
+      {error && <p className="mt-2 font-semibold text-danger">{error}</p>}
     </li>
   );
 }
@@ -234,16 +234,14 @@ export function TutorPanel({
 
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-8">
-      <h1 className="text-2xl font-semibold text-stone-900 dark:text-stone-50">
-        Panel del tutor/a
-      </h1>
-      <p className="mt-1 text-sm text-stone-600 dark:text-stone-400">
+      <h1 className="text-2xl font-extrabold text-ink">Panel del tutor/a</h1>
+      <p className="mt-1 text-sm text-ink-soft">
         Desde acá das de alta a los chicos/as a tu cargo. Cada menor ingresa con
         su usuario y contraseña; nunca necesita un email propio.
       </p>
 
       {!emailVerified && (
-        <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+        <div className="mt-4 rounded-2xl border border-accent/60 bg-peach p-4 text-sm text-accent-deep">
           Verificá tu email para poder dar de alta a un menor. Revisá tu casilla
           (o la consola del servidor, en desarrollo) el enlace de verificación.
         </div>
@@ -251,11 +249,9 @@ export function TutorPanel({
 
       {/* --- Lista de menores --- */}
       <section className="mt-6">
-        <h2 className="text-sm font-medium text-stone-700 dark:text-stone-300">
-          Menores a tu cargo
-        </h2>
+        <h2 className="text-sm font-bold text-ink">Menores a tu cargo</h2>
         {initialChildren.length === 0 ? (
-          <p className="mt-2 text-sm text-stone-500">Todavía no diste de alta a nadie.</p>
+          <p className="mt-2 text-sm text-ink-soft">Todavía no diste de alta a nadie.</p>
         ) : (
           <ul className="mt-2 flex flex-col gap-2">
             {initialChildren.map((c) => (
@@ -266,14 +262,12 @@ export function TutorPanel({
       </section>
 
       {/* --- Alta de menor + consentimiento --- */}
-      <section className="mt-8 rounded-2xl border border-stone-200 bg-white p-6 shadow-sm dark:border-stone-800 dark:bg-stone-900">
-        <h2 className="text-lg font-semibold text-stone-900 dark:text-stone-50">
-          Dar de alta a un menor
-        </h2>
+      <section className="mt-8 rounded-card border border-line bg-card p-6 shadow-sm">
+        <h2 className="text-lg font-extrabold text-ink">Dar de alta a un menor</h2>
 
         <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-3">
           <label className="flex flex-col gap-1 text-sm">
-            <span className="text-stone-700 dark:text-stone-300">Nombre</span>
+            <span className="font-semibold text-ink">Nombre</span>
             <input
               className={inputClass}
               value={name}
@@ -284,7 +278,7 @@ export function TutorPanel({
           </label>
 
           <label className="flex flex-col gap-1 text-sm">
-            <span className="text-stone-700 dark:text-stone-300">
+            <span className="font-semibold text-ink">
               Usuario (con el que ingresa el menor)
             </span>
             <input
@@ -299,7 +293,7 @@ export function TutorPanel({
           </label>
 
           <label className="flex flex-col gap-1 text-sm">
-            <span className="text-stone-700 dark:text-stone-300">Año de nacimiento</span>
+            <span className="font-semibold text-ink">Año de nacimiento</span>
             <input
               className={inputClass}
               type="number"
@@ -314,7 +308,7 @@ export function TutorPanel({
           </label>
 
           <label className="flex flex-col gap-1 text-sm">
-            <span className="text-stone-700 dark:text-stone-300">
+            <span className="font-semibold text-ink">
               Contraseña del menor (mínimo 8 caracteres)
             </span>
             <input
@@ -330,10 +324,8 @@ export function TutorPanel({
           </label>
 
           {/* --- Pantalla de consentimiento --- */}
-          <div className="mt-2 rounded-lg border border-stone-200 bg-stone-50 p-4 text-sm text-stone-600 dark:border-stone-800 dark:bg-stone-950 dark:text-stone-300">
-            <p className="font-medium text-stone-800 dark:text-stone-100">
-              Antes de continuar, es importante que sepas:
-            </p>
+          <div className="mt-2 rounded-2xl border border-line bg-sand p-4 text-sm text-ink-soft">
+            <p className="font-bold text-ink">Antes de continuar, es importante que sepas:</p>
             <ul className="mt-2 flex list-disc flex-col gap-1 pl-5">
               <li>
                 Simón es una <strong>inteligencia artificial</strong>, no un
@@ -350,9 +342,7 @@ export function TutorPanel({
                 ejemplo, riesgo para el menor), vas a recibir una{" "}
                 <strong>alerta</strong> como tutor/a.
               </li>
-              <li>
-                Podés pedir la baja de la cuenta y de los datos cuando quieras.
-              </li>
+              <li>Podés pedir la baja de la cuenta y de los datos cuando quieras.</li>
             </ul>
 
             <label className="mt-3 flex items-start gap-2">
@@ -360,22 +350,22 @@ export function TutorPanel({
                 type="checkbox"
                 checked={consent}
                 onChange={(e) => setConsent(e.target.checked)}
-                className="mt-0.5 size-4 accent-teal-700 dark:accent-teal-400"
+                className="mt-0.5 size-4 accent-brand"
               />
-              <span className="text-stone-800 dark:text-stone-100">
+              <span className="text-ink">
                 Confirmo que soy el tutor/a legal y doy mi consentimiento para
                 que este menor use Simón bajo estas condiciones.
               </span>
             </label>
           </div>
 
-          {error && <p className="text-sm text-red-700 dark:text-red-400">{error}</p>}
-          {ok && <p className="text-sm text-emerald-700 dark:text-emerald-400">{ok}</p>}
+          {error && <p className="text-sm font-semibold text-danger">{error}</p>}
+          {ok && <p className="text-sm font-semibold text-brand-strong">{ok}</p>}
 
           <button
             type="submit"
             disabled={pending || !consent || !emailVerified}
-            className="mt-1 min-h-11 rounded-lg bg-teal-800 px-3 text-base font-medium text-white hover:bg-teal-900 disabled:opacity-50 dark:bg-teal-300 dark:text-teal-950 dark:hover:bg-teal-200"
+            className="mt-1 min-h-11 rounded-full bg-brand px-4 text-base font-bold text-brand-fg transition-colors hover:bg-brand-strong disabled:opacity-50"
           >
             {pending ? "Creando…" : "Dar de alta y registrar consentimiento"}
           </button>

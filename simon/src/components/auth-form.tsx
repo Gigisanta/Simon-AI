@@ -24,6 +24,9 @@ function translateAuthError(message: string | undefined, audience: Audience): st
 type Audience = "adult" | "child";
 type Mode = "signin" | "signup";
 
+const inputClass =
+  "min-h-11 rounded-2xl border border-line bg-white px-4 text-base text-ink outline-none placeholder:text-ink-soft focus:border-brand";
+
 export function AuthForm() {
   const [audience, setAudience] = useState<Audience>("adult");
   const [mode, setMode] = useState<Mode>("signin");
@@ -74,42 +77,39 @@ export function AuthForm() {
     }
   }
 
+  const tabClass = (active: boolean) =>
+    `min-h-11 flex-1 rounded-full px-3 text-sm font-bold transition-colors ${
+      active ? "bg-brand text-brand-fg shadow-sm" : "text-ink-soft hover:text-ink"
+    }`;
+
   return (
-    <div className="w-full max-w-sm mx-auto rounded-2xl border border-stone-200 bg-white p-6 shadow-sm dark:border-stone-800 dark:bg-stone-900">
+    <div className="w-full max-w-sm mx-auto rounded-card border border-line bg-card p-6 shadow-sm">
       {/* --- Tabs de audiencia --- */}
-      <div className="mb-4 flex gap-1 rounded-lg bg-stone-100 p-1 dark:bg-stone-800">
+      <div className="mb-5 flex gap-1 rounded-full bg-sand p-1">
         <button
           type="button"
           onClick={() => switchAudience("adult")}
-          className={`min-h-11 flex-1 rounded-md px-3 text-sm font-medium transition ${
-            audience === "adult"
-              ? "bg-white text-stone-900 shadow-sm dark:bg-stone-950 dark:text-stone-50"
-              : "text-stone-600 dark:text-stone-400"
-          }`}
+          className={tabClass(audience === "adult")}
         >
           Adulto / tutor
         </button>
         <button
           type="button"
           onClick={() => switchAudience("child")}
-          className={`min-h-11 flex-1 rounded-md px-3 text-sm font-medium transition ${
-            audience === "child"
-              ? "bg-white text-stone-900 shadow-sm dark:bg-stone-950 dark:text-stone-50"
-              : "text-stone-600 dark:text-stone-400"
-          }`}
+          className={tabClass(audience === "child")}
         >
           Soy chico/chica
         </button>
       </div>
 
-      <h1 className="text-xl font-semibold text-stone-900 dark:text-stone-50">
+      <h2 className="text-xl font-extrabold text-ink">
         {audience === "child"
           ? "Entrá con tu usuario"
           : mode === "signin"
             ? "Iniciá sesión"
             : "Creá tu cuenta"}
-      </h1>
-      <p className="mt-1 text-sm text-stone-600 dark:text-stone-400">
+      </h2>
+      <p className="mt-1 text-sm text-ink-soft">
         {audience === "child"
           ? "Usá el usuario y la contraseña que te dio tu tutor/a."
           : "Simón — un espacio para hablar y aprender."}
@@ -118,7 +118,7 @@ export function AuthForm() {
       <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-3">
         {audience === "adult" && mode === "signup" && (
           <input
-            className="min-h-11 rounded-lg border border-stone-300 bg-white px-3 text-base text-stone-900 outline-none placeholder:text-stone-600 focus:border-teal-700 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-100 dark:placeholder:text-stone-400 dark:focus:border-teal-400"
+            className={inputClass}
             placeholder="Nombre"
             aria-label="Nombre"
             value={name}
@@ -130,7 +130,7 @@ export function AuthForm() {
 
         {audience === "child" ? (
           <input
-            className="min-h-11 rounded-lg border border-stone-300 bg-white px-3 text-base text-stone-900 outline-none placeholder:text-stone-600 focus:border-teal-700 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-100 dark:placeholder:text-stone-400 dark:focus:border-teal-400"
+            className={inputClass}
             placeholder="Usuario"
             aria-label="Usuario"
             value={username}
@@ -141,7 +141,7 @@ export function AuthForm() {
           />
         ) : (
           <input
-            className="min-h-11 rounded-lg border border-stone-300 bg-white px-3 text-base text-stone-900 outline-none placeholder:text-stone-600 focus:border-teal-700 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-100 dark:placeholder:text-stone-400 dark:focus:border-teal-400"
+            className={inputClass}
             placeholder="Email"
             aria-label="Email"
             type="email"
@@ -153,7 +153,7 @@ export function AuthForm() {
         )}
 
         <input
-          className="min-h-11 rounded-lg border border-stone-300 bg-white px-3 text-base text-stone-900 outline-none placeholder:text-stone-600 focus:border-teal-700 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-100 dark:placeholder:text-stone-400 dark:focus:border-teal-400"
+          className={inputClass}
           placeholder="Contraseña"
           aria-label="Contraseña"
           type="password"
@@ -166,12 +166,12 @@ export function AuthForm() {
           }
         />
 
-        {error && <p className="text-sm text-red-700 dark:text-red-400">{error}</p>}
+        {error && <p className="text-sm font-semibold text-danger">{error}</p>}
 
         <button
           type="submit"
           disabled={pending}
-          className="min-h-11 rounded-lg bg-teal-800 px-3 text-base font-medium text-white hover:bg-teal-900 disabled:opacity-50 dark:bg-teal-300 dark:text-teal-950 dark:hover:bg-teal-200"
+          className="min-h-11 rounded-full bg-brand px-4 text-base font-bold text-brand-fg transition-colors hover:bg-brand-strong disabled:opacity-50"
         >
           {pending
             ? "Un momento…"
@@ -190,7 +190,7 @@ export function AuthForm() {
             setMode(mode === "signin" ? "signup" : "signin");
             setError(null);
           }}
-          className="mt-2 inline-flex min-h-11 items-center text-sm text-stone-700 underline-offset-2 hover:underline dark:text-stone-300"
+          className="mt-2 inline-flex min-h-11 items-center text-sm font-semibold text-brand-strong underline-offset-2 hover:underline"
         >
           {mode === "signin"
             ? "¿No tenés cuenta? Registrate"

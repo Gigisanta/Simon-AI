@@ -50,7 +50,11 @@ export function CalmToggle() {
       type="button"
       onClick={toggle}
       aria-pressed={calm}
-      className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-stone-300 px-3 text-sm font-medium text-stone-700 hover:border-stone-500 dark:border-stone-700 dark:text-stone-300 dark:hover:border-stone-500"
+      className={`inline-flex min-h-11 items-center gap-1.5 rounded-full border px-4 text-sm font-bold transition-colors ${
+        calm
+          ? "border-brand bg-brand-soft text-brand-strong"
+          : "border-line bg-card text-ink-soft hover:border-brand hover:text-brand-strong"
+      }`}
     >
       {/* Media luna geométrica */}
       <svg

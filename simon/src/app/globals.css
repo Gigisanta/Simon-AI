@@ -6,41 +6,51 @@
  */
 @custom-variant calm (&:where([data-calm], [data-calm] *));
 
+/*
+ * Design system "Simón" (referencia: simon-mocha.vercel.app):
+ * crema cálida + verde salvia + terracota, Nunito, radios amplios.
+ */
 :root {
-  /* Base neutra cálida (stone) — "un rincón tranquilo" */
-  --background: #fafaf9; /* stone-50 */
-  --foreground: #1c1917; /* stone-900 */
+  --background: #f8f3e8;
+  --foreground: #393529;
+}
+
+@theme {
+  --color-cream: #f8f3e8;
+  --color-card: #fefcf5;
+  --color-ink: #393529;
+  --color-ink-soft: #6d6958;
+  --color-line: #e3decf;
+  --color-sand: #f1ebdb;
+  --color-brand: #5a7f61;
+  --color-brand-strong: #4a6a50;
+  --color-brand-soft: #d9eede;
+  --color-brand-fg: #fdfcf8;
+  --color-accent: #e2a983;
+  --color-accent-deep: #503223;
+  --color-peach: #fbe7d8;
+  --color-sky: #c2e0f2;
+  --color-sky-strong: #5b8caf;
+  --color-danger: #d9544b;
+  --radius-card: 1.25rem;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0c0a09; /* stone-950 */
-    --foreground: #e7e5e4; /* stone-200 */
-  }
+  --font-sans: var(--font-nunito);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  font-family: var(--font-nunito), ui-sans-serif, system-ui, sans-serif;
 }
 
 /* Foco visible en todo elemento interactivo (WCAG 2.4.7) */
 :focus-visible {
-  outline: 2px solid var(--color-teal-700);
+  outline: 2px solid var(--color-brand);
   outline-offset: 2px;
-}
-@media (prefers-color-scheme: dark) {
-  :focus-visible {
-    outline-color: var(--color-teal-400);
-  }
 }
 
 /* Modo calma: sin animaciones ni transiciones, scroll instantáneo */

@@ -63,15 +63,10 @@ export function SessionTimer({ serverWarned }: { serverWarned: boolean }) {
   if (elapsedMin < SHOW_AFTER_MIN) return null;
 
   return (
-    <p
-      aria-live="off"
-      className="text-xs text-stone-600 tabular-nums dark:text-stone-400"
-    >
+    <p aria-live="off" className="text-xs text-ink-soft tabular-nums">
       {elapsedMin} min
       {serverWarned && elapsedMin >= PAUSE_HINT_MIN && (
-        <span className="ml-1.5 text-stone-600 dark:text-stone-400">
-          · buen momento para una pausa
-        </span>
+        <span className="ml-1.5">· buen momento para una pausa</span>
       )}
     </p>
   );
