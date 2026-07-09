@@ -128,6 +128,22 @@ function check(cond: boolean, note: string) {
     schema.safeParse({ ...base, name: "a".repeat(61) }).success === false,
     "zod: name >60 rechaza",
   );
+
+  // --- Bordes VÁLIDOS exactos (guardas off-by-one del límite inferior/superior) ---
+  check(schema.safeParse({ ...base, username: "abc" }).success === true, "zod: username 3 chars (mín) ok");
+  check(schema.safeParse({ ...base, username: "a".repeat(24) }).success === true, "zod: username 24 chars (máx) ok");
+  check(schema.safeParse({ ...base, username: "ab_1" }).success === true, "zod: username con guion bajo y dígitos ok");
+  check(schema.safeParse({ ...base, password: "a".repeat(8) }).success === true, "zod: password 8 (mín) ok");
+  check(schema.safeParse({ ...base, password: "a".repeat(72) }).success === true, "zod: password 72 (máx) ok");
+  check(schema.safeParse({ ...base, name: "a".repeat(60) }).success === true, "zod: name 60 (máx) ok");
+  // name se recorta (trim): " Ana " es válido y queda "Ana".
+  {
+    const parsed = schema.safeParse({ ...base, name: "  Ana  " });
+    check(parsed.success === true && parsed.data.name === "Ana", "zod: name se recorta (trim) a 'Ana'");
+  }
+  // birthYear apenas fuera de borde (guarda de off-by-one inferior/superior).
+  check(schema.safeParse({ ...base, birthYear: 2006 }).success === false, "zod: birthYear=2006 (20) rechaza (borde)");
+  check(schema.safeParse({ ...base, birthYear: 2023 }).success === false, "zod: birthYear=2023 (3) rechaza (borde)");
 }
 
 // ---------- 3. Email sintético ----------
