@@ -60,7 +60,8 @@ export const ModelName = {
   Message: 'Message',
   SafetyEvent: 'SafetyEvent',
   KnowledgeCard: 'KnowledgeCard',
-  UserMemory: 'UserMemory'
+  UserMemory: 'UserMemory',
+  InteractionLog: 'InteractionLog'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -159,6 +160,8 @@ export const ConversationScalarFieldEnum = {
   userId: 'userId',
   summary: 'summary',
   summarizedAt: 'summarizedAt',
+  rollingSummary: 'rollingSummary',
+  rollingSummarizedUntil: 'rollingSummarizedUntil',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const
@@ -216,6 +219,37 @@ export const UserMemoryScalarFieldEnum = {
 } as const
 
 export type UserMemoryScalarFieldEnum = (typeof UserMemoryScalarFieldEnum)[keyof typeof UserMemoryScalarFieldEnum]
+
+
+export const InteractionLogScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  conversationId: 'conversationId',
+  userMessageId: 'userMessageId',
+  assistantMessageId: 'assistantMessageId',
+  safetyEventId: 'safetyEventId',
+  model: 'model',
+  totalLatencyMs: 'totalLatencyMs',
+  generationLatencyMs: 'generationLatencyMs',
+  inputTokens: 'inputTokens',
+  outputTokens: 'outputTokens',
+  totalTokens: 'totalTokens',
+  reasoningTokens: 'reasoningTokens',
+  cacheReadTokens: 'cacheReadTokens',
+  moderationInputSource: 'moderationInputSource',
+  moderationInputFlagged: 'moderationInputFlagged',
+  moderationInputCategory: 'moderationInputCategory',
+  moderationOutputSource: 'moderationOutputSource',
+  moderationOutputFlagged: 'moderationOutputFlagged',
+  moderationOutputCategory: 'moderationOutputCategory',
+  responsePath: 'responsePath',
+  safetyFlagFinal: 'safetyFlagFinal',
+  historyMessagesSent: 'historyMessagesSent',
+  roleAtRequest: 'roleAtRequest',
+  createdAt: 'createdAt'
+} as const
+
+export type InteractionLogScalarFieldEnum = (typeof InteractionLogScalarFieldEnum)[keyof typeof InteractionLogScalarFieldEnum]
 
 
 export const SortOrder = {

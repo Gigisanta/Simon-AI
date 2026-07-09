@@ -4,7 +4,7 @@ import { AuthForm } from "@/components/auth-form";
 import { BottomNav } from "@/components/bottom-nav";
 import { Chat } from "@/components/chat";
 import { SimonAvatar } from "@/components/simon-avatar";
-import { SiteHeader } from "@/components/site-header";
+import { SiteHeader, visibleNavItems } from "@/components/site-header";
 import { useSession } from "@/lib/auth-client";
 
 /** Hoja decorativa suelta (mismo estilo que la ilustración hero), aria-hidden. */
@@ -95,11 +95,18 @@ export default function Home() {
     );
   }
 
+  // La bottom-nav mobile solo existe con >1 ítem (guardian). El pb-20 que le
+  // reserva espacio al chat va con la MISMA condición: para el rol child (solo
+  // "Chat") se libera ese ~pb y el chat gana viewport.
+  const hasBottomNav = visibleNavItems(session.user.role).length > 1;
+
   return (
     // h-dvh: el chat fittea el viewport; lo único que scrollea es el log de mensajes
     <div className="flex h-dvh flex-col">
       <SiteHeader />
-      <main className="flex min-h-0 flex-1 flex-col pb-20 md:pb-0">
+      <main
+        className={`flex min-h-0 flex-1 flex-col ${hasBottomNav ? "pb-20 md:pb-0" : ""}`}
+      >
         <Chat />
       </main>
       <BottomNav />

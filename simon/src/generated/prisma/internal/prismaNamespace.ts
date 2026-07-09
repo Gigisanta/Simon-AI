@@ -393,7 +393,8 @@ export const ModelName = {
   Message: 'Message',
   SafetyEvent: 'SafetyEvent',
   KnowledgeCard: 'KnowledgeCard',
-  UserMemory: 'UserMemory'
+  UserMemory: 'UserMemory',
+  InteractionLog: 'InteractionLog'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -409,7 +410,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "user" | "guardian" | "session" | "account" | "verification" | "conversation" | "message" | "safetyEvent" | "knowledgeCard" | "userMemory"
+    modelProps: "user" | "guardian" | "session" | "account" | "verification" | "conversation" | "message" | "safetyEvent" | "knowledgeCard" | "userMemory" | "interactionLog"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -1153,6 +1154,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    InteractionLog: {
+      payload: Prisma.$InteractionLogPayload<ExtArgs>
+      fields: Prisma.InteractionLogFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.InteractionLogFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$InteractionLogPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.InteractionLogFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$InteractionLogPayload>
+        }
+        findFirst: {
+          args: Prisma.InteractionLogFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$InteractionLogPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.InteractionLogFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$InteractionLogPayload>
+        }
+        findMany: {
+          args: Prisma.InteractionLogFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$InteractionLogPayload>[]
+        }
+        create: {
+          args: Prisma.InteractionLogCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$InteractionLogPayload>
+        }
+        createMany: {
+          args: Prisma.InteractionLogCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.InteractionLogCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$InteractionLogPayload>[]
+        }
+        delete: {
+          args: Prisma.InteractionLogDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$InteractionLogPayload>
+        }
+        update: {
+          args: Prisma.InteractionLogUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$InteractionLogPayload>
+        }
+        deleteMany: {
+          args: Prisma.InteractionLogDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.InteractionLogUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.InteractionLogUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$InteractionLogPayload>[]
+        }
+        upsert: {
+          args: Prisma.InteractionLogUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$InteractionLogPayload>
+        }
+        aggregate: {
+          args: Prisma.InteractionLogAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateInteractionLog>
+        }
+        groupBy: {
+          args: Prisma.InteractionLogGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.InteractionLogGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.InteractionLogCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.InteractionLogCountAggregateOutputType> | number
+        }
+      }
+    }
   }
 } & {
   other: {
@@ -1272,6 +1347,8 @@ export const ConversationScalarFieldEnum = {
   userId: 'userId',
   summary: 'summary',
   summarizedAt: 'summarizedAt',
+  rollingSummary: 'rollingSummary',
+  rollingSummarizedUntil: 'rollingSummarizedUntil',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const
@@ -1329,6 +1406,37 @@ export const UserMemoryScalarFieldEnum = {
 } as const
 
 export type UserMemoryScalarFieldEnum = (typeof UserMemoryScalarFieldEnum)[keyof typeof UserMemoryScalarFieldEnum]
+
+
+export const InteractionLogScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  conversationId: 'conversationId',
+  userMessageId: 'userMessageId',
+  assistantMessageId: 'assistantMessageId',
+  safetyEventId: 'safetyEventId',
+  model: 'model',
+  totalLatencyMs: 'totalLatencyMs',
+  generationLatencyMs: 'generationLatencyMs',
+  inputTokens: 'inputTokens',
+  outputTokens: 'outputTokens',
+  totalTokens: 'totalTokens',
+  reasoningTokens: 'reasoningTokens',
+  cacheReadTokens: 'cacheReadTokens',
+  moderationInputSource: 'moderationInputSource',
+  moderationInputFlagged: 'moderationInputFlagged',
+  moderationInputCategory: 'moderationInputCategory',
+  moderationOutputSource: 'moderationOutputSource',
+  moderationOutputFlagged: 'moderationOutputFlagged',
+  moderationOutputCategory: 'moderationOutputCategory',
+  responsePath: 'responsePath',
+  safetyFlagFinal: 'safetyFlagFinal',
+  historyMessagesSent: 'historyMessagesSent',
+  roleAtRequest: 'roleAtRequest',
+  createdAt: 'createdAt'
+} as const
+
+export type InteractionLogScalarFieldEnum = (typeof InteractionLogScalarFieldEnum)[keyof typeof InteractionLogScalarFieldEnum]
 
 
 export const SortOrder = {
@@ -1543,6 +1651,7 @@ export type GlobalOmitConfig = {
   safetyEvent?: Prisma.SafetyEventOmit
   knowledgeCard?: Prisma.KnowledgeCardOmit
   userMemory?: Prisma.UserMemoryOmit
+  interactionLog?: Prisma.InteractionLogOmit
 }
 
 /* Types for Logging */

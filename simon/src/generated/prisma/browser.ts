@@ -67,3 +67,8 @@ export type KnowledgeCard = Prisma.KnowledgeCardModel
  * 
  */
 export type UserMemory = Prisma.UserMemoryModel
+/**
+ * Model InteractionLog
+ * 
+ */
+export type InteractionLog = Prisma.InteractionLogModel

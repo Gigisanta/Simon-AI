@@ -30,6 +30,7 @@ model User {
   conversations Conversation[]
   memories      UserMemory[]
   safetyEvents  SafetyEvent[]
+  interactionLogs InteractionLog[]
 
   // Menores a cargo de este usuario (si es tutor/a).
   guardianOf    Guardian[] @relation("guardianOf")
@@ -122,8 +123,18 @@ model Conversation {
   // Marca de procesamiento: no-null = ya pasó por summarizeStaleConversation
   // (aunque haya quedado sin summary por ser muy corta o por parse fallido).
   summarizedAt DateTime?
+  // Capa de contexto activo (B2): resumen incremental de ESTA conversación en
+  // curso (distinto de `summary`, que marca una conversación cerrada). Se
+  // regenera lazy vía updateRollingSummary cuando el hilo se hace largo, para no
+  // enviar todo el historial al modelo. SIN datos identificables (mismas reglas
+  // anti-PII que el summary). `rollingSummarizedUntil` marca hasta qué momento
+  // ya está cubierto por el resumen (los mensajes posteriores son incrementales).
+  rollingSummary         String?
+  rollingSummarizedUntil DateTime?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
+
+  interactionLogs InteractionLog[]
 
   @@index([userId, updatedAt])
 }
@@ -191,4 +202,63 @@ model UserMemory {
   updatedAt DateTime @updatedAt
 
   @@index([userId])
+}
+
+// ---------- Telemetría de interacción (dataset de entrenamiento) ----------
+
+// UN registro por request de chat que llega a producir una respuesta (TODOS los
+// paths, incluidos los que no llaman al LLM: crisis, límite de sesión, fallback).
+// Sirve para (a) observabilidad de performance/moderación y (b) construir el
+// dataset de fine-tuning con export-training.
+//
+// CAMINO CRÍTICO (Ley 25.326, minimización — datos de menores): NUNCA guarda el
+// contenido de los mensajes ni texto de moderación. Solo REFERENCIAS (ids),
+// métricas de performance, y para moderación: fuente + flag + categoría. El
+// registro es fire-and-forget vía after(): un fallo acá jamás rompe el chat (M1).
+// TTL 180 días (purga lazy en el query-path del chat, junto con UserMemory).
+model InteractionLog {
+  id             String   @id @default(cuid())
+  // FK cascade: si se borra el menor o la conversación, su telemetría se borra.
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  // Referencias sueltas (SIN FK): pueden apuntar a mensajes/eventos que un
+  // borrado parcial haya eliminado; se aceptan colgadas (no bloquean el insert).
+  userMessageId      String?
+  assistantMessageId String?
+  safetyEventId      String?
+
+  // --- Performance ---
+  model             String?
+  totalLatencyMs    Int
+  generationLatencyMs Int?
+  inputTokens       Int?
+  outputTokens      Int?
+  totalTokens       Int?
+  reasoningTokens   Int?
+  cacheReadTokens   Int?
+
+  // --- Moderación (fuente + flag + categoría, JAMÁS el texto) ---
+  moderationInputSource   String?
+  moderationInputFlagged  Boolean?
+  moderationInputCategory String?
+  moderationOutputSource   String?
+  moderationOutputFlagged  Boolean?
+  moderationOutputCategory String?
+
+  // --- Resultado ---
+  // "normal" | "crisis-template" | "moderation-replaced-output" |
+  // "session-limit" | "no-ai" | "fallback-error" | "moderation-unavailable"
+  responsePath       String
+  safetyFlagFinal    String?
+  historyMessagesSent Int
+  // "guardian" | "child" — segmenta el dataset por tipo de interlocutor.
+  roleAtRequest      String
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([conversationId])
+  @@index([responsePath])
 }

@@ -2,13 +2,19 @@ import {
   createUIMessageStream,
   createUIMessageStreamResponse,
   generateText,
+  type LanguageModelUsage,
   type ModelMessage,
   type UIMessage,
 } from "ai";
 import { after } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { aiConfigured, chatModel, generationTimeoutMs } from "@/lib/ai/provider";
+import {
+  aiConfigured,
+  chatModel,
+  chatModelId,
+  generationTimeoutMs,
+} from "@/lib/ai/provider";
 import {
   historyToModelMessages,
   lastClientUserMessage,
@@ -17,6 +23,7 @@ import {
   buildSystemPrompt,
   selectRelevantCards,
 } from "@/lib/ai/system-prompt";
+import { assembleContext } from "@/lib/ai/context-budget";
 import {
   crisisReply,
   crisisSystemAddendum,
@@ -27,13 +34,18 @@ import {
   shouldAppendDisclosure,
   type SafetyFlag,
 } from "@/lib/safety";
-import { memoryTtlCutoff, summarizeStaleConversation } from "@/lib/ai/memory";
+import {
+  memoryTtlCutoff,
+  summarizeStaleConversation,
+  updateRollingSummary,
+} from "@/lib/ai/memory";
 import {
   SESSION_LIMIT_REPLY,
   SESSION_WARN_APPENDIX,
+  sessionLimitApplies,
   sessionState,
 } from "@/lib/session-limit";
-import { moderate } from "@/lib/moderation";
+import { moderate, type ModerationResult } from "@/lib/moderation";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { sameOriginOk } from "@/lib/env-check";
 import { canUserChat } from "@/lib/consent";
@@ -47,7 +59,13 @@ export const maxDuration = 60;
 
 // Límites defensivos (costo + abuso). Ver docs/security-review.md.
 const MAX_MESSAGE_CHARS = 4_000; // el cliente corta en 2000; el servidor manda
-const MAX_HISTORY_MESSAGES = 40; // ventana de contexto enviada al LLM
+// Ventana de contexto (cantidad) enviada al LLM. Bajó de 40 a 24 (B2): con el
+// rolling summary cubriendo lo más viejo, alcanza una ventana reciente más chica
+// (menos tokens, menos costo). El recorte fino por tamaño lo hace assembleContext.
+const MAX_HISTORY_MESSAGES = 24;
+// Retención de InteractionLog (telemetría): 180 días. Purga lazy en el
+// query-path, junto con el TTL de UserMemory (minimización, Ley 25.326).
+const INTERACTION_LOG_TTL_DAYS = 180;
 const RATE_LIMIT_PER_MINUTE = 15;
 const RATE_LIMIT_PER_DAY = 400;
 
@@ -82,6 +100,9 @@ function fixedTextResponse(text: string, headers?: Record<string, string>) {
 }
 
 export async function POST(req: Request) {
+  // Telemetría (B4): momento de entrada para medir la latencia total del request.
+  const requestStartedAt = Date.now();
+
   // Defensa CSRF en profundidad (M3): si el navegador manda Origin y no es el
   // nuestro, se corta acá (la cookie SameSite=Lax es la defensa principal).
   if (!sameOriginOk(req)) {
@@ -93,6 +114,9 @@ export async function POST(req: Request) {
     return Response.json({ error: "No autenticado" }, { status: 401 });
   }
   const userId = session.user.id;
+  // Rol del interlocutor (B3): se captura acá (session ya está narrowed) para
+  // usarlo también dentro del closure diferido de logInteraction.
+  const userRole = session.user.role;
 
   // --- Gate de consentimiento (M-P1, Ley 25.326) ---
   // Un menor solo puede chatear si su tutor/a registró el consentimiento.
@@ -164,7 +188,10 @@ export async function POST(req: Request) {
   // guardar el mensaje nuevo (así no se duplica). El modelo verá
   // [historial de DB] + [último mensaje user del cliente]; el array que mande
   // el cliente jamás llega al modelo.
-  let dbHistory: ModelMessage[] = [];
+  // Historial crudo (cronológico) para el recorte por presupuesto (B2). El
+  // recorte por CANTIDAD lo hace la query (take); el recorte fino por TAMAÑO lo
+  // hace assembleContext más abajo.
+  let historyRows: { role: string; content: string }[] = [];
   if (conversationId) {
     const rows = await prisma.message.findMany({
       where: { conversationId },
@@ -172,8 +199,7 @@ export async function POST(req: Request) {
       take: MAX_HISTORY_MESSAGES,
       select: { role: true, content: true },
     });
-    // ...en orden cronológico para el modelo.
-    dbHistory = historyToModelMessages(rows.reverse(), MAX_HISTORY_MESSAGES);
+    historyRows = rows.reverse(); // ...en orden cronológico.
   }
   if (!conversationId) {
     const created = await prisma.conversation.create({
@@ -199,16 +225,19 @@ export async function POST(req: Request) {
   // Persistir el mensaje del menor NO puede bloquear la detección de crisis: si
   // la DB falla, se loguea y se sigue (regexFlag ya se calculó sobre userText,
   // en memoria). Un fallo de DB acá jamás debe impedir devolver la plantilla de
-  // crisis más abajo (M1).
+  // crisis más abajo (M1). Se captura el id para referenciarlo en InteractionLog.
+  let userMessageId: string | null = null;
   try {
-    await prisma.message.create({
+    const created = await prisma.message.create({
       data: {
         conversationId,
         role: "user",
         content: userText,
         safetyFlag: regexFlag,
       },
+      select: { id: true },
     });
+    userMessageId = created.id;
   } catch (err) {
     console.error("[chat] error guardando el mensaje del usuario (se sigue igual):", err);
   }
@@ -218,18 +247,86 @@ export async function POST(req: Request) {
   // límite de sesión, fallback) un fallo de DB no puede suprimir el texto que se
   // le devuelve al menor (los teléfonos de ayuda). Si la DB falla, se loguea y el
   // caller devuelve igual el fixedTextResponse.
-  async function saveAssistant(content: string, safetyFlag: string | null) {
+  // Devuelve el id del mensaje assistant creado (o null si la DB falló) para
+  // referenciarlo en InteractionLog. Nunca lanza (M1).
+  async function saveAssistant(
+    content: string,
+    safetyFlag: string | null,
+  ): Promise<string | null> {
     try {
-      await prisma.message.create({
+      const created = await prisma.message.create({
         data: { conversationId: conversationId!, role: "assistant", content, safetyFlag },
+        select: { id: true },
       });
       await prisma.conversation.update({
         where: { id: conversationId! },
         data: { updatedAt: new Date() },
       });
+      return created.id;
     } catch (err) {
       console.error("[chat] error guardando la respuesta del asistente (se devuelve igual):", err);
+      return null;
     }
+  }
+
+  // --- Telemetría de interacción (B4) ---
+  // Registra UNA fila por request en cada path de respuesta, fire-and-forget vía
+  // after(): NUNCA bloquea ni rompe el chat (invariante M1). JAMÁS guarda el
+  // contenido de los mensajes ni texto de moderación — solo referencias, métricas
+  // de performance y, de moderación, fuente + flag + categoría.
+  function logInteraction(
+    responsePath: string,
+    extra: {
+      model?: string | null;
+      generationLatencyMs?: number | null;
+      usage?: LanguageModelUsage | null;
+      moderationInput?: ModerationResult | null;
+      moderationOutput?: ModerationResult | null;
+      safetyFlagFinal?: string | null;
+      assistantMessageId?: string | null;
+      safetyEventId?: string | null;
+      historyMessagesSent?: number;
+    } = {},
+  ) {
+    const totalLatencyMs = Date.now() - requestStartedAt;
+    const usage = extra.usage ?? null;
+    const inMod = extra.moderationInput ?? null;
+    const outMod = extra.moderationOutput ?? null;
+    const cid = conversationId;
+    after(async () => {
+      try {
+        if (!cid) return; // sin conversación no hay FK válida
+        await prisma.interactionLog.create({
+          data: {
+            userId,
+            conversationId: cid,
+            userMessageId,
+            assistantMessageId: extra.assistantMessageId ?? null,
+            safetyEventId: extra.safetyEventId ?? null,
+            model: extra.model ?? null,
+            totalLatencyMs,
+            generationLatencyMs: extra.generationLatencyMs ?? null,
+            inputTokens: usage?.inputTokens ?? null,
+            outputTokens: usage?.outputTokens ?? null,
+            totalTokens: usage?.totalTokens ?? null,
+            reasoningTokens: usage?.outputTokenDetails?.reasoningTokens ?? null,
+            cacheReadTokens: usage?.inputTokenDetails?.cacheReadTokens ?? null,
+            moderationInputSource: inMod?.source ?? null,
+            moderationInputFlagged: inMod ? inMod.flagged : null,
+            moderationInputCategory: inMod?.topCategory ?? inMod?.mappedFlag ?? null,
+            moderationOutputSource: outMod?.source ?? null,
+            moderationOutputFlagged: outMod ? outMod.flagged : null,
+            moderationOutputCategory: outMod?.topCategory ?? outMod?.mappedFlag ?? null,
+            responsePath,
+            safetyFlagFinal: extra.safetyFlagFinal ?? null,
+            historyMessagesSent: extra.historyMessagesSent ?? 0,
+            roleAtRequest: userRole ?? "guardian",
+          },
+        });
+      } catch (err) {
+        console.error("[chat] error registrando InteractionLog (no bloquea):", err);
+      }
+    });
   }
 
   // Evento de seguridad anonimizado: solo categoría + capa, nunca el contenido.
@@ -278,10 +375,15 @@ export async function POST(req: Request) {
   // Crisis, abuso o trastorno alimentario: plantilla fija, el LLM no interviene.
   if (regexFlag === "crisis" || regexFlag === "abuso" || regexFlag === "alimentario") {
     const reply = crisisReply(regexFlag);
-    await saveAssistant(reply, "derivacion");
+    const assistantMessageId = await saveAssistant(reply, "derivacion");
     if (regexFlag !== "alimentario") {
       await alertGuardianSafely(regexEventId, regexFlag);
     }
+    logInteraction("crisis-template", {
+      safetyFlagFinal: "derivacion",
+      safetyEventId: regexEventId,
+      assistantMessageId,
+    });
     return fixedTextResponse(reply, responseHeaders);
   }
 
@@ -320,36 +422,64 @@ export async function POST(req: Request) {
   await prisma.userMemory.deleteMany({
     where: { userId, updatedAt: { lt: memoryTtlCutoff(now) } },
   });
+  // TTL de telemetría (B4): purga lazy de InteractionLog > 180 días. Mismo
+  // criterio de minimización que UserMemory; sin cron.
+  await prisma.interactionLog.deleteMany({
+    where: {
+      userId,
+      createdAt: {
+        lt: new Date(now.getTime() - INTERACTION_LOG_TTL_DAYS * 24 * 60 * 60 * 1000),
+      },
+    },
+  });
 
   // --- Contexto (fichas + memoria + resumen) + ventana de sesión, en paralelo ---
   // Todo lo que necesita la generación, más los mensajes recientes para el
   // límite de sesión (M-S7). La sesión se mide sobre TODAS las conversaciones
   // del usuario (el límite es por uso, no por hilo): ventana de 2 horas.
-  const [cards, memories, lastSummarized, recentMessages] = await Promise.all([
-    prisma.knowledgeCard.findMany(),
-    prisma.userMemory.findMany({
-      where: { userId },
-      orderBy: { updatedAt: "desc" },
-      take: 20,
-    }),
-    prisma.conversation.findFirst({
-      where: { userId, id: { not: conversationId }, summary: { not: null } },
-      orderBy: { summarizedAt: "desc" },
-      select: { summary: true },
-    }),
-    prisma.message.findMany({
-      where: {
-        conversation: { userId },
-        createdAt: { gte: new Date(now.getTime() - 2 * 60 * 60 * 1000) },
-      },
-      orderBy: { createdAt: "desc" },
-      take: 60,
-      select: { createdAt: true, role: true, safetyFlag: true },
-    }),
-  ]);
+  // Rol del interlocutor (B3): condiciona la persona y el límite de sesión.
+  const role = userRole;
+
+  const [cards, memories, pastSummariesRows, activeConv, recentMessages] =
+    await Promise.all([
+      prisma.knowledgeCard.findMany(),
+      prisma.userMemory.findMany({
+        where: { userId },
+        orderBy: { updatedAt: "desc" },
+        take: 20,
+      }),
+      // Resúmenes de charlas pasadas ya cerradas (B2.5): hasta 3, las más recientes.
+      prisma.conversation.findMany({
+        where: { userId, id: { not: conversationId }, summary: { not: null } },
+        orderBy: { summarizedAt: "desc" },
+        take: 3,
+        select: { summary: true },
+      }),
+      // Rolling summary de ESTA conversación (B2.4). Conversación nueva → null.
+      prisma.conversation.findUnique({
+        where: { id: conversationId },
+        select: { rollingSummary: true },
+      }),
+      // Ventana de sesión (M-S7): SOLO para menores (B3.2). Guardians: sin
+      // cálculo (no hay warn/over), se evita la query.
+      sessionLimitApplies(role)
+        ? prisma.message.findMany({
+            where: {
+              conversation: { userId },
+              createdAt: { gte: new Date(now.getTime() - 2 * 60 * 60 * 1000) },
+            },
+            orderBy: { createdAt: "desc" },
+            take: 60,
+            select: { createdAt: true, role: true, safetyFlag: true },
+          })
+        : Promise.resolve(
+            [] as { createdAt: Date; role: string; safetyFlag: string | null }[],
+          ),
+    ]);
 
   // Estado de sesión: se calcula ahora pero se DECIDE más abajo, después de la
   // moderación de entrada (una crisis real gana sobre el cierre por tiempo).
+  // Para guardians recentMessages viene vacío → siempre "ok", nunca warn/over.
   const sState = sessionState(
     recentMessages.map((m) => m.createdAt),
     now,
@@ -362,12 +492,34 @@ export async function POST(req: Request) {
       (m) => m.role === "assistant" && m.safetyFlag === "session-warn",
     );
 
-  // System prompt base + addendum de "riesgo" por REGEX (previo y gratis).
-  const baseSystem = buildSystemPrompt({
+  // Recorte por presupuesto (B2.6): cada bucket a su tope de tokens estimados.
+  // El mensaje actual del usuario nunca se recorta.
+  const pastSummaries = pastSummariesRows
+    .map((c) => c.summary)
+    .filter((s): s is string => Boolean(s));
+  const context = assembleContext({
     cards: selectRelevantCards(cards, userText),
     memories,
+    pastSummaries,
+    rollingSummary: activeConv?.rollingSummary ?? undefined,
+    history: historyRows,
+    currentUserText: userText,
+  });
+
+  // Historial (recortado) en el formato del modelo.
+  const dbHistory: ModelMessage[] = historyToModelMessages(
+    context.history,
+    MAX_HISTORY_MESSAGES,
+  );
+
+  // System prompt base + addendum de "riesgo" por REGEX (previo y gratis).
+  const baseSystem = buildSystemPrompt({
+    cards: context.cards,
+    memories: context.memories,
     userName: session.user.name ?? undefined,
-    lastSummary: lastSummarized?.summary ?? undefined,
+    pastSummaries: context.pastSummaries,
+    rollingSummary: context.rollingSummary,
+    role,
   });
   const riesgoAddendum = `\n\n---\n\n${crisisSystemAddendum("riesgo")}`;
   const systemForParallel =
@@ -387,7 +539,15 @@ export async function POST(req: Request) {
   // detectada por la moderación de entrada que corre en paralelo.
   async function generateReply(
     sys: string,
-  ): Promise<{ ok: true; text: string } | { ok: false }> {
+  ): Promise<
+    | {
+        ok: true;
+        text: string;
+        usage: LanguageModelUsage;
+        generationLatencyMs: number | null;
+      }
+    | { ok: false }
+  > {
     try {
       const g = await generateText({
         model: chatModel(),
@@ -401,7 +561,15 @@ export async function POST(req: Request) {
         // riesgo (ambas pasan por generateReply).
         abortSignal: AbortSignal.timeout(generationTimeoutMs()),
       });
-      return { ok: true, text: g.text };
+      return {
+        ok: true,
+        text: g.text,
+        usage: g.usage,
+        // B4: latencia de la llamada al modelo (AI SDK v7). El campo performance
+        // vive por STEP (no en el result); generamos en un solo step (sin tools),
+        // así el último step cubre toda la generación. Defensivo con `?.`.
+        generationLatencyMs: g.steps.at(-1)?.performance?.responseTimeMs ?? null,
+      };
     } catch (err) {
       console.error("[chat] error generando respuesta:", err);
       return { ok: false };
@@ -423,8 +591,14 @@ export async function POST(req: Request) {
       `moderation-input:${inputMod.source}`,
     );
     const reply = crisisReply(inputMod.mappedFlag);
-    await saveAssistant(reply, "derivacion");
+    const assistantMessageId = await saveAssistant(reply, "derivacion");
     await alertGuardianSafely(eventId, inputMod.mappedFlag);
+    logInteraction("crisis-template", {
+      moderationInput: inputMod,
+      safetyFlagFinal: "derivacion",
+      safetyEventId: eventId,
+      assistantMessageId,
+    });
     return fixedTextResponse(reply, responseHeaders);
   }
 
@@ -444,7 +618,12 @@ export async function POST(req: Request) {
   // 2) Sesión vencida (M-S7) → cierre amable. Gana sobre la respuesta normal (la
   //    crisis ya se evaluó arriba). Generación paralela descartada.
   if (sState === "over") {
-    await saveAssistant(SESSION_LIMIT_REPLY, "session-limit");
+    const assistantMessageId = await saveAssistant(SESSION_LIMIT_REPLY, "session-limit");
+    logInteraction("session-limit", {
+      moderationInput: inputMod,
+      safetyFlagFinal: "session-limit",
+      assistantMessageId,
+    });
     return fixedTextResponse(SESSION_LIMIT_REPLY, responseHeaders);
   }
 
@@ -452,7 +631,8 @@ export async function POST(req: Request) {
   if (!configured || !parallelGen) {
     const reply =
       "Simón todavía no tiene configurado el proveedor de IA en este entorno (falta AI_API_KEY). Pedile a la persona que administra la app que lo configure.";
-    await saveAssistant(reply, null);
+    const assistantMessageId = await saveAssistant(reply, null);
+    logInteraction("no-ai", { moderationInput: inputMod, assistantMessageId });
     return fixedTextResponse(reply, responseHeaders);
   }
 
@@ -468,7 +648,13 @@ export async function POST(req: Request) {
   // 5) Error de generación → fallback (después de crisis/sesión: nunca enmascara).
   if (!generated.ok) {
     const reply = "Uy, tuve un problema para responderte recién. ¿Probamos de nuevo?";
-    await saveAssistant(reply, null);
+    const assistantMessageId = await saveAssistant(reply, null);
+    logInteraction("fallback-error", {
+      model: chatModelId(),
+      moderationInput: inputMod,
+      assistantMessageId,
+      historyMessagesSent: dbHistory.length,
+    });
     return fixedTextResponse(reply, responseHeaders);
   }
 
@@ -483,10 +669,22 @@ export async function POST(req: Request) {
     );
     // No mostramos el output del LLM: lo sustituimos por un mensaje seguro fijo.
     const safe = safeOutputReplacement(outputMod.mappedFlag);
-    await saveAssistant(safe, outputMod.mappedFlag ?? "moderation-output");
+    const finalFlag = outputMod.mappedFlag ?? "moderation-output";
+    const assistantMessageId = await saveAssistant(safe, finalFlag);
     if (outputMod.mappedFlag === "crisis" || outputMod.mappedFlag === "abuso") {
       await alertGuardianSafely(eventId, outputMod.mappedFlag);
     }
+    logInteraction("moderation-replaced-output", {
+      model: chatModelId(),
+      usage: generated.usage,
+      generationLatencyMs: generated.generationLatencyMs,
+      moderationInput: inputMod,
+      moderationOutput: outputMod,
+      safetyFlagFinal: finalFlag,
+      safetyEventId: eventId,
+      assistantMessageId,
+      historyMessagesSent: dbHistory.length,
+    });
     return fixedTextResponse(safe, responseHeaders);
   }
 
@@ -508,16 +706,26 @@ export async function POST(req: Request) {
         decision.action === "replace" ? decision.flag : "unavailable",
         "moderation-unavailable",
       );
-      await saveAssistant(
-        decision.reply,
-        decision.action === "replace" ? decision.flag : "moderation-unavailable",
-      );
+      const finalFlag =
+        decision.action === "replace" ? decision.flag : "moderation-unavailable";
+      const assistantMessageId = await saveAssistant(decision.reply, finalFlag);
       if (
         decision.action === "replace" &&
         (decision.flag === "crisis" || decision.flag === "abuso")
       ) {
         await alertGuardianSafely(eventId, decision.flag);
       }
+      logInteraction("moderation-unavailable", {
+        model: chatModelId(),
+        usage: generated.usage,
+        generationLatencyMs: generated.generationLatencyMs,
+        moderationInput: inputMod,
+        moderationOutput: outputMod,
+        safetyFlagFinal: finalFlag,
+        safetyEventId: eventId,
+        assistantMessageId,
+        historyMessagesSent: dbHistory.length,
+      });
       return fixedTextResponse(decision.reply, responseHeaders);
     }
   }
@@ -546,6 +754,23 @@ export async function POST(req: Request) {
   // "session-warn" porque es el que necesita el dedupe del aviso de pausa. No se
   // necesita un flag compuesto hoy: ningún consumidor cruza ambas dimensiones.
   // saveAssistant ya es a prueba de fallos (M1): no requiere try/catch acá.
-  await saveAssistant(finalText, needsSessionWarn ? "session-warn" : effectiveFlag);
+  const finalFlag = needsSessionWarn ? "session-warn" : effectiveFlag;
+  const assistantMessageId = await saveAssistant(finalText, finalFlag);
+
+  // B2.3: rolling summary incremental de esta conversación. La decisión fina
+  // (hilo largo Y atrasado) la toma updateRollingSummary; se dispara fire-and-
+  // forget vía after() para no sumar latencia a la respuesta.
+  after(() => updateRollingSummary(conversationId!));
+
+  logInteraction("normal", {
+    model: chatModelId(),
+    usage: generated.usage,
+    generationLatencyMs: generated.generationLatencyMs,
+    moderationInput: inputMod,
+    moderationOutput: outputMod,
+    safetyFlagFinal: finalFlag,
+    assistantMessageId,
+    historyMessagesSent: dbHistory.length,
+  });
   return fixedTextResponse(finalText, responseHeaders);
 }

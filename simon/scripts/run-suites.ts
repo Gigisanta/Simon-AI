@@ -26,6 +26,7 @@ const SUITES = [
   "alerts",
   "rate-limit",
   "retrieval",
+  "training-export",
 ] as const;
 
 const here = dirname(fileURLToPath(import.meta.url));

@@ -55,11 +55,16 @@ export const NAV_ITEMS: {
   { href: "/tutor", label: "Tutor", Icon: TutorIcon, guardianOnly: true },
 ];
 
+/** Ítems visibles según el rol. El menor (child) solo ve "Chat". */
+export function visibleNavItems(role: string | null | undefined) {
+  const isGuardian = role === "guardian";
+  return NAV_ITEMS.filter((item) => !item.guardianOnly || isGuardian);
+}
+
 export function SiteHeader() {
   const pathname = usePathname();
   const { data: session } = useSession();
-  const isGuardian = session?.user.role === "guardian";
-  const items = NAV_ITEMS.filter((item) => !item.guardianOnly || isGuardian);
+  const items = visibleNavItems(session?.user.role);
 
   return (
     <header className="sticky top-0 z-40 border-b border-line/70 bg-card/80 px-3 shadow-[0_1px_3px_rgb(0_0_0/0.1),0_1px_2px_-1px_rgb(0_0_0/0.1)] backdrop-blur sm:px-4">

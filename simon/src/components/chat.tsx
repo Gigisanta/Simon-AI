@@ -3,9 +3,12 @@
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import { useEffect, useRef, useState } from "react";
+import { ConversationList } from "@/components/conversation-list";
 import { MoodChips } from "@/components/mood-chips";
+import { relativeTime } from "@/components/relative-time";
 import { SessionTimer } from "@/components/session-timer";
 import { SimonAvatar } from "@/components/simon-avatar";
+import { useSession } from "@/lib/auth-client";
 import { SESSION_WARN_APPENDIX } from "@/lib/session-limit";
 
 /** El aviso de pausa lo emite el server (session-limit); acá solo se detecta. */
@@ -18,17 +21,13 @@ type Resumable = {
   messages: { id: string; role: string; content: string }[];
 };
 
-/** Fecha relativa en es-AR: "hace 2 horas", "ayer". */
-function relativeTime(iso: string): string {
-  const rtf = new Intl.RelativeTimeFormat("es-AR", { numeric: "auto" });
-  const diffSec = Math.round((new Date(iso).getTime() - Date.now()) / 1000);
-  const abs = Math.abs(diffSec);
-  if (abs < 60) return rtf.format(diffSec, "second");
-  if (abs < 3600) return rtf.format(Math.round(diffSec / 60), "minute");
-  if (abs < 86400) return rtf.format(Math.round(diffSec / 3600), "hour");
-  if (abs < 2592000) return rtf.format(Math.round(diffSec / 86400), "day");
-  return rtf.format(Math.round(diffSec / 2592000), "month");
-}
+/** Detalle que devuelve GET /api/conversations/:id (contrato). */
+type ConversationDetail = {
+  id: string;
+  title: string;
+  updatedAt: string;
+  messages: { id: string; role: string; content: string }[];
+};
 
 const quickStartIconProps = {
   viewBox: "0 0 24 24",
@@ -41,14 +40,16 @@ const quickStartIconProps = {
   className: "size-5 shrink-0",
 } as const;
 
-/** Accesos rápidos del empty state: mensajes reales enviados al chat (SH-U3). */
-const QUICK_STARTS: {
+type QuickStart = {
   label: string;
   message: string;
   circle: string;
   kicker: string;
   icon: React.ReactNode;
-}[] = [
+};
+
+/** Accesos rápidos del empty state: mensajes reales enviados al chat (SH-U3). */
+const CHILD_QUICK_STARTS: QuickStart[] = [
   {
     label: "CÓMO ME SIENTO",
     message: "Quiero contarte cómo me siento hoy",
@@ -86,8 +87,64 @@ const QUICK_STARTS: {
   },
 ];
 
+/** Accesos del tutor/a (F3): orientación familiar, derechos, trámites. */
+const GUARDIAN_QUICK_STARTS: QuickStart[] = [
+  {
+    label: "TRÁMITES",
+    message: "¿Cómo tramito el CUD?",
+    circle: "bg-sky-tint text-tramites",
+    kicker: "text-tramites",
+    icon: (
+      <svg {...quickStartIconProps}>
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+        <path d="M14 2v6h6" />
+        <path d="M9 13h6M9 17h6" />
+      </svg>
+    ),
+  },
+  {
+    label: "DERECHOS",
+    message: "Derechos y prestaciones",
+    circle: "bg-green-tint text-intel",
+    kicker: "text-intel",
+    icon: (
+      <svg {...quickStartIconProps}>
+        <path d="M12 3 4 6v6c0 4.4 3.4 7.6 8 9 4.6-1.4 8-4.6 8-9V6z" />
+        <path d="m9 12 2 2 4-4" />
+      </svg>
+    ),
+  },
+  {
+    label: "ACOMPAÑAR",
+    message: "Cómo acompañar a mi hijo/a",
+    circle: "bg-peach-tint text-terra",
+    kicker: "text-terra",
+    icon: (
+      <svg {...quickStartIconProps}>
+        <path d="M20.8 8.6c0 4.4-8.8 10-8.8 10s-8.8-5.6-8.8-10a4.6 4.6 0 0 1 8.8-1.9A4.6 4.6 0 0 1 20.8 8.6z" />
+      </svg>
+    ),
+  },
+];
+
+const headerIconProps = {
+  viewBox: "0 0 24 24",
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: 2,
+  strokeLinecap: "round",
+  strokeLinejoin: "round",
+  "aria-hidden": true,
+  className: "size-5",
+} as const;
+
 export function Chat() {
+  const { data: session } = useSession();
+  const isGuardian = session?.user.role === "guardian";
+  const quickStarts = isGuardian ? GUARDIAN_QUICK_STARTS : CHILD_QUICK_STARTS;
+
   const [input, setInput] = useState("");
+  const [listOpen, setListOpen] = useState(false);
   const conversationIdRef = useRef<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -136,20 +193,42 @@ export function Chat() {
     };
   }, []);
 
-  // La elección es explícita: nunca se reinyecta el historial en silencio
-  // (control del chico sobre retomar un tema sensible).
-  function handleResume() {
-    if (!resumable) return;
-    const uiMessages: UIMessage[] = resumable.messages
+  /** Mapea los mensajes persistidos a UIMessage (parts text), como handleResume. */
+  function toUiMessages(
+    rows: { id: string; role: string; content: string }[],
+  ): UIMessage[] {
+    return rows
       .filter((m) => m.role === "user" || m.role === "assistant")
       .map((m) => ({
         id: m.id,
         role: m.role as UIMessage["role"],
         parts: [{ type: "text", text: m.content }],
       }));
-    setMessages(uiMessages);
+  }
+
+  // La elección es explícita: nunca se reinyecta el historial en silencio
+  // (control del chico sobre retomar un tema sensible).
+  function handleResume() {
+    if (!resumable) return;
+    setMessages(toUiMessages(resumable.messages));
     conversationIdRef.current = resumable.id;
     setResumable(null);
+  }
+
+  // Abrir una conversación desde la lista: mismo mapeo que handleResume.
+  function handleOpenConversation(detail: ConversationDetail) {
+    setMessages(toUiMessages(detail.messages));
+    conversationIdRef.current = detail.id;
+    setResumable(null);
+    setListOpen(false);
+  }
+
+  // Nueva conversación: limpia el hilo y el id (el próximo /api/chat crea una).
+  function handleNewConversation() {
+    setMessages([]);
+    conversationIdRef.current = null;
+    setResumable(null);
+    setListOpen(false);
   }
 
   useEffect(() => {
@@ -166,6 +245,7 @@ export function Chat() {
   }, [messages]);
 
   const busy = status === "submitted" || status === "streaming";
+  const hasMessages = messages.length > 0;
 
   const serverWarned = messages.some(
     (m) =>
@@ -188,26 +268,62 @@ export function Chat() {
 
   return (
     <div className="flex min-h-0 w-full max-w-2xl flex-1 flex-col mx-auto px-3 pb-3 sm:px-4 sm:pb-4">
-      {/* Divulgación obligatoria: Simón es una IA */}
-      <div className="mt-3 rounded-2xl border border-accent/60 bg-peach px-4 py-2.5 text-xs text-accent-deep sm:text-sm">
-        Simón es un asistente de inteligencia artificial, no una persona ni un
-        profesional de la salud. Si estás en peligro o en crisis, contactá una
-        línea de ayuda: en Argentina, llamá al <strong>135</strong> (CAS) o al{" "}
-        <strong>102</strong> (niñas, niños y adolescentes).
-      </div>
+      {/*
+        Divulgación obligatoria: Simón es una IA. Requisito legal: SIEMPRE
+        visible. Con mensajes en pantalla colapsa a una línea (libera viewport
+        mobile, F1.2); en empty state va el texto completo.
+      */}
+      {hasMessages ? (
+        <div className="mt-3 rounded-2xl border border-accent/60 bg-peach px-4 py-1.5 text-center text-xs text-accent-deep">
+          Simón es una IA · en crisis: <strong>135</strong> / <strong>102</strong>
+        </div>
+      ) : (
+        <div className="mt-3 rounded-2xl border border-accent/60 bg-peach px-4 py-2.5 text-xs text-accent-deep sm:text-sm">
+          Simón es un asistente de inteligencia artificial, no una persona ni un
+          profesional de la salud. Si estás en peligro o en crisis, contactá una
+          línea de ayuda: en Argentina, llamá al <strong>135</strong> (CAS) o al{" "}
+          <strong>102</strong> (niñas, niños y adolescentes).
+        </div>
+      )}
 
       {/* Tarjeta principal del chat (estilo simon-mocha) */}
       <div className="mt-3 flex flex-1 flex-col overflow-hidden rounded-card border border-line bg-card shadow-[0_10px_30px_-12px_rgb(57_53_41/0.15)]">
         {/* Header del chat */}
-        <div className="flex items-center justify-between gap-2 border-b border-line px-4 py-3">
-          <span className="flex items-center gap-2.5">
+        <div className="flex items-center justify-between gap-2 border-b border-line px-3 py-2.5 sm:px-4 sm:py-3">
+          {/* Identidad: duplica el SiteHeader → solo en md+ (F1.3) */}
+          <span className="hidden items-center gap-2.5 md:flex">
             <SimonAvatar className="size-8" />
             <span className="flex flex-col leading-tight">
               <span className="text-sm font-extrabold text-ink">Simón</span>
               <span className="text-xs text-ink-soft">siempre acá para vos</span>
             </span>
           </span>
-          <SessionTimer serverWarned={serverWarned} />
+
+          {/* Acciones de conversación + timer (ambos breakpoints, ≥44px) */}
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={handleNewConversation}
+              aria-label="Nueva conversación"
+              className="flex size-11 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-sand hover:text-ink"
+            >
+              <svg {...headerIconProps}>
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              onClick={() => setListOpen(true)}
+              aria-label="Ver conversaciones"
+              className="flex size-11 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-sand hover:text-ink"
+            >
+              <svg {...headerIconProps}>
+                <path d="M8 6h13M8 12h13M8 18h13" />
+                <path d="M3 6h.01M3 12h.01M3 18h.01" />
+              </svg>
+            </button>
+            <SessionTimer serverWarned={serverWarned} />
+          </div>
         </div>
 
         <div
@@ -247,13 +363,29 @@ export function Chat() {
 
               <div className="flex flex-col items-center gap-3">
                 <SimonAvatar className="size-14" />
-                <p className="max-w-sm text-center text-base text-ink">
-                  Hola, soy Simón. ¿De qué querés hablar hoy?
-                </p>
-                <p className="max-w-sm text-center text-sm text-ink-soft">
-                  No hace falta que cuentes datos personales. Si veo que estás en
-                  peligro, aviso a tu tutor/a para que te cuiden.
-                </p>
+                {isGuardian ? (
+                  <>
+                    <p className="max-w-sm text-center text-base text-ink">
+                      Hola, soy Simón. Estoy para ayudarte a acompañar a tu hijo
+                      o hija.
+                    </p>
+                    <p className="max-w-sm text-center text-sm text-ink-soft">
+                      Puedo orientarte sobre trámites, derechos y prestaciones, y
+                      cómo sostener el día a día. No reemplazo el consejo
+                      profesional.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="max-w-sm text-center text-base text-ink">
+                      Hola, soy Simón. ¿De qué querés hablar hoy?
+                    </p>
+                    <p className="max-w-sm text-center text-sm text-ink-soft">
+                      No hace falta que cuentes datos personales. Si veo que
+                      estás en peligro, aviso a tu tutor/a para que te cuiden.
+                    </p>
+                  </>
+                )}
               </div>
 
               <div className="flex w-full max-w-xl flex-col items-center gap-3">
@@ -261,7 +393,7 @@ export function Chat() {
                   ¿Por dónde querés empezar?
                 </p>
                 <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-3">
-                  {QUICK_STARTS.map((item) => (
+                  {quickStarts.map((item) => (
                     <button
                       key={item.label}
                       type="button"
@@ -284,12 +416,15 @@ export function Chat() {
                 </div>
               </div>
 
-              <div className="flex flex-col items-center gap-3">
-                <p className="text-sm font-semibold text-ink-soft">
-                  Si querés, empezá contándome cómo te sentís:
-                </p>
-                <MoodChips onPick={send} />
-              </div>
+              {/* Check-in emocional: entrada guiada para el menor (no aplica al tutor/a). */}
+              {!isGuardian && (
+                <div className="flex flex-col items-center gap-3">
+                  <p className="text-sm font-semibold text-ink-soft">
+                    Si querés, empezá contándome cómo te sentís:
+                  </p>
+                  <MoodChips onPick={send} />
+                </div>
+              )}
             </div>
           )}
           {messages.map((m) => (
@@ -382,11 +517,19 @@ export function Chat() {
               </svg>
             </button>
           </form>
-          <p className="mt-2 text-center text-xs text-ink-soft">
+          {/* Recordatorio de encuadre: se oculta en mobile para liberar alto (F1.4) */}
+          <p className="mt-2 hidden text-center text-xs text-ink-soft md:block">
             Simón acompaña, no reemplaza la ayuda de una persona.
           </p>
         </div>
       </div>
+
+      <ConversationList
+        open={listOpen}
+        onClose={() => setListOpen(false)}
+        onOpenConversation={handleOpenConversation}
+        onNewConversation={handleNewConversation}
+      />
     </div>
   );
 }

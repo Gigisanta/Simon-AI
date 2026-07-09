@@ -30,6 +30,15 @@ const MAX_TRANSCRIPT_MESSAGES = 30; // ventana enviada al modelo small
 const MAX_CHARS_PER_MESSAGE = 500;
 const MAX_SUMMARY_CHARS = 900; // tope defensivo ~120 palabras
 
+// --- Rolling summary (B2): resumen incremental de la conversación EN CURSO ---
+// Se dispara cuando el hilo ya es largo (>60 mensajes) y quedó atrasado (>20
+// mensajes posteriores al último cubierto): así el prompt no manda todo el
+// historial. Umbrales pensados para no gastar el modelo small en hilos cortos.
+export const ROLLING_TRIGGER_TOTAL = 60;
+export const ROLLING_TRIGGER_UNCOVERED = 20;
+const MAX_ROLLING_TRANSCRIPT_MESSAGES = 40; // ventana incremental al modelo small
+const MAX_ROLLING_SUMMARY_CHARS = 1200; // tope defensivo ~150 palabras
+
 /**
  * Parseo defensivo de la salida del modelo small. Espera
  * `{"resumen": "...", "hechos": ["...", ...]}` (con o sin fence de código).
@@ -178,5 +187,125 @@ export async function summarizeStaleConversation(userId: string): Promise<void> 
   } catch (err) {
     // Nunca romper el chat por la memoria: log y listo.
     console.error("[memory] error resumiendo conversación:", err);
+  }
+}
+
+/**
+ * Decide si toca regenerar el rolling summary de una conversación activa: el
+ * hilo ya es largo Y quedó atrasado. Función pura — testeada en memory-suite.
+ */
+export function rollingSummaryDue(totalMessages: number, uncovered: number): boolean {
+  return totalMessages > ROLLING_TRIGGER_TOTAL && uncovered > ROLLING_TRIGGER_UNCOVERED;
+}
+
+function rollingSummaryPrompt(previous: string | null, transcript: string): string {
+  const prev = previous?.trim()
+    ? `Resumen previo de ESTA misma conversación (actualizalo integrándolo con lo nuevo, no lo repitas literal):\n${previous.trim()}\n\n`
+    : "";
+  return `Estás resumiendo una conversación EN CURSO entre una persona y el asistente Simón, para no perder el contexto de lo ya hablado en esta misma charla.
+
+${prev}Reglas ESTRICTAS (privacidad de menores — sin excepciones):
+- Devolvé UN solo resumen actualizado (resumen previo + mensajes nuevos), en TERCERA persona ("la persona contó que..."), máximo 150 palabras.
+- PROHIBIDO incluir nombres propios, apellidos, direcciones, escuelas, teléfonos, redes sociales o cualquier dato que permita identificar a alguien.
+- Quedate con lo importante para dar continuidad (temas, preocupaciones, en qué quedaron); descartá el chiquiteo.
+- Respondé SOLO con JSON válido, sin texto adicional:
+{"resumen": "..."}
+
+Mensajes nuevos:
+${transcript}`;
+}
+
+/**
+ * Parseo defensivo del rolling summary. Espera `{"resumen": "..."}` (tolera
+ * fence/texto alrededor). JSON roto o resumen no-string → null (no se pisa el
+ * resumen previo con basura). Función pura — testeada en memory-suite.
+ */
+export function parseRollingSummary(raw: string): string | null {
+  if (typeof raw !== "string" || !raw.trim()) return null;
+  const match = raw.match(/\{[\s\S]*\}/);
+  if (!match) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(match[0]);
+  } catch {
+    return null;
+  }
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    return null;
+  }
+  const resumen = (parsed as Record<string, unknown>).resumen;
+  return typeof resumen === "string" && resumen.trim()
+    ? resumen.trim().slice(0, MAX_ROLLING_SUMMARY_CHARS)
+    : null;
+}
+
+/**
+ * Regenera (incremental) el rolling summary de una conversación ACTIVA cuando
+ * `rollingSummaryDue` da true: toma el rollingSummary previo + los mensajes
+ * posteriores a `rollingSummarizedUntil` y produce un resumen actualizado ≤150
+ * palabras, sin PII, sanitizado.
+ *
+ * Lazy: se dispara fire-and-forget vía `after()` desde el path normal de chat,
+ * así nunca bloquea la respuesta. Nunca lanza (cualquier error se loguea) y NO
+ * altera `updatedAt` (para no reordenar el listado de conversaciones).
+ */
+export async function updateRollingSummary(conversationId: string): Promise<void> {
+  try {
+    if (!aiConfigured()) return;
+
+    const conv = await prisma.conversation.findUnique({
+      where: { id: conversationId },
+      select: {
+        rollingSummary: true,
+        rollingSummarizedUntil: true,
+        updatedAt: true,
+        _count: { select: { messages: true } },
+      },
+    });
+    if (!conv) return;
+
+    const cutoff = conv.rollingSummarizedUntil;
+    const afterCutoff = cutoff ? { createdAt: { gt: cutoff } } : {};
+    const uncovered = await prisma.message.count({
+      where: { conversationId, role: { in: ["user", "assistant"] }, ...afterCutoff },
+    });
+    if (!rollingSummaryDue(conv._count.messages, uncovered)) return;
+
+    const newMessages = await prisma.message.findMany({
+      where: { conversationId, role: { in: ["user", "assistant"] }, ...afterCutoff },
+      orderBy: { createdAt: "asc" },
+      take: MAX_ROLLING_TRANSCRIPT_MESSAGES,
+      select: { role: true, content: true, createdAt: true },
+    });
+    if (newMessages.length === 0) return;
+
+    const transcript = newMessages
+      .map(
+        (m) =>
+          `${m.role === "user" ? "Persona" : "Simón"}: ${m.content.slice(0, MAX_CHARS_PER_MESSAGE)}`,
+      )
+      .join("\n");
+
+    const generated = await generateText({
+      model: smallModel(),
+      prompt: rollingSummaryPrompt(conv.rollingSummary, transcript),
+      temperature: 0.2,
+      maxOutputTokens: 500,
+      abortSignal: AbortSignal.timeout(generationTimeoutMs()),
+    });
+    const summary = parseRollingSummary(generated.text);
+    if (!summary) return; // no pisar el resumen previo con una salida ilegible
+
+    await prisma.conversation.update({
+      where: { id: conversationId },
+      data: {
+        rollingSummary: stripDelimiterSequences(summary),
+        // Cubre hasta el último mensaje incluido en esta pasada.
+        rollingSummarizedUntil: newMessages[newMessages.length - 1].createdAt,
+        updatedAt: conv.updatedAt, // preservar orden del listado
+      },
+    });
+  } catch (err) {
+    console.error("[memory] error actualizando rolling summary:", err);
   }
 }

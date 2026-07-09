@@ -253,6 +253,7 @@ export type UserWhereInput = {
   conversations?: Prisma.ConversationListRelationFilter
   memories?: Prisma.UserMemoryListRelationFilter
   safetyEvents?: Prisma.SafetyEventListRelationFilter
+  interactionLogs?: Prisma.InteractionLogListRelationFilter
   guardianOf?: Prisma.GuardianListRelationFilter
   guardedBy?: Prisma.XOR<Prisma.GuardianNullableScalarRelationFilter, Prisma.GuardianWhereInput> | null
 }
@@ -272,6 +273,7 @@ export type UserOrderByWithRelationInput = {
   conversations?: Prisma.ConversationOrderByRelationAggregateInput
   memories?: Prisma.UserMemoryOrderByRelationAggregateInput
   safetyEvents?: Prisma.SafetyEventOrderByRelationAggregateInput
+  interactionLogs?: Prisma.InteractionLogOrderByRelationAggregateInput
   guardianOf?: Prisma.GuardianOrderByRelationAggregateInput
   guardedBy?: Prisma.GuardianOrderByWithRelationInput
 }
@@ -294,6 +296,7 @@ export type UserWhereUniqueInput = Prisma.AtLeast<{
   conversations?: Prisma.ConversationListRelationFilter
   memories?: Prisma.UserMemoryListRelationFilter
   safetyEvents?: Prisma.SafetyEventListRelationFilter
+  interactionLogs?: Prisma.InteractionLogListRelationFilter
   guardianOf?: Prisma.GuardianListRelationFilter
   guardedBy?: Prisma.XOR<Prisma.GuardianNullableScalarRelationFilter, Prisma.GuardianWhereInput> | null
 }, "id" | "email">
@@ -345,6 +348,7 @@ export type UserCreateInput = {
   conversations?: Prisma.ConversationCreateNestedManyWithoutUserInput
   memories?: Prisma.UserMemoryCreateNestedManyWithoutUserInput
   safetyEvents?: Prisma.SafetyEventCreateNestedManyWithoutUserInput
+  interactionLogs?: Prisma.InteractionLogCreateNestedManyWithoutUserInput
   guardianOf?: Prisma.GuardianCreateNestedManyWithoutGuardianUserInput
   guardedBy?: Prisma.GuardianCreateNestedOneWithoutChildUserInput
 }
@@ -364,6 +368,7 @@ export type UserUncheckedCreateInput = {
   conversations?: Prisma.ConversationUncheckedCreateNestedManyWithoutUserInput
   memories?: Prisma.UserMemoryUncheckedCreateNestedManyWithoutUserInput
   safetyEvents?: Prisma.SafetyEventUncheckedCreateNestedManyWithoutUserInput
+  interactionLogs?: Prisma.InteractionLogUncheckedCreateNestedManyWithoutUserInput
   guardianOf?: Prisma.GuardianUncheckedCreateNestedManyWithoutGuardianUserInput
   guardedBy?: Prisma.GuardianUncheckedCreateNestedOneWithoutChildUserInput
 }
@@ -383,6 +388,7 @@ export type UserUpdateInput = {
   conversations?: Prisma.ConversationUpdateManyWithoutUserNestedInput
   memories?: Prisma.UserMemoryUpdateManyWithoutUserNestedInput
   safetyEvents?: Prisma.SafetyEventUpdateManyWithoutUserNestedInput
+  interactionLogs?: Prisma.InteractionLogUpdateManyWithoutUserNestedInput
   guardianOf?: Prisma.GuardianUpdateManyWithoutGuardianUserNestedInput
   guardedBy?: Prisma.GuardianUpdateOneWithoutChildUserNestedInput
 }
@@ -402,6 +408,7 @@ export type UserUncheckedUpdateInput = {
   conversations?: Prisma.ConversationUncheckedUpdateManyWithoutUserNestedInput
   memories?: Prisma.UserMemoryUncheckedUpdateManyWithoutUserNestedInput
   safetyEvents?: Prisma.SafetyEventUncheckedUpdateManyWithoutUserNestedInput
+  interactionLogs?: Prisma.InteractionLogUncheckedUpdateManyWithoutUserNestedInput
   guardianOf?: Prisma.GuardianUncheckedUpdateManyWithoutGuardianUserNestedInput
   guardedBy?: Prisma.GuardianUncheckedUpdateOneWithoutChildUserNestedInput
 }
@@ -613,6 +620,20 @@ export type UserUpdateOneRequiredWithoutMemoriesNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutMemoriesInput, Prisma.UserUpdateWithoutMemoriesInput>, Prisma.UserUncheckedUpdateWithoutMemoriesInput>
 }
 
+export type UserCreateNestedOneWithoutInteractionLogsInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutInteractionLogsInput, Prisma.UserUncheckedCreateWithoutInteractionLogsInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutInteractionLogsInput
+  connect?: Prisma.UserWhereUniqueInput
+}
+
+export type UserUpdateOneRequiredWithoutInteractionLogsNestedInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutInteractionLogsInput, Prisma.UserUncheckedCreateWithoutInteractionLogsInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutInteractionLogsInput
+  upsert?: Prisma.UserUpsertWithoutInteractionLogsInput
+  connect?: Prisma.UserWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutInteractionLogsInput, Prisma.UserUpdateWithoutInteractionLogsInput>, Prisma.UserUncheckedUpdateWithoutInteractionLogsInput>
+}
+
 export type UserCreateWithoutGuardianOfInput = {
   id: string
   name: string
@@ -628,6 +649,7 @@ export type UserCreateWithoutGuardianOfInput = {
   conversations?: Prisma.ConversationCreateNestedManyWithoutUserInput
   memories?: Prisma.UserMemoryCreateNestedManyWithoutUserInput
   safetyEvents?: Prisma.SafetyEventCreateNestedManyWithoutUserInput
+  interactionLogs?: Prisma.InteractionLogCreateNestedManyWithoutUserInput
   guardedBy?: Prisma.GuardianCreateNestedOneWithoutChildUserInput
 }
 
@@ -646,6 +668,7 @@ export type UserUncheckedCreateWithoutGuardianOfInput = {
   conversations?: Prisma.ConversationUncheckedCreateNestedManyWithoutUserInput
   memories?: Prisma.UserMemoryUncheckedCreateNestedManyWithoutUserInput
   safetyEvents?: Prisma.SafetyEventUncheckedCreateNestedManyWithoutUserInput
+  interactionLogs?: Prisma.InteractionLogUncheckedCreateNestedManyWithoutUserInput
   guardedBy?: Prisma.GuardianUncheckedCreateNestedOneWithoutChildUserInput
 }
 
@@ -669,6 +692,7 @@ export type UserCreateWithoutGuardedByInput = {
   conversations?: Prisma.ConversationCreateNestedManyWithoutUserInput
   memories?: Prisma.UserMemoryCreateNestedManyWithoutUserInput
   safetyEvents?: Prisma.SafetyEventCreateNestedManyWithoutUserInput
+  interactionLogs?: Prisma.InteractionLogCreateNestedManyWithoutUserInput
   guardianOf?: Prisma.GuardianCreateNestedManyWithoutGuardianUserInput
 }
 
@@ -687,6 +711,7 @@ export type UserUncheckedCreateWithoutGuardedByInput = {
   conversations?: Prisma.ConversationUncheckedCreateNestedManyWithoutUserInput
   memories?: Prisma.UserMemoryUncheckedCreateNestedManyWithoutUserInput
   safetyEvents?: Prisma.SafetyEventUncheckedCreateNestedManyWithoutUserInput
+  interactionLogs?: Prisma.InteractionLogUncheckedCreateNestedManyWithoutUserInput
   guardianOf?: Prisma.GuardianUncheckedCreateNestedManyWithoutGuardianUserInput
 }
 
@@ -721,6 +746,7 @@ export type UserUpdateWithoutGuardianOfInput = {
   conversations?: Prisma.ConversationUpdateManyWithoutUserNestedInput
   memories?: Prisma.UserMemoryUpdateManyWithoutUserNestedInput
   safetyEvents?: Prisma.SafetyEventUpdateManyWithoutUserNestedInput
+  interactionLogs?: Prisma.InteractionLogUpdateManyWithoutUserNestedInput
   guardedBy?: Prisma.GuardianUpdateOneWithoutChildUserNestedInput
 }
 
@@ -739,6 +765,7 @@ export type UserUncheckedUpdateWithoutGuardianOfInput = {
   conversations?: Prisma.ConversationUncheckedUpdateManyWithoutUserNestedInput
   memories?: Prisma.UserMemoryUncheckedUpdateManyWithoutUserNestedInput
   safetyEvents?: Prisma.SafetyEventUncheckedUpdateManyWithoutUserNestedInput
+  interactionLogs?: Prisma.InteractionLogUncheckedUpdateManyWithoutUserNestedInput
   guardedBy?: Prisma.GuardianUncheckedUpdateOneWithoutChildUserNestedInput
 }
 
@@ -768,6 +795,7 @@ export type UserUpdateWithoutGuardedByInput = {
   conversations?: Prisma.ConversationUpdateManyWithoutUserNestedInput
   memories?: Prisma.UserMemoryUpdateManyWithoutUserNestedInput
   safetyEvents?: Prisma.SafetyEventUpdateManyWithoutUserNestedInput
+  interactionLogs?: Prisma.InteractionLogUpdateManyWithoutUserNestedInput
   guardianOf?: Prisma.GuardianUpdateManyWithoutGuardianUserNestedInput
 }
 
@@ -786,6 +814,7 @@ export type UserUncheckedUpdateWithoutGuardedByInput = {
   conversations?: Prisma.ConversationUncheckedUpdateManyWithoutUserNestedInput
   memories?: Prisma.UserMemoryUncheckedUpdateManyWithoutUserNestedInput
   safetyEvents?: Prisma.SafetyEventUncheckedUpdateManyWithoutUserNestedInput
+  interactionLogs?: Prisma.InteractionLogUncheckedUpdateManyWithoutUserNestedInput
   guardianOf?: Prisma.GuardianUncheckedUpdateManyWithoutGuardianUserNestedInput
 }
 
@@ -803,6 +832,7 @@ export type UserCreateWithoutSessionsInput = {
   conversations?: Prisma.ConversationCreateNestedManyWithoutUserInput
   memories?: Prisma.UserMemoryCreateNestedManyWithoutUserInput
   safetyEvents?: Prisma.SafetyEventCreateNestedManyWithoutUserInput
+  interactionLogs?: Prisma.InteractionLogCreateNestedManyWithoutUserInput
   guardianOf?: Prisma.GuardianCreateNestedManyWithoutGuardianUserInput
   guardedBy?: Prisma.GuardianCreateNestedOneWithoutChildUserInput
 }
@@ -821,6 +851,7 @@ export type UserUncheckedCreateWithoutSessionsInput = {
   conversations?: Prisma.ConversationUncheckedCreateNestedManyWithoutUserInput
   memories?: Prisma.UserMemoryUncheckedCreateNestedManyWithoutUserInput
   safetyEvents?: Prisma.SafetyEventUncheckedCreateNestedManyWithoutUserInput
+  interactionLogs?: Prisma.InteractionLogUncheckedCreateNestedManyWithoutUserInput
   guardianOf?: Prisma.GuardianUncheckedCreateNestedManyWithoutGuardianUserInput
   guardedBy?: Prisma.GuardianUncheckedCreateNestedOneWithoutChildUserInput
 }
@@ -855,6 +886,7 @@ export type UserUpdateWithoutSessionsInput = {
   conversations?: Prisma.ConversationUpdateManyWithoutUserNestedInput
   memories?: Prisma.UserMemoryUpdateManyWithoutUserNestedInput
   safetyEvents?: Prisma.SafetyEventUpdateManyWithoutUserNestedInput
+  interactionLogs?: Prisma.InteractionLogUpdateManyWithoutUserNestedInput
   guardianOf?: Prisma.GuardianUpdateManyWithoutGuardianUserNestedInput
   guardedBy?: Prisma.GuardianUpdateOneWithoutChildUserNestedInput
 }
@@ -873,6 +905,7 @@ export type UserUncheckedUpdateWithoutSessionsInput = {
   conversations?: Prisma.ConversationUncheckedUpdateManyWithoutUserNestedInput
   memories?: Prisma.UserMemoryUncheckedUpdateManyWithoutUserNestedInput
   safetyEvents?: Prisma.SafetyEventUncheckedUpdateManyWithoutUserNestedInput
+  interactionLogs?: Prisma.InteractionLogUncheckedUpdateManyWithoutUserNestedInput
   guardianOf?: Prisma.GuardianUncheckedUpdateManyWithoutGuardianUserNestedInput
   guardedBy?: Prisma.GuardianUncheckedUpdateOneWithoutChildUserNestedInput
 }
@@ -891,6 +924,7 @@ export type UserCreateWithoutAccountsInput = {
   conversations?: Prisma.ConversationCreateNestedManyWithoutUserInput
   memories?: Prisma.UserMemoryCreateNestedManyWithoutUserInput
   safetyEvents?: Prisma.SafetyEventCreateNestedManyWithoutUserInput
+  interactionLogs?: Prisma.InteractionLogCreateNestedManyWithoutUserInput
   guardianOf?: Prisma.GuardianCreateNestedManyWithoutGuardianUserInput
   guardedBy?: Prisma.GuardianCreateNestedOneWithoutChildUserInput
 }
@@ -909,6 +943,7 @@ export type UserUncheckedCreateWithoutAccountsInput = {
   conversations?: Prisma.ConversationUncheckedCreateNestedManyWithoutUserInput
   memories?: Prisma.UserMemoryUncheckedCreateNestedManyWithoutUserInput
   safetyEvents?: Prisma.SafetyEventUncheckedCreateNestedManyWithoutUserInput
+  interactionLogs?: Prisma.InteractionLogUncheckedCreateNestedManyWithoutUserInput
   guardianOf?: Prisma.GuardianUncheckedCreateNestedManyWithoutGuardianUserInput
   guardedBy?: Prisma.GuardianUncheckedCreateNestedOneWithoutChildUserInput
 }
@@ -943,6 +978,7 @@ export type UserUpdateWithoutAccountsInput = {
   conversations?: Prisma.ConversationUpdateManyWithoutUserNestedInput
   memories?: Prisma.UserMemoryUpdateManyWithoutUserNestedInput
   safetyEvents?: Prisma.SafetyEventUpdateManyWithoutUserNestedInput
+  interactionLogs?: Prisma.InteractionLogUpdateManyWithoutUserNestedInput
   guardianOf?: Prisma.GuardianUpdateManyWithoutGuardianUserNestedInput
   guardedBy?: Prisma.GuardianUpdateOneWithoutChildUserNestedInput
 }
@@ -961,6 +997,7 @@ export type UserUncheckedUpdateWithoutAccountsInput = {
   conversations?: Prisma.ConversationUncheckedUpdateManyWithoutUserNestedInput
   memories?: Prisma.UserMemoryUncheckedUpdateManyWithoutUserNestedInput
   safetyEvents?: Prisma.SafetyEventUncheckedUpdateManyWithoutUserNestedInput
+  interactionLogs?: Prisma.InteractionLogUncheckedUpdateManyWithoutUserNestedInput
   guardianOf?: Prisma.GuardianUncheckedUpdateManyWithoutGuardianUserNestedInput
   guardedBy?: Prisma.GuardianUncheckedUpdateOneWithoutChildUserNestedInput
 }
@@ -979,6 +1016,7 @@ export type UserCreateWithoutConversationsInput = {
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   memories?: Prisma.UserMemoryCreateNestedManyWithoutUserInput
   safetyEvents?: Prisma.SafetyEventCreateNestedManyWithoutUserInput
+  interactionLogs?: Prisma.InteractionLogCreateNestedManyWithoutUserInput
   guardianOf?: Prisma.GuardianCreateNestedManyWithoutGuardianUserInput
   guardedBy?: Prisma.GuardianCreateNestedOneWithoutChildUserInput
 }
@@ -997,6 +1035,7 @@ export type UserUncheckedCreateWithoutConversationsInput = {
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   memories?: Prisma.UserMemoryUncheckedCreateNestedManyWithoutUserInput
   safetyEvents?: Prisma.SafetyEventUncheckedCreateNestedManyWithoutUserInput
+  interactionLogs?: Prisma.InteractionLogUncheckedCreateNestedManyWithoutUserInput
   guardianOf?: Prisma.GuardianUncheckedCreateNestedManyWithoutGuardianUserInput
   guardedBy?: Prisma.GuardianUncheckedCreateNestedOneWithoutChildUserInput
 }
@@ -1031,6 +1070,7 @@ export type UserUpdateWithoutConversationsInput = {
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   memories?: Prisma.UserMemoryUpdateManyWithoutUserNestedInput
   safetyEvents?: Prisma.SafetyEventUpdateManyWithoutUserNestedInput
+  interactionLogs?: Prisma.InteractionLogUpdateManyWithoutUserNestedInput
   guardianOf?: Prisma.GuardianUpdateManyWithoutGuardianUserNestedInput
   guardedBy?: Prisma.GuardianUpdateOneWithoutChildUserNestedInput
 }
@@ -1049,6 +1089,7 @@ export type UserUncheckedUpdateWithoutConversationsInput = {
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   memories?: Prisma.UserMemoryUncheckedUpdateManyWithoutUserNestedInput
   safetyEvents?: Prisma.SafetyEventUncheckedUpdateManyWithoutUserNestedInput
+  interactionLogs?: Prisma.InteractionLogUncheckedUpdateManyWithoutUserNestedInput
   guardianOf?: Prisma.GuardianUncheckedUpdateManyWithoutGuardianUserNestedInput
   guardedBy?: Prisma.GuardianUncheckedUpdateOneWithoutChildUserNestedInput
 }
@@ -1067,6 +1108,7 @@ export type UserCreateWithoutSafetyEventsInput = {
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   conversations?: Prisma.ConversationCreateNestedManyWithoutUserInput
   memories?: Prisma.UserMemoryCreateNestedManyWithoutUserInput
+  interactionLogs?: Prisma.InteractionLogCreateNestedManyWithoutUserInput
   guardianOf?: Prisma.GuardianCreateNestedManyWithoutGuardianUserInput
   guardedBy?: Prisma.GuardianCreateNestedOneWithoutChildUserInput
 }
@@ -1085,6 +1127,7 @@ export type UserUncheckedCreateWithoutSafetyEventsInput = {
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   conversations?: Prisma.ConversationUncheckedCreateNestedManyWithoutUserInput
   memories?: Prisma.UserMemoryUncheckedCreateNestedManyWithoutUserInput
+  interactionLogs?: Prisma.InteractionLogUncheckedCreateNestedManyWithoutUserInput
   guardianOf?: Prisma.GuardianUncheckedCreateNestedManyWithoutGuardianUserInput
   guardedBy?: Prisma.GuardianUncheckedCreateNestedOneWithoutChildUserInput
 }
@@ -1119,6 +1162,7 @@ export type UserUpdateWithoutSafetyEventsInput = {
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   conversations?: Prisma.ConversationUpdateManyWithoutUserNestedInput
   memories?: Prisma.UserMemoryUpdateManyWithoutUserNestedInput
+  interactionLogs?: Prisma.InteractionLogUpdateManyWithoutUserNestedInput
   guardianOf?: Prisma.GuardianUpdateManyWithoutGuardianUserNestedInput
   guardedBy?: Prisma.GuardianUpdateOneWithoutChildUserNestedInput
 }
@@ -1137,6 +1181,7 @@ export type UserUncheckedUpdateWithoutSafetyEventsInput = {
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   conversations?: Prisma.ConversationUncheckedUpdateManyWithoutUserNestedInput
   memories?: Prisma.UserMemoryUncheckedUpdateManyWithoutUserNestedInput
+  interactionLogs?: Prisma.InteractionLogUncheckedUpdateManyWithoutUserNestedInput
   guardianOf?: Prisma.GuardianUncheckedUpdateManyWithoutGuardianUserNestedInput
   guardedBy?: Prisma.GuardianUncheckedUpdateOneWithoutChildUserNestedInput
 }
@@ -1155,6 +1200,7 @@ export type UserCreateWithoutMemoriesInput = {
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   conversations?: Prisma.ConversationCreateNestedManyWithoutUserInput
   safetyEvents?: Prisma.SafetyEventCreateNestedManyWithoutUserInput
+  interactionLogs?: Prisma.InteractionLogCreateNestedManyWithoutUserInput
   guardianOf?: Prisma.GuardianCreateNestedManyWithoutGuardianUserInput
   guardedBy?: Prisma.GuardianCreateNestedOneWithoutChildUserInput
 }
@@ -1173,6 +1219,7 @@ export type UserUncheckedCreateWithoutMemoriesInput = {
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   conversations?: Prisma.ConversationUncheckedCreateNestedManyWithoutUserInput
   safetyEvents?: Prisma.SafetyEventUncheckedCreateNestedManyWithoutUserInput
+  interactionLogs?: Prisma.InteractionLogUncheckedCreateNestedManyWithoutUserInput
   guardianOf?: Prisma.GuardianUncheckedCreateNestedManyWithoutGuardianUserInput
   guardedBy?: Prisma.GuardianUncheckedCreateNestedOneWithoutChildUserInput
 }
@@ -1207,6 +1254,7 @@ export type UserUpdateWithoutMemoriesInput = {
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   conversations?: Prisma.ConversationUpdateManyWithoutUserNestedInput
   safetyEvents?: Prisma.SafetyEventUpdateManyWithoutUserNestedInput
+  interactionLogs?: Prisma.InteractionLogUpdateManyWithoutUserNestedInput
   guardianOf?: Prisma.GuardianUpdateManyWithoutGuardianUserNestedInput
   guardedBy?: Prisma.GuardianUpdateOneWithoutChildUserNestedInput
 }
@@ -1225,6 +1273,99 @@ export type UserUncheckedUpdateWithoutMemoriesInput = {
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   conversations?: Prisma.ConversationUncheckedUpdateManyWithoutUserNestedInput
   safetyEvents?: Prisma.SafetyEventUncheckedUpdateManyWithoutUserNestedInput
+  interactionLogs?: Prisma.InteractionLogUncheckedUpdateManyWithoutUserNestedInput
+  guardianOf?: Prisma.GuardianUncheckedUpdateManyWithoutGuardianUserNestedInput
+  guardedBy?: Prisma.GuardianUncheckedUpdateOneWithoutChildUserNestedInput
+}
+
+export type UserCreateWithoutInteractionLogsInput = {
+  id: string
+  name: string
+  email: string
+  emailVerified?: boolean
+  image?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  role?: string
+  birthYear?: number | null
+  sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
+  accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
+  conversations?: Prisma.ConversationCreateNestedManyWithoutUserInput
+  memories?: Prisma.UserMemoryCreateNestedManyWithoutUserInput
+  safetyEvents?: Prisma.SafetyEventCreateNestedManyWithoutUserInput
+  guardianOf?: Prisma.GuardianCreateNestedManyWithoutGuardianUserInput
+  guardedBy?: Prisma.GuardianCreateNestedOneWithoutChildUserInput
+}
+
+export type UserUncheckedCreateWithoutInteractionLogsInput = {
+  id: string
+  name: string
+  email: string
+  emailVerified?: boolean
+  image?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  role?: string
+  birthYear?: number | null
+  sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
+  accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
+  conversations?: Prisma.ConversationUncheckedCreateNestedManyWithoutUserInput
+  memories?: Prisma.UserMemoryUncheckedCreateNestedManyWithoutUserInput
+  safetyEvents?: Prisma.SafetyEventUncheckedCreateNestedManyWithoutUserInput
+  guardianOf?: Prisma.GuardianUncheckedCreateNestedManyWithoutGuardianUserInput
+  guardedBy?: Prisma.GuardianUncheckedCreateNestedOneWithoutChildUserInput
+}
+
+export type UserCreateOrConnectWithoutInteractionLogsInput = {
+  where: Prisma.UserWhereUniqueInput
+  create: Prisma.XOR<Prisma.UserCreateWithoutInteractionLogsInput, Prisma.UserUncheckedCreateWithoutInteractionLogsInput>
+}
+
+export type UserUpsertWithoutInteractionLogsInput = {
+  update: Prisma.XOR<Prisma.UserUpdateWithoutInteractionLogsInput, Prisma.UserUncheckedUpdateWithoutInteractionLogsInput>
+  create: Prisma.XOR<Prisma.UserCreateWithoutInteractionLogsInput, Prisma.UserUncheckedCreateWithoutInteractionLogsInput>
+  where?: Prisma.UserWhereInput
+}
+
+export type UserUpdateToOneWithWhereWithoutInteractionLogsInput = {
+  where?: Prisma.UserWhereInput
+  data: Prisma.XOR<Prisma.UserUpdateWithoutInteractionLogsInput, Prisma.UserUncheckedUpdateWithoutInteractionLogsInput>
+}
+
+export type UserUpdateWithoutInteractionLogsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  role?: Prisma.StringFieldUpdateOperationsInput | string
+  birthYear?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
+  accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
+  conversations?: Prisma.ConversationUpdateManyWithoutUserNestedInput
+  memories?: Prisma.UserMemoryUpdateManyWithoutUserNestedInput
+  safetyEvents?: Prisma.SafetyEventUpdateManyWithoutUserNestedInput
+  guardianOf?: Prisma.GuardianUpdateManyWithoutGuardianUserNestedInput
+  guardedBy?: Prisma.GuardianUpdateOneWithoutChildUserNestedInput
+}
+
+export type UserUncheckedUpdateWithoutInteractionLogsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  role?: Prisma.StringFieldUpdateOperationsInput | string
+  birthYear?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
+  accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
+  conversations?: Prisma.ConversationUncheckedUpdateManyWithoutUserNestedInput
+  memories?: Prisma.UserMemoryUncheckedUpdateManyWithoutUserNestedInput
+  safetyEvents?: Prisma.SafetyEventUncheckedUpdateManyWithoutUserNestedInput
   guardianOf?: Prisma.GuardianUncheckedUpdateManyWithoutGuardianUserNestedInput
   guardedBy?: Prisma.GuardianUncheckedUpdateOneWithoutChildUserNestedInput
 }
@@ -1240,6 +1381,7 @@ export type UserCountOutputType = {
   conversations: number
   memories: number
   safetyEvents: number
+  interactionLogs: number
   guardianOf: number
 }
 
@@ -1249,6 +1391,7 @@ export type UserCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.I
   conversations?: boolean | UserCountOutputTypeCountConversationsArgs
   memories?: boolean | UserCountOutputTypeCountMemoriesArgs
   safetyEvents?: boolean | UserCountOutputTypeCountSafetyEventsArgs
+  interactionLogs?: boolean | UserCountOutputTypeCountInteractionLogsArgs
   guardianOf?: boolean | UserCountOutputTypeCountGuardianOfArgs
 }
 
@@ -1300,6 +1443,13 @@ export type UserCountOutputTypeCountSafetyEventsArgs<ExtArgs extends runtime.Typ
 /**
  * UserCountOutputType without action
  */
+export type UserCountOutputTypeCountInteractionLogsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.InteractionLogWhereInput
+}
+
+/**
+ * UserCountOutputType without action
+ */
 export type UserCountOutputTypeCountGuardianOfArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   where?: Prisma.GuardianWhereInput
 }
@@ -1320,6 +1470,7 @@ export type UserSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = r
   conversations?: boolean | Prisma.User$conversationsArgs<ExtArgs>
   memories?: boolean | Prisma.User$memoriesArgs<ExtArgs>
   safetyEvents?: boolean | Prisma.User$safetyEventsArgs<ExtArgs>
+  interactionLogs?: boolean | Prisma.User$interactionLogsArgs<ExtArgs>
   guardianOf?: boolean | Prisma.User$guardianOfArgs<ExtArgs>
   guardedBy?: boolean | Prisma.User$guardedByArgs<ExtArgs>
   _count?: boolean | Prisma.UserCountOutputTypeDefaultArgs<ExtArgs>
@@ -1368,6 +1519,7 @@ export type UserInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = 
   conversations?: boolean | Prisma.User$conversationsArgs<ExtArgs>
   memories?: boolean | Prisma.User$memoriesArgs<ExtArgs>
   safetyEvents?: boolean | Prisma.User$safetyEventsArgs<ExtArgs>
+  interactionLogs?: boolean | Prisma.User$interactionLogsArgs<ExtArgs>
   guardianOf?: boolean | Prisma.User$guardianOfArgs<ExtArgs>
   guardedBy?: boolean | Prisma.User$guardedByArgs<ExtArgs>
   _count?: boolean | Prisma.UserCountOutputTypeDefaultArgs<ExtArgs>
@@ -1383,6 +1535,7 @@ export type $UserPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs =
     conversations: Prisma.$ConversationPayload<ExtArgs>[]
     memories: Prisma.$UserMemoryPayload<ExtArgs>[]
     safetyEvents: Prisma.$SafetyEventPayload<ExtArgs>[]
+    interactionLogs: Prisma.$InteractionLogPayload<ExtArgs>[]
     guardianOf: Prisma.$GuardianPayload<ExtArgs>[]
     guardedBy: Prisma.$GuardianPayload<ExtArgs> | null
   }
@@ -1795,6 +1948,7 @@ export interface Prisma__UserClient<T, Null = never, ExtArgs extends runtime.Typ
   conversations<T extends Prisma.User$conversationsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$conversationsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ConversationPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   memories<T extends Prisma.User$memoriesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$memoriesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$UserMemoryPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   safetyEvents<T extends Prisma.User$safetyEventsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$safetyEventsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$SafetyEventPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  interactionLogs<T extends Prisma.User$interactionLogsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$interactionLogsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$InteractionLogPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   guardianOf<T extends Prisma.User$guardianOfArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$guardianOfArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$GuardianPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   guardedBy<T extends Prisma.User$guardedByArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$guardedByArgs<ExtArgs>>): Prisma.Prisma__GuardianClient<runtime.Types.Result.GetResult<Prisma.$GuardianPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
   /**
@@ -2345,6 +2499,30 @@ export type User$safetyEventsArgs<ExtArgs extends runtime.Types.Extensions.Inter
   take?: number
   skip?: number
   distinct?: Prisma.SafetyEventScalarFieldEnum | Prisma.SafetyEventScalarFieldEnum[]
+}
+
+/**
+ * User.interactionLogs
+ */
+export type User$interactionLogsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the InteractionLog
+   */
+  select?: Prisma.InteractionLogSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the InteractionLog
+   */
+  omit?: Prisma.InteractionLogOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.InteractionLogInclude<ExtArgs> | null
+  where?: Prisma.InteractionLogWhereInput
+  orderBy?: Prisma.InteractionLogOrderByWithRelationInput | Prisma.InteractionLogOrderByWithRelationInput[]
+  cursor?: Prisma.InteractionLogWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.InteractionLogScalarFieldEnum | Prisma.InteractionLogScalarFieldEnum[]
 }
 
 /**

@@ -24,6 +24,11 @@ import {
   usernameFromEmail,
 } from "../src/lib/guardian";
 import { originAllowed } from "../src/lib/env-check";
+import {
+  buildSystemPrompt,
+  GUARDIAN_PERSONA_ADDENDUM,
+} from "../src/lib/ai/system-prompt";
+import { sessionLimitApplies } from "../src/lib/session-limit";
 
 let passed = 0;
 const failures: string[] = [];
@@ -263,6 +268,32 @@ function check(cond: boolean, note: string) {
     originAllowed("http://localhost:3000", {}) === false,
     "origin: sin referencia contra qué comparar → rechazado",
   );
+}
+
+// ---------- 7. Agente diferenciado por rol (B3) ----------
+{
+  // Marcador distintivo del addendum de tutor/a (sirve para detectar presencia).
+  const marker = "AJUSTE DE INTERLOCUTOR";
+  check(GUARDIAN_PERSONA_ADDENDUM.includes(marker), "rol: el addendum tiene su marcador");
+
+  const guardianPrompt = buildSystemPrompt({ cards: [], memories: [], role: "guardian" });
+  const childPrompt = buildSystemPrompt({ cards: [], memories: [], role: "child" });
+  const defaultPrompt = buildSystemPrompt({ cards: [], memories: [] });
+
+  check(guardianPrompt.includes(marker), "rol: persona guardian INCLUYE el addendum adulto");
+  check(!childPrompt.includes(marker), "rol: persona child NO incluye el addendum");
+  check(!defaultPrompt.includes(marker), "rol: sin rol (default) NO incluye el addendum");
+  // La persona base (mismo comienzo) se preserva para ambos.
+  check(childPrompt.startsWith("Sos Simón,"), "rol: child mantiene la persona base exacta");
+  check(guardianPrompt.startsWith("Sos Simón,"), "rol: guardian mantiene la persona base");
+  // Menciona los ejes de tutor/a (CUD, prestaciones).
+  check(GUARDIAN_PERSONA_ADDENDUM.includes("CUD"), "rol: addendum menciona el CUD");
+
+  // Límite de sesión (B3.2): solo aplica a menores.
+  check(sessionLimitApplies("child") === true, "sesión: aplica a child");
+  check(sessionLimitApplies("guardian") === false, "sesión: NO aplica a guardian");
+  check(sessionLimitApplies(undefined) === false, "sesión: rol indefinido → no aplica");
+  check(sessionLimitApplies(null) === false, "sesión: rol null → no aplica");
 }
 
 const total = passed + failures.length;

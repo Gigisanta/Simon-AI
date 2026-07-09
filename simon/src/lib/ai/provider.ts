@@ -66,9 +66,14 @@ function getProvider() {
   });
 }
 
+/** Id del modelo principal (para telemetría/logging — misma fuente que chatModel). */
+export function chatModelId(): string {
+  return process.env.AI_MODEL ?? "deepseek-v4-flash";
+}
+
 /** Modelo principal de conversación. */
 export function chatModel() {
-  return getProvider()(process.env.AI_MODEL ?? "deepseek-v4-flash");
+  return getProvider()(chatModelId());
 }
 
 /** Modelo barato para tareas auxiliares (títulos, extracción de memoria). */

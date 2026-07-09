@@ -2,15 +2,19 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { NAV_ITEMS } from "@/components/site-header";
+import { visibleNavItems } from "@/components/site-header";
 import { useSession } from "@/lib/auth-client";
 
 /** Nav flotante mobile (md:hidden): mismos ítems que el pill de escritorio. */
 export function BottomNav() {
   const pathname = usePathname();
   const { data: session } = useSession();
-  const isGuardian = session?.user.role === "guardian";
-  const items = NAV_ITEMS.filter((item) => !item.guardianOnly || isGuardian);
+  const items = visibleNavItems(session?.user.role);
+
+  // Con un solo ítem (rol child = solo "Chat") la nav no aporta: no se renderiza
+  // y el chat recupera el viewport (el pb-20 de page.tsx va con la misma
+  // condición). Nunca cambia entre renders para un mismo rol → sin salto.
+  if (items.length <= 1) return null;
 
   return (
     <nav

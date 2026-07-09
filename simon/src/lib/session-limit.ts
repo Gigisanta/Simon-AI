@@ -12,6 +12,16 @@ export const SESSION_GAP_MS = 30 * 60_000; // gap >= 30 min corta la racha
 export const SESSION_WARN_MS = 30 * 60_000; // >= 30 min → avisar pausa
 export const SESSION_OVER_MS = 45 * 60_000; // >= 45 min → cerrar la sesión
 
+/**
+ * B3.2: el límite de sesión (aviso a los 30 min, cierre a los 45) aplica SOLO a
+ * los menores (role "child"). Los tutores/as (guardians) son adultos: sin warn
+ * ni cierre por tiempo. El recordatorio periódico de IA (shouldAppendDisclosure)
+ * NO depende de esto y se mantiene para ambos roles. Función pura — testeada.
+ */
+export function sessionLimitApplies(role: string | null | undefined): boolean {
+  return role === "child";
+}
+
 export function sessionState(
   messageTimestamps: Date[],
   now: Date,
