@@ -92,6 +92,26 @@ async function testEnforcement() {
   }
 }
 
+// ---------- 2a-bis. checkRateLimit: N concurrentes a la MISMA key (#19-5) ----------
+// Regresión-guard del invariante SÍNCRONO del path in-memory: un Promise.all de
+// N llamadas a la misma clave debe dejar pasar EXACTAMENTE `max` (el resto se
+// rechaza). checkRateLimit es async, pero la implementación in-memory no cede el
+// event loop entre leer el bucket y pushear el timestamp, así que no hay ventana
+// de carrera que permita colar más de `max`. Este caso lo fija.
+async function testConcurrentSameKey() {
+  const key = `suite:concurrent:${Math.random()}`;
+  const max = 5;
+  const n = 20;
+  const results = await Promise.all(
+    Array.from({ length: n }, () => checkRateLimit(key, max, MINUTE)),
+  );
+  const passed = results.filter((r) => r.ok).length;
+  check(
+    passed === max,
+    `checkRateLimit: ${n} llamadas concurrentes a la misma key → exactamente ${max} pasan (pasaron ${passed})`,
+  );
+}
+
 // ---------- 2b. checkRateLimit: minuto y día independientes (H1, integración) ----------
 async function testIndependentWindows() {
   const u = Math.random();
@@ -143,6 +163,7 @@ async function testProdRequiresUpstash() {
 
 async function main() {
   await testEnforcement();
+  await testConcurrentSameKey();
   await testIndependentWindows();
   await testProdRequiresUpstash();
 
