@@ -191,6 +191,21 @@ const MessageBubble = memo(function MessageBubble({
   );
 });
 
+/**
+ * Mensaje de error amigable según el status HTTP del stream de /api/chat. Evita
+ * mostrar JSON crudo o un genérico cuando el motivo es conocido:
+ *   - 429: rate limit (demasiados mensajes seguidos).
+ *   - 403: bloqueo (p.ej. consentimiento del tutor/a pendiente / revocado).
+ * Cualquier otro caso cae en el genérico tranquilizador de siempre.
+ */
+function chatErrorMessage(status: number | null): string {
+  if (status === 429)
+    return "Estás escribiendo muy seguido. Esperá unos segundos y probá de nuevo.";
+  if (status === 403)
+    return "Ahora mismo no podés enviar mensajes. Si sigue pasando, hablá con tu tutor/a.";
+  return "Hubo un problema al enviar tu mensaje. No se perdió lo que escribiste.";
+}
+
 export function Chat() {
   const { data: session } = useSession();
   const isGuardian = session?.user.role === "guardian";
@@ -202,6 +217,12 @@ export function Chat() {
   // si el envío falla (el input se limpia de forma optimista al enviar).
   const [lastText, setLastText] = useState("");
   const conversationIdRef = useRef<string | null>(null);
+  // Último status HTTP de error del stream de /api/chat: lo captura el fetch
+  // wrapper del transport (abajo) para mapear 429/403 a un mensaje amigable en
+  // vez del genérico. El ref lo lee onError (callback, valor fresco); el state
+  // espeja el valor para el render (no se pueden leer refs en render).
+  const errorStatusRef = useRef<number | null>(null);
+  const [errorStatus, setErrorStatus] = useState<number | null>(null);
   // Lazy init (patrón de ref perezoso, evaluado una sola vez): el primer mensaje
   // ya viaja con un id, base de la idempotencia server-side (#19-2).
   if (conversationIdRef.current === null) {
@@ -228,6 +249,11 @@ export function Chat() {
           const res = await fetch(info, init);
           const id = res.headers.get("x-conversation-id");
           if (id) conversationIdRef.current = id;
+          // Recordar el status para el mapeo de error amigable (429/403). Se
+          // limpia en el camino OK para no arrastrar un status viejo. Ref para
+          // onError (fresco), state para el render.
+          errorStatusRef.current = res.ok ? null : res.status;
+          setErrorStatus(errorStatusRef.current);
           return res;
         }) as typeof fetch,
       }),
@@ -259,9 +285,7 @@ export function Chat() {
       );
     },
     onError: () => {
-      setAnnouncement(
-        "Hubo un problema al enviar tu mensaje. No se perdió lo que escribiste.",
-      );
+      setAnnouncement(chatErrorMessage(errorStatusRef.current));
     },
   });
 
@@ -573,7 +597,7 @@ export function Chat() {
           {error && (
             <div className="self-center flex flex-col items-center gap-2 text-center">
               <p className="text-base font-semibold text-danger">
-                Hubo un problema al enviar tu mensaje. No se perdió lo que escribiste.
+                {chatErrorMessage(errorStatus)}
               </p>
               {lastText && (
                 <button
