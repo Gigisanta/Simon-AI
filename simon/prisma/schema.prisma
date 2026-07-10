@@ -197,6 +197,12 @@ model SafetyEvent {
   createdAt      DateTime  @default(now())
   // Se completa cuando se avisó a un tutor (alertas — fase posterior).
   notifiedAt     DateTime?
+  // Ciclo 15 L2b: se completa cuando el ENVÍO de la alerta de crisis falló tras
+  // los reintentos (registro persistente del fallo en una ruta de seguridad). El
+  // cron de purga lo reintenta (retryFailedCrisisAlerts); al enviarse con éxito se
+  // marca notifiedAt y se limpia este campo. La purga NO lo borra por TTL (solo el
+  // cascade al eliminar al menor); así un fallo pendiente no se pierde.
+  alertFailedAt  DateTime?
 
   // Ruta del tutor/a (guardian/children/[childId]/safety-events): pagina por
   // { userId } ordenando por createdAt desc — cubierto por este índice.

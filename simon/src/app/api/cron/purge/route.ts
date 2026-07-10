@@ -5,6 +5,7 @@ import {
   purgeExpiredData,
   purgeUnderLock,
 } from "@/lib/retention";
+import { retryFailedCrisisAlerts } from "@/lib/alerts";
 
 /**
  * Purga TTL por cron — INDEPENDIENTE del tráfico (#9 + #12).
@@ -87,13 +88,31 @@ async function handlePurge(req: Request): Promise<Response> {
       );
     }
 
+    // Reintento de alertas de crisis fallidas (ciclo 15 L2b). Va FUERA de la
+    // transacción/advisory-lock de arriba: hace I/O de red (email vía Resend) y no
+    // debe correr dentro de una transacción de Postgres ni sostener el lock. Solo
+    // en el path NO saltado (este cron tiene el lock; el que lo saltó hará su
+    // propio reintento). Best-effort: retryFailedCrisisAlerts nunca lanza.
+    const alertRetry = await retryFailedCrisisAlerts();
+
     // Métrica: conteos por tabla + duración total. El detalle por tabla ya venía
     // en `result.deleted`; se agrega la duración para detectar crecimiento del
     // backlog (una corrida que borra mucho más de lo habitual o que tarda de más).
     const durationMs = Date.now() - startedAt;
-    console.log(`[cron/purge] purga TTL OK (${durationMs}ms)`, result.deleted);
+    console.log(
+      `[cron/purge] purga TTL OK (${durationMs}ms)`,
+      result.deleted,
+      "alertas reintentadas:",
+      alertRetry,
+    );
     return Response.json(
-      { ok: true, deleted: result.deleted, durationMs, purgedAt: now.toISOString() },
+      {
+        ok: true,
+        deleted: result.deleted,
+        alertRetry,
+        durationMs,
+        purgedAt: now.toISOString(),
+      },
       { headers: NO_STORE },
     );
   } catch (err) {

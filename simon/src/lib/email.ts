@@ -11,6 +11,28 @@
  * problema. Ver docs/research-guardian.md §3.
  */
 import { CRISIS_RESOURCES_AR } from "@/lib/safety";
+import { withTransientRetry, isTransientError } from "@/lib/ai/retry";
+
+/**
+ * ¿El error que devuelve Resend amerita reintento? (ciclo 15 L2a). Resend NO
+ * lanza: devuelve `{ error }` con `statusCode` + `name`. Clasificación:
+ *   - 5xx → transitorio (reusa isTransientError, mismo criterio que el LLM).
+ *   - Fallo de red/timeout: Resend lo colapsa en `statusCode: null` +
+ *     name "application_error" ("Unable to fetch data...") — no expone status ni
+ *     code de red, pero ES el caso de timeout que queremos reintentar. Un 4xx
+ *     (400/401/403/422/429: credenciales/cuota/validación) SIEMPRE trae un
+ *     statusCode real, así que nunca cae en esta rama → NO se reintenta.
+ * Exportada para testearla de forma determinística (email-suite).
+ */
+export function isResendErrorTransient(error: {
+  statusCode: number | null;
+  name: string;
+}): boolean {
+  if (isTransientError({ statusCode: error.statusCode ?? undefined, name: error.name })) {
+    return true;
+  }
+  return error.statusCode == null && error.name === "application_error";
+}
 
 const EMAIL_FROM = process.env.EMAIL_FROM ?? "Simón <onboarding@resend.dev>";
 
@@ -47,11 +69,26 @@ async function deliverEmail(
     // Import dinámico: así el fallback de dev no obliga a resolver el SDK.
     const { Resend } = await import("resend");
     const resend = new Resend(apiKey);
-    const { error } = await resend.emails.send({
-      from: EMAIL_FROM,
-      to,
-      subject,
-      text,
+
+    // Reintento transitorio (ciclo 15 L2a): un 5xx puntual o un timeout/red de
+    // Resend no debería descartar el email si un reintento corto lo resuelve —
+    // clave en la ALERTA DE CRISIS (ruta de seguridad). Se reusa withTransientRetry
+    // (mismo criterio que el LLM: 5xx/red sí, 4xx no). Sutileza: Resend devuelve el
+    // error como VALOR (no throw), así que el factory RELANZA el error SOLO si es
+    // transitorio (para que el retry lo vea); un 4xx (400/401/403/422/429:
+    // credenciales/cuota/validación) se devuelve tal cual y NO se reintenta.
+    const { error } = await withTransientRetry(async () => {
+      const res = await resend.emails.send({ from: EMAIL_FROM, to, subject, text });
+      if (res.error && isResendErrorTransient(res.error)) {
+        // Se relanza con la forma que espera isTransientError (statusCode/name) para
+        // que withTransientRetry lo reintente; el catch de abajo lo captura si se
+        // agotan los reintentos.
+        throw Object.assign(new Error(res.error.message || "Resend transient error"), {
+          statusCode: res.error.statusCode ?? undefined,
+          name: res.error.name,
+        });
+      }
+      return res;
     });
     if (error) {
       console.error("[email] Resend devolvió un error:", error);

@@ -23,6 +23,10 @@ import {
   PATTERN_WINDOW_MS,
   humanPatternCategory,
   shouldPatternAlert,
+  FAILED_ALERT_RETRY_WINDOW_MS,
+  failedAlertRetryCutoff,
+  retryFailedCrisisAlerts,
+  type PendingFailedAlert,
 } from "../src/lib/alerts";
 
 const { check, done } = createChecker("Alerts suite");
@@ -306,4 +310,78 @@ const consented = { consentAt: new Date("2026-07-01T00:00:00Z"), alertsEnabled: 
   );
 }
 
-done();
+// ---------- 5. Reintento de alertas de crisis fallidas (ciclo 15 L2b) ----------
+async function testRetryFailedAlerts() {
+  // Corte de ventana: exactamente now - 7 días.
+  check(
+    failedAlertRetryCutoff(now).getTime() === now.getTime() - FAILED_ALERT_RETRY_WINDOW_MS,
+    "retry: failedAlertRetryCutoff = now - ventana (7d)",
+  );
+
+  const pending: PendingFailedAlert[] = [
+    { id: "e1", userId: "u1", category: "crisis" },
+    { id: "e2", userId: "u2", category: "abuso" },
+    { id: "e3", userId: "u3", category: "crisis" },
+  ];
+
+  // Orquestación: reintenta cada pendiente; recovered cuenta los enviados (true).
+  {
+    const calls: Array<[string, string, string]> = [];
+    const res = await retryFailedCrisisAlerts(
+      {
+        findPending: async () => pending,
+        // e2 sigue fallando (false); e1 y e3 se recuperan (true).
+        alert: async (userId, eventId, category) => {
+          calls.push([userId, eventId, category]);
+          return eventId !== "e2";
+        },
+      },
+      now,
+    );
+    check(res.retried === 3, "retry: intenta todos los pendientes (retried=3)");
+    check(res.recovered === 2, "retry: cuenta solo los recuperados (recovered=2)");
+    check(calls.length === 3, "retry: llama a alert una vez por pendiente");
+    check(
+      calls[0]![0] === "u1" && calls[0]![1] === "e1" && calls[0]![2] === "crisis",
+      "retry: pasa (userId, eventId, category) correctos a alert",
+    );
+  }
+
+  // Sin pendientes → no llama a alert, counts en cero.
+  {
+    let alertCalls = 0;
+    const res = await retryFailedCrisisAlerts(
+      {
+        findPending: async () => [],
+        alert: async () => {
+          alertCalls += 1;
+          return true;
+        },
+      },
+      now,
+    );
+    check(
+      res.retried === 0 && res.recovered === 0 && alertCalls === 0,
+      "retry: sin pendientes → no alerta, counts en cero",
+    );
+  }
+
+  // Best-effort: si findPending lanza, no rompe → {0,0}.
+  {
+    const res = await retryFailedCrisisAlerts(
+      { findPending: async () => { throw new Error("DB down"); }, alert: async () => true },
+      now,
+    );
+    check(
+      res.retried === 0 && res.recovered === 0,
+      "retry: fallo de la query no rompe (best-effort → 0,0)",
+    );
+  }
+}
+
+async function mainRetry() {
+  await testRetryFailedAlerts();
+  done();
+}
+
+mainRetry();

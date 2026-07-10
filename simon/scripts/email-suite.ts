@@ -23,6 +23,8 @@ import { createChecker } from "./suite-helpers";
 import {
   deliverResetPasswordEmail,
   deliverVerificationEmail,
+  deliverCrisisAlert,
+  isResendErrorTransient,
 } from "../src/lib/email";
 
 const { check, done } = createChecker("Email suite");
@@ -106,10 +108,111 @@ async function testTemplateDistinctFromVerification() {
   );
 }
 
+// ---------- 4. isResendErrorTransient: qué se reintenta (ciclo 15 L2a) ----------
+function testResendTransientClassifier() {
+  // 5xx → transitorio.
+  for (const s of [500, 502, 503, 504]) {
+    check(
+      isResendErrorTransient({ statusCode: s, name: "application_error" }) === true,
+      `resend ${s} → transitorio`,
+    );
+  }
+  // 4xx → NO transitorio (credenciales/cuota/validación).
+  for (const s of [400, 401, 403, 422, 429]) {
+    check(
+      isResendErrorTransient({ statusCode: s, name: "rate_limit_exceeded" }) === false,
+      `resend ${s} → NO transitorio`,
+    );
+  }
+  // Fallo de red/timeout: Resend lo colapsa en statusCode null + application_error.
+  check(
+    isResendErrorTransient({ statusCode: null, name: "application_error" }) === true,
+    "resend statusCode null + application_error (timeout/red) → transitorio",
+  );
+  // statusCode null pero otro name (no el shape de red de Resend) → NO transitorio.
+  check(
+    isResendErrorTransient({ statusCode: null, name: "validation_error" }) === false,
+    "resend statusCode null con otro name → NO transitorio (no es el caso de red)",
+  );
+}
+
+// ---------- 5. deliverEmail: reintento real sobre Resend (mock de fetch) ----------
+// Emula el contrato HTTP de Resend v6 (fetchRequest): !ok → response.text() +
+// JSON.parse → { error }; ok → response.json() → { data }. Verifica que un 5xx se
+// reintenta y un 4xx no, sin tocar la red.
+async function testResendRetryIntegration() {
+  const prevKey = process.env.RESEND_API_KEY;
+  const prevFetch = globalThis.fetch;
+  process.env.RESEND_API_KEY = "re_test_key";
+
+  const errBody = (statusCode: number, name: string) =>
+    ({
+      ok: false,
+      status: statusCode,
+      text: async () => JSON.stringify({ statusCode, name, message: "boom" }),
+      headers: new Headers(),
+    }) as unknown as Response;
+  const okBody = () =>
+    ({
+      ok: true,
+      status: 200,
+      json: async () => ({ id: "email_123" }),
+      headers: new Headers(),
+    }) as unknown as Response;
+
+  // (a) 5xx en el 1er intento, éxito en el 2do → deliver true, fetch 2 veces.
+  {
+    let calls = 0;
+    globalThis.fetch = (async () => {
+      calls += 1;
+      return calls === 1 ? errBody(503, "application_error") : okBody();
+    }) as typeof fetch;
+    const ok = await deliverCrisisAlert("tutora@gmail.com", {
+      childName: "Ana",
+      signal: "angustia intensa",
+    });
+    check(ok === true && calls === 2, "resend 5xx→retry→éxito: deliver true, 2 llamadas");
+  }
+
+  // (b) 4xx (422 validación) → NO se reintenta, deliver false, fetch 1 vez.
+  {
+    let calls = 0;
+    globalThis.fetch = (async () => {
+      calls += 1;
+      return errBody(422, "validation_error");
+    }) as typeof fetch;
+    const ok = await deliverCrisisAlert("tutora@gmail.com", {
+      childName: "Ana",
+      signal: "angustia intensa",
+    });
+    check(ok === false && calls === 1, "resend 4xx: sin retry, deliver false, 1 llamada");
+  }
+
+  // (c) 5xx persistente → agota el reintento y devuelve false (fallo final).
+  {
+    let calls = 0;
+    globalThis.fetch = (async () => {
+      calls += 1;
+      return errBody(500, "application_error");
+    }) as typeof fetch;
+    const ok = await deliverCrisisAlert("tutora@gmail.com", {
+      childName: "Ana",
+      signal: "angustia intensa",
+    });
+    check(ok === false && calls === 2, "resend 5xx persistente: 2 llamadas (1 retry) y deliver false");
+  }
+
+  globalThis.fetch = prevFetch;
+  if (prevKey === undefined) delete process.env.RESEND_API_KEY;
+  else process.env.RESEND_API_KEY = prevKey;
+}
+
 async function main() {
   await testDevLogsBody();
   await testProdNeverLeaksToken();
   await testTemplateDistinctFromVerification();
+  testResendTransientClassifier();
+  await testResendRetryIntegration();
   done();
 }
 

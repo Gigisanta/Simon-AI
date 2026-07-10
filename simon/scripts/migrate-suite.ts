@@ -205,6 +205,34 @@ async function main() {
       "migración: solo CREATE INDEX (aditiva, no reescribe ni borra datos)",
     );
   }
+
+  // ---------- 6. SafetyEvent.alertFailedAt: columna aditiva (ciclo 15 L2b) ----------
+  {
+    const schema = readFileSync(join(here, "..", "prisma", "schema.prisma"), "utf8");
+    check(
+      /alertFailedAt\s+DateTime\?/.test(schema),
+      "schema: SafetyEvent.alertFailedAt DateTime? (nullable)",
+    );
+
+    const alertMig = readFileSync(
+      join(here, "..", "prisma", "migrations", "20260710060000_add_safetyevent_alert_failed_at", "migration.sql"),
+      "utf8",
+    );
+    // Nombre y tabla EXACTOS que genera Prisma (verificado con `prisma migrate diff`).
+    check(
+      /ALTER TABLE "SafetyEvent" ADD COLUMN\s+"alertFailedAt" TIMESTAMP\(3\)/.test(alertMig),
+      "migración: ADD COLUMN alertFailedAt TIMESTAMP(3) (nombre exacto de Prisma)",
+    );
+    // ADITIVA y segura: columna nullable, sin NOT NULL/DEFAULT ni DROP/DELETE/UPDATE.
+    check(
+      !/NOT NULL/.test(alertMig),
+      "migración: alertFailedAt es nullable (aditiva, segura sobre datos existentes)",
+    );
+    check(
+      !/\b(DROP|DELETE|UPDATE)\b/i.test(alertMig),
+      "migración: alertFailedAt no borra ni reescribe datos (solo ADD COLUMN)",
+    );
+  }
 }
 
 main()

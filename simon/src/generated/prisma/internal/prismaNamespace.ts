@@ -1376,7 +1376,8 @@ export const SafetyEventScalarFieldEnum = {
   category: 'category',
   layer: 'layer',
   createdAt: 'createdAt',
-  notifiedAt: 'notifiedAt'
+  notifiedAt: 'notifiedAt',
+  alertFailedAt: 'alertFailedAt'
 } as const
 
 export type SafetyEventScalarFieldEnum = (typeof SafetyEventScalarFieldEnum)[keyof typeof SafetyEventScalarFieldEnum]

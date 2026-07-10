@@ -32,6 +32,7 @@ export type SafetyEventMinAggregateOutputType = {
   layer: string | null
   createdAt: Date | null
   notifiedAt: Date | null
+  alertFailedAt: Date | null
 }
 
 export type SafetyEventMaxAggregateOutputType = {
@@ -42,6 +43,7 @@ export type SafetyEventMaxAggregateOutputType = {
   layer: string | null
   createdAt: Date | null
   notifiedAt: Date | null
+  alertFailedAt: Date | null
 }
 
 export type SafetyEventCountAggregateOutputType = {
@@ -52,6 +54,7 @@ export type SafetyEventCountAggregateOutputType = {
   layer: number
   createdAt: number
   notifiedAt: number
+  alertFailedAt: number
   _all: number
 }
 
@@ -64,6 +67,7 @@ export type SafetyEventMinAggregateInputType = {
   layer?: true
   createdAt?: true
   notifiedAt?: true
+  alertFailedAt?: true
 }
 
 export type SafetyEventMaxAggregateInputType = {
@@ -74,6 +78,7 @@ export type SafetyEventMaxAggregateInputType = {
   layer?: true
   createdAt?: true
   notifiedAt?: true
+  alertFailedAt?: true
 }
 
 export type SafetyEventCountAggregateInputType = {
@@ -84,6 +89,7 @@ export type SafetyEventCountAggregateInputType = {
   layer?: true
   createdAt?: true
   notifiedAt?: true
+  alertFailedAt?: true
   _all?: true
 }
 
@@ -167,6 +173,7 @@ export type SafetyEventGroupByOutputType = {
   layer: string
   createdAt: Date
   notifiedAt: Date | null
+  alertFailedAt: Date | null
   _count: SafetyEventCountAggregateOutputType | null
   _min: SafetyEventMinAggregateOutputType | null
   _max: SafetyEventMaxAggregateOutputType | null
@@ -198,6 +205,7 @@ export type SafetyEventWhereInput = {
   layer?: Prisma.StringFilter<"SafetyEvent"> | string
   createdAt?: Prisma.DateTimeFilter<"SafetyEvent"> | Date | string
   notifiedAt?: Prisma.DateTimeNullableFilter<"SafetyEvent"> | Date | string | null
+  alertFailedAt?: Prisma.DateTimeNullableFilter<"SafetyEvent"> | Date | string | null
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
 }
 
@@ -209,6 +217,7 @@ export type SafetyEventOrderByWithRelationInput = {
   layer?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   notifiedAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  alertFailedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   user?: Prisma.UserOrderByWithRelationInput
 }
 
@@ -223,6 +232,7 @@ export type SafetyEventWhereUniqueInput = Prisma.AtLeast<{
   layer?: Prisma.StringFilter<"SafetyEvent"> | string
   createdAt?: Prisma.DateTimeFilter<"SafetyEvent"> | Date | string
   notifiedAt?: Prisma.DateTimeNullableFilter<"SafetyEvent"> | Date | string | null
+  alertFailedAt?: Prisma.DateTimeNullableFilter<"SafetyEvent"> | Date | string | null
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
 }, "id">
 
@@ -234,6 +244,7 @@ export type SafetyEventOrderByWithAggregationInput = {
   layer?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   notifiedAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  alertFailedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   _count?: Prisma.SafetyEventCountOrderByAggregateInput
   _max?: Prisma.SafetyEventMaxOrderByAggregateInput
   _min?: Prisma.SafetyEventMinOrderByAggregateInput
@@ -250,6 +261,7 @@ export type SafetyEventScalarWhereWithAggregatesInput = {
   layer?: Prisma.StringWithAggregatesFilter<"SafetyEvent"> | string
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"SafetyEvent"> | Date | string
   notifiedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"SafetyEvent"> | Date | string | null
+  alertFailedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"SafetyEvent"> | Date | string | null
 }
 
 export type SafetyEventCreateInput = {
@@ -259,6 +271,7 @@ export type SafetyEventCreateInput = {
   layer: string
   createdAt?: Date | string
   notifiedAt?: Date | string | null
+  alertFailedAt?: Date | string | null
   user: Prisma.UserCreateNestedOneWithoutSafetyEventsInput
 }
 
@@ -270,6 +283,7 @@ export type SafetyEventUncheckedCreateInput = {
   layer: string
   createdAt?: Date | string
   notifiedAt?: Date | string | null
+  alertFailedAt?: Date | string | null
 }
 
 export type SafetyEventUpdateInput = {
@@ -279,6 +293,7 @@ export type SafetyEventUpdateInput = {
   layer?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   notifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  alertFailedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   user?: Prisma.UserUpdateOneRequiredWithoutSafetyEventsNestedInput
 }
 
@@ -290,6 +305,7 @@ export type SafetyEventUncheckedUpdateInput = {
   layer?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   notifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  alertFailedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
 
 export type SafetyEventCreateManyInput = {
@@ -300,6 +316,7 @@ export type SafetyEventCreateManyInput = {
   layer: string
   createdAt?: Date | string
   notifiedAt?: Date | string | null
+  alertFailedAt?: Date | string | null
 }
 
 export type SafetyEventUpdateManyMutationInput = {
@@ -309,6 +326,7 @@ export type SafetyEventUpdateManyMutationInput = {
   layer?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   notifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  alertFailedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
 
 export type SafetyEventUncheckedUpdateManyInput = {
@@ -319,6 +337,7 @@ export type SafetyEventUncheckedUpdateManyInput = {
   layer?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   notifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  alertFailedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
 
 export type SafetyEventListRelationFilter = {
@@ -339,6 +358,7 @@ export type SafetyEventCountOrderByAggregateInput = {
   layer?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   notifiedAt?: Prisma.SortOrder
+  alertFailedAt?: Prisma.SortOrder
 }
 
 export type SafetyEventMaxOrderByAggregateInput = {
@@ -349,6 +369,7 @@ export type SafetyEventMaxOrderByAggregateInput = {
   layer?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   notifiedAt?: Prisma.SortOrder
+  alertFailedAt?: Prisma.SortOrder
 }
 
 export type SafetyEventMinOrderByAggregateInput = {
@@ -359,6 +380,7 @@ export type SafetyEventMinOrderByAggregateInput = {
   layer?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   notifiedAt?: Prisma.SortOrder
+  alertFailedAt?: Prisma.SortOrder
 }
 
 export type SafetyEventCreateNestedManyWithoutUserInput = {
@@ -410,6 +432,7 @@ export type SafetyEventCreateWithoutUserInput = {
   layer: string
   createdAt?: Date | string
   notifiedAt?: Date | string | null
+  alertFailedAt?: Date | string | null
 }
 
 export type SafetyEventUncheckedCreateWithoutUserInput = {
@@ -419,6 +442,7 @@ export type SafetyEventUncheckedCreateWithoutUserInput = {
   layer: string
   createdAt?: Date | string
   notifiedAt?: Date | string | null
+  alertFailedAt?: Date | string | null
 }
 
 export type SafetyEventCreateOrConnectWithoutUserInput = {
@@ -458,6 +482,7 @@ export type SafetyEventScalarWhereInput = {
   layer?: Prisma.StringFilter<"SafetyEvent"> | string
   createdAt?: Prisma.DateTimeFilter<"SafetyEvent"> | Date | string
   notifiedAt?: Prisma.DateTimeNullableFilter<"SafetyEvent"> | Date | string | null
+  alertFailedAt?: Prisma.DateTimeNullableFilter<"SafetyEvent"> | Date | string | null
 }
 
 export type SafetyEventCreateManyUserInput = {
@@ -467,6 +492,7 @@ export type SafetyEventCreateManyUserInput = {
   layer: string
   createdAt?: Date | string
   notifiedAt?: Date | string | null
+  alertFailedAt?: Date | string | null
 }
 
 export type SafetyEventUpdateWithoutUserInput = {
@@ -476,6 +502,7 @@ export type SafetyEventUpdateWithoutUserInput = {
   layer?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   notifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  alertFailedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
 
 export type SafetyEventUncheckedUpdateWithoutUserInput = {
@@ -485,6 +512,7 @@ export type SafetyEventUncheckedUpdateWithoutUserInput = {
   layer?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   notifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  alertFailedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
 
 export type SafetyEventUncheckedUpdateManyWithoutUserInput = {
@@ -494,6 +522,7 @@ export type SafetyEventUncheckedUpdateManyWithoutUserInput = {
   layer?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   notifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  alertFailedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
 
 
@@ -506,6 +535,7 @@ export type SafetyEventSelect<ExtArgs extends runtime.Types.Extensions.InternalA
   layer?: boolean
   createdAt?: boolean
   notifiedAt?: boolean
+  alertFailedAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["safetyEvent"]>
 
@@ -517,6 +547,7 @@ export type SafetyEventSelectCreateManyAndReturn<ExtArgs extends runtime.Types.E
   layer?: boolean
   createdAt?: boolean
   notifiedAt?: boolean
+  alertFailedAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["safetyEvent"]>
 
@@ -528,6 +559,7 @@ export type SafetyEventSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.E
   layer?: boolean
   createdAt?: boolean
   notifiedAt?: boolean
+  alertFailedAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["safetyEvent"]>
 
@@ -539,9 +571,10 @@ export type SafetyEventSelectScalar = {
   layer?: boolean
   createdAt?: boolean
   notifiedAt?: boolean
+  alertFailedAt?: boolean
 }
 
-export type SafetyEventOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "conversationId" | "category" | "layer" | "createdAt" | "notifiedAt", ExtArgs["result"]["safetyEvent"]>
+export type SafetyEventOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "conversationId" | "category" | "layer" | "createdAt" | "notifiedAt" | "alertFailedAt", ExtArgs["result"]["safetyEvent"]>
 export type SafetyEventInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
 }
@@ -565,6 +598,7 @@ export type $SafetyEventPayload<ExtArgs extends runtime.Types.Extensions.Interna
     layer: string
     createdAt: Date
     notifiedAt: Date | null
+    alertFailedAt: Date | null
   }, ExtArgs["result"]["safetyEvent"]>
   composites: {}
 }
@@ -996,6 +1030,7 @@ export interface SafetyEventFieldRefs {
   readonly layer: Prisma.FieldRef<"SafetyEvent", 'String'>
   readonly createdAt: Prisma.FieldRef<"SafetyEvent", 'DateTime'>
   readonly notifiedAt: Prisma.FieldRef<"SafetyEvent", 'DateTime'>
+  readonly alertFailedAt: Prisma.FieldRef<"SafetyEvent", 'DateTime'>
 }
     
 

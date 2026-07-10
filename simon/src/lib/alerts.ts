@@ -177,10 +177,29 @@ export async function maybeAlertGuardian(
       childName: child.name,
       signal: humanCategory(category),
     });
-    if (!sent) return false;
+    if (!sent) {
+      // Ciclo 15 L2b/L2c: el envío falló tras los reintentos internos de
+      // deliverEmail. Ruta de SEGURIDAD crítica → (c) log nivel error accionable y
+      // (b) registro PERSISTENTE del fallo (alertFailedAt) para reintentarlo luego
+      // (cron retryFailedCrisisAlerts). Solo se puede anclar si hay evento (L1).
+      console.error(
+        `[alerts] FALLO al enviar la alerta de crisis al tutor/a del menor ${childUserId} ` +
+          `(categoría "${category}") tras los reintentos; queda PENDIENTE de reintento.`,
+      );
+      if (safetyEventId) {
+        await prisma.safetyEvent
+          .update({ where: { id: safetyEventId }, data: { alertFailedAt: now } })
+          .catch((e) =>
+            console.error("[alerts] además, no se pudo persistir alertFailedAt:", e),
+          );
+      }
+      return false;
+    }
 
     // Solo si el envío salió bien y hay evento que anclar: notifiedAt = now
-    // (base del dedupe). Sin eventId (L1) no se ancla; se acepta la ventana.
+    // (base del dedupe) y se LIMPIA alertFailedAt (por si este evento venía de un
+    // fallo previo que el cron está reintentando: al enviarse deja de estar
+    // pendiente). Sin eventId (L1) no se ancla; se acepta la ventana.
     //
     // L4: entre la query de dedupe (findFirst por notifiedAt) y este update hay
     // una carrera teórica (dos crisis casi simultáneas podrían mandar dos
@@ -190,7 +209,7 @@ export async function maybeAlertGuardian(
     if (safetyEventId) {
       await prisma.safetyEvent.update({
         where: { id: safetyEventId },
-        data: { notifiedAt: now },
+        data: { notifiedAt: now, alertFailedAt: null },
       });
     }
     return true;
@@ -355,5 +374,95 @@ export async function maybePatternAlert(
   } catch (err) {
     console.error("[alerts] error en la alerta de patrón:", err);
     return false;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// REINTENTO DE ALERTAS DE CRISIS FALLIDAS (ciclo 15 L2b).
+//
+// Si una alerta de crisis falla en su envío (tras los reintentos internos de
+// deliverEmail), maybeAlertGuardian marca `alertFailedAt` en el SafetyEvent. El
+// cron de purga (traffic-independent) reintenta esos pendientes: es la garantía
+// de que el tutor/a se entere de una crisis AUNQUE el menor no vuelva a chatear
+// (por eso el cron y no solo el próximo maybeAlertGuardian del mismo menor).
+//
+// VENTANA: solo se reintentan fallos recientes (FAILED_ALERT_RETRY_WINDOW_DAYS).
+// Los reintentos inmediatos + el cron diario dan varias chances dentro de la
+// ventana; pasada, se deja de insistir (un aviso de crisis muy tardío ya perdió
+// valor y probablemente fue superado por una interacción posterior). El `gte`
+// contra el corte excluye de por sí los `alertFailedAt` null. La purga por TTL
+// NO borra SafetyEvent (solo el cascade al eliminar al menor), así que el
+// pendiente sobrevive hasta reintentarse o caer fuera de la ventana.
+// ---------------------------------------------------------------------------
+
+/** Ventana de reintento de alertas de crisis fallidas (días). */
+export const FAILED_ALERT_RETRY_WINDOW_DAYS = 7;
+export const FAILED_ALERT_RETRY_WINDOW_MS =
+  FAILED_ALERT_RETRY_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+/** Tope de pendientes a reintentar por corrida (acota el trabajo del cron). */
+export const FAILED_ALERT_RETRY_BATCH = 50;
+
+/** Corte: solo se reintentan fallos con alertFailedAt ≥ este instante. */
+export function failedAlertRetryCutoff(now: Date): Date {
+  return new Date(now.getTime() - FAILED_ALERT_RETRY_WINDOW_MS);
+}
+
+/** SafetyEvent pendiente de reintento (proyección mínima para re-alertar). */
+export type PendingFailedAlert = { id: string; userId: string; category: string };
+
+/**
+ * Dependencias inyectables de retryFailedCrisisAlerts (patrón de retention.ts:
+ * orquestación testeable sin DB). Por defecto usan prisma + maybeAlertGuardian.
+ */
+export interface RetryFailedAlertsDeps {
+  /** Trae los SafetyEvent con envío pendiente (alertFailedAt en ventana, sin notificar). */
+  findPending: () => Promise<PendingFailedAlert[]>;
+  /** Reintenta el aviso (por defecto maybeAlertGuardian). Devuelve true si se envió. */
+  alert: (userId: string, safetyEventId: string, category: string) => Promise<boolean>;
+}
+
+async function defaultFindPending(now: Date): Promise<PendingFailedAlert[]> {
+  return prisma.safetyEvent.findMany({
+    where: {
+      notifiedAt: null,
+      alertFailedAt: { gte: failedAlertRetryCutoff(now) },
+    },
+    orderBy: { alertFailedAt: "asc" }, // los más viejos primero
+    take: FAILED_ALERT_RETRY_BATCH,
+    select: { id: true, userId: true, category: true },
+  });
+}
+
+/**
+ * Reintenta las alertas de crisis que quedaron pendientes por un fallo de envío.
+ * Para cada pendiente vuelve a llamar a maybeAlertGuardian (que re-verifica
+ * consentimiento/dedupe, reenvía y, al lograrlo, marca notifiedAt + limpia
+ * alertFailedAt). Best-effort: nunca lanza; cualquier fallo se loguea y se sigue.
+ *
+ * Devuelve cuántos se intentaron y cuántos se recuperaron (enviaron con éxito).
+ */
+export async function retryFailedCrisisAlerts(
+  deps?: Partial<RetryFailedAlertsDeps>,
+  now: Date = new Date(),
+): Promise<{ retried: number; recovered: number }> {
+  const findPending = deps?.findPending ?? (() => defaultFindPending(now));
+  const alert = deps?.alert ?? maybeAlertGuardian;
+  try {
+    const pending = await findPending();
+    let recovered = 0;
+    for (const ev of pending) {
+      // maybeAlertGuardian nunca lanza; si falla de nuevo, re-marca alertFailedAt
+      // (sigue pendiente para la próxima corrida, salvo que caiga fuera de ventana).
+      if (await alert(ev.userId, ev.id, ev.category)) recovered += 1;
+    }
+    if (pending.length > 0) {
+      console.log(
+        `[alerts] reintento de alertas de crisis fallidas: ${recovered}/${pending.length} recuperadas`,
+      );
+    }
+    return { retried: pending.length, recovered };
+  } catch (err) {
+    console.error("[alerts] error reintentando alertas de crisis fallidas:", err);
+    return { retried: 0, recovered: 0 };
   }
 }
