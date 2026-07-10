@@ -233,8 +233,36 @@ export function Chat() {
       }),
   );
 
+  // Anuncio para lectores de pantalla (live-region sr-only). Es ESTADO, no un
+  // valor derivado del render: sólo debe poblarse ante una respuesta RECIÉN
+  // generada o un error, nunca al reinyectar historial con setMessages (donde
+  // status ya es "ready" y el último mensaje asistente se anunciaría como nuevo
+  // — lectura no solicitada de contenido sensible, regresión de a11y). Los
+  // callbacks onFinish/onError de useChat sólo disparan en respuestas del stream,
+  // así que cargar un hilo del historial nunca anuncia nada.
+  const [announcement, setAnnouncement] = useState("");
   const { messages, sendMessage, setMessages, stop, status, error } = useChat({
     transport,
+    // Sólo respuestas completadas por streaming: se ignora abort (stop() al
+    // cambiar de hilo) y los finales por error (los cubre onError). El stream NO
+    // se anuncia token a token — la lista es aria-live="off" — recién acá se
+    // toma el texto COMPLETO y el lector lo anuncia una sola vez.
+    onFinish: ({ message, isAbort, isError, isDisconnect }) => {
+      if (isAbort || isError || isDisconnect || message.role !== "assistant") {
+        return;
+      }
+      setAnnouncement(
+        message.parts
+          .map((p) => (p.type === "text" ? p.text : ""))
+          .join("")
+          .trim(),
+      );
+    },
+    onError: () => {
+      setAnnouncement(
+        "Hubo un problema al enviar tu mensaje. No se perdió lo que escribiste.",
+      );
+    },
   });
 
   // Retomar conversación: al montar con el chat vacío, se consulta la última
@@ -277,6 +305,9 @@ export function Chat() {
     // Corta cualquier stream en curso: sin esto, una respuesta en vuelo del
     // hilo actual podía escribirse sobre el historial recién reinyectado.
     stop();
+    // Limpia el anuncio del hilo anterior: no debe quedar texto asistente viejo
+    // en la live-region al reinyectar historial (no se anuncia, pero se descarta).
+    setAnnouncement("");
     setMessages(toUiMessages(resumable.messages));
     conversationIdRef.current = resumable.id;
     setResumable(null);
@@ -287,6 +318,7 @@ export function Chat() {
     // Corta el stream en curso antes de cambiar de hilo: evita que una
     // respuesta en vuelo (p.ej. de crisis) se pegue a la conversación abierta.
     stop();
+    setAnnouncement("");
     setMessages(toUiMessages(detail.messages));
     conversationIdRef.current = detail.id;
     setResumable(null);
@@ -298,6 +330,7 @@ export function Chat() {
     // Corta el stream en curso: sin esto, una respuesta en vuelo del hilo
     // anterior seguía escribiéndose en la conversación nueva y vacía.
     stop();
+    setAnnouncement("");
     setMessages([]);
     // Id fresco para el hilo nuevo (idempotencia de su primer mensaje, #19-2).
     conversationIdRef.current = newConversationId();
@@ -329,21 +362,6 @@ export function Chat() {
       m.role === "assistant" &&
       m.parts.some((p) => p.type === "text" && p.text.includes(WARN_MARKER)),
   );
-
-  // Anuncio para lectores de pantalla, derivado (no vía estado/efecto). El
-  // stream NO se anuncia token a token: la lista es aria-live="off" + aria-busy
-  // mientras Simón escribe. Esta live-region sr-only queda vacía durante el
-  // stream y recién al pasar a "ready" toma el texto COMPLETO del último mensaje
-  // → el lector lo anuncia una sola vez. El error tiene prioridad.
-  const lastMessage = messages[messages.length - 1];
-  const announcement = error
-    ? "Hubo un problema al enviar tu mensaje. No se perdió lo que escribiste."
-    : status === "ready" && lastMessage?.role === "assistant"
-      ? lastMessage.parts
-          .map((p) => (p.type === "text" ? p.text : ""))
-          .join("")
-          .trim()
-      : "";
 
   function send(text: string) {
     if (!text || busy) return;
