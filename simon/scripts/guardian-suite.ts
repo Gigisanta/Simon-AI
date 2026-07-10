@@ -25,6 +25,9 @@ import {
   authorizeChildSignup,
   buildCreateChildSchema,
   childEmail,
+  deriveChildAge,
+  MAX_CHILD_AGE,
+  MIN_CHILD_AGE,
   CHILD_EMAIL_DOMAIN,
   consumeChildSignupAuthorization,
   isChildEmail,
@@ -228,6 +231,29 @@ const { check, done } = createChecker("Guardian suite");
   // birthYear apenas fuera de borde (guarda de off-by-one inferior/superior).
   check(schema.safeParse({ ...base, birthYear: 2006 }).success === false, "zod: birthYear=2006 (20) rechaza (borde)");
   check(schema.safeParse({ ...base, birthYear: 2023 }).success === false, "zod: birthYear=2023 (3) rechaza (borde)");
+}
+
+// ---------- 2b. deriveChildAge: edad acotada + estable en UTC ----------
+{
+  // Fecha en UTC cercana al cambio de año: el año debe leerse en UTC, no local.
+  const dec31 = new Date("2026-12-31T23:00:00Z");
+  check(deriveChildAge(2015, dec31) === 11, "deriveChildAge: 2026(UTC)-2015 = 11");
+  // getUTCFullYear() no depende de la TZ del proceso (misma edad la corran donde la corran).
+  check(deriveChildAge(2015, new Date("2026-01-01T02:00:00Z")) === 11, "deriveChildAge: estable en UTC");
+
+  // Bordes exactos de la franja [MIN_CHILD_AGE, MAX_CHILD_AGE].
+  const y = 2026;
+  const jan = new Date(`${y}-06-01T00:00:00Z`);
+  check(deriveChildAge(y - MIN_CHILD_AGE, jan) === MIN_CHILD_AGE, "deriveChildAge: borde inferior incluido");
+  check(deriveChildAge(y - MAX_CHILD_AGE, jan) === MAX_CHILD_AGE, "deriveChildAge: borde superior incluido");
+  check(deriveChildAge(y - MIN_CHILD_AGE + 1, jan) === undefined, "deriveChildAge: bajo el mínimo → undefined");
+  check(deriveChildAge(y - MAX_CHILD_AGE - 1, jan) === undefined, "deriveChildAge: sobre el máximo → undefined");
+
+  // Datos inválidos → undefined (no rompe; la PERSONA usa su heurística).
+  check(deriveChildAge(null, jan) === undefined, "deriveChildAge: null → undefined");
+  check(deriveChildAge(undefined, jan) === undefined, "deriveChildAge: undefined → undefined");
+  check(deriveChildAge(2015.5, jan) === undefined, "deriveChildAge: no entero → undefined");
+  check(deriveChildAge(Number.NaN, jan) === undefined, "deriveChildAge: NaN → undefined");
 }
 
 // ---------- 3. Email sintético ----------

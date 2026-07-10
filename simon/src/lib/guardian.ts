@@ -136,6 +136,22 @@ export const MIN_CHILD_AGE = 4;
 export const MAX_CHILD_AGE = 19;
 
 /**
+ * Edad derivada del AÑO de nacimiento (minimización de datos), acotada a la
+ * franja [MIN_CHILD_AGE, MAX_CHILD_AGE]; sin dato válido o fuera de rango →
+ * undefined. Usa getUTCFullYear() a propósito: en runtime serverless el "año
+ * actual" no debe depender del huso horario del proceso (getFullYear() daría un
+ * año distinto cerca de fin de año según la TZ y correría la edad ±1).
+ */
+export function deriveChildAge(
+  birthYear: number | null | undefined,
+  now: Date,
+): number | undefined {
+  if (typeof birthYear !== "number" || !Number.isInteger(birthYear)) return undefined;
+  const age = now.getUTCFullYear() - birthYear;
+  return age >= MIN_CHILD_AGE && age <= MAX_CHILD_AGE ? age : undefined;
+}
+
+/**
  * Valida el body de alta de un menor. `currentYear` se inyecta para poder
  * testear de forma determinística (por defecto, el año actual).
  */

@@ -61,7 +61,7 @@ import {
   NO_GUARDIAN_CHAT_REPLY,
 } from "@/lib/consent";
 import { maybeAlertGuardian, maybePatternAlert, type AlertCategory } from "@/lib/alerts";
-import { MAX_CHILD_AGE, MIN_CHILD_AGE } from "@/lib/guardian";
+import { deriveChildAge } from "@/lib/guardian";
 import type { KnowledgeCard } from "@/generated/prisma/client";
 
 // Holgura para: generateText completo (respuesta corta ≤1000 tokens) + hasta
@@ -640,18 +640,10 @@ export async function POST(req: Request) {
     // (minimización); si es null o cae fuera del rango razonable (guardian.ts,
     // 4..19) se omite y la PERSONA usa su heurística. Aplica solo a menores: los
     // tutores/as no tienen birthYear y su addendum ya fija tono adulto.
-    const birthYear = session.user.birthYear ?? null;
-    const derivedAge =
-      typeof birthYear === "number" && Number.isInteger(birthYear)
-        ? now.getFullYear() - birthYear
-        : null;
-    const childAge =
-      sessionLimitApplies(role) &&
-      derivedAge !== null &&
-      derivedAge >= MIN_CHILD_AGE &&
-      derivedAge <= MAX_CHILD_AGE
-        ? derivedAge
-        : undefined;
+    // deriveChildAge acota a la franja y calcula el año en UTC (ver guardian.ts).
+    const childAge = sessionLimitApplies(role)
+      ? deriveChildAge(session.user.birthYear, now)
+      : undefined;
 
     // Recorte por presupuesto (B2.6): cada bucket a su tope de tokens estimados.
     // El mensaje actual del usuario nunca se recorta.
