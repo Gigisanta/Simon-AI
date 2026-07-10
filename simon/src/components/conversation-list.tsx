@@ -53,6 +53,7 @@ export function ConversationList({
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [items, setItems] = useState<ConversationSummary[] | null>(null);
+  const [truncated, setTruncated] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   // Confirmación inline de borrado (NO window.confirm: bloquea el hilo).
@@ -72,8 +73,12 @@ export function ConversationList({
     try {
       const res = await fetch("/api/conversations", { cache: "no-store" });
       if (!res.ok) throw new Error(String(res.status));
-      const data = (await res.json()) as { conversations?: ConversationSummary[] };
+      const data = (await res.json()) as {
+        conversations?: ConversationSummary[];
+        truncated?: boolean;
+      };
       setItems(data.conversations ?? []);
+      setTruncated(data.truncated ?? false);
     } catch {
       setError(true);
       setItems(null);
@@ -305,6 +310,12 @@ export function ConversationList({
                     </section>
                   );
                 })}
+                {truncated && (
+                  <p className="px-1 pb-2 text-center text-xs text-ink-soft">
+                    Mostramos tus 50 conversaciones más recientes. Borrá algunas
+                    para ver las anteriores.
+                  </p>
+                )}
               </div>
             )}
           </div>

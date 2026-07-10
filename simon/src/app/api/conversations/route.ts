@@ -5,12 +5,19 @@ import { checkRateLimit } from "@/lib/rate-limit";
 /**
  * Listado de conversaciones del usuario autenticado (B1).
  *
- * Contrato: 200 { conversations: [{ id, title, updatedAt, messageCount }] }.
+ * Contrato: 200 { conversations: [{ id, title, updatedAt, messageCount }], truncated }.
  * - Auth requerida (401 si no).
  * - Solo conversaciones del usuario de la sesión (ownership por userId).
  * - Solo las que tienen al menos un mensaje (messageCount > 0).
  * - orderBy updatedAt desc, máximo 50.
  * - NUNCA expone safetyFlag ni el contenido de los mensajes.
+ *
+ * PAGINACIÓN (decisión #21-4): NO se implementa cursor pagination. En el modelo
+ * tutor-first (un menor por cuenta, o el tutor/a) superar 50 conversaciones es un
+ * caso raro, y la lista ya agrupa por día. En vez de complejidad API+cliente para
+ * ese borde (YAGNI), se pide `take: 51` para detectar el corte y se expone
+ * `truncated: true`; el cliente avisa que hay más y no las muestra en silencio. Si
+ * el uso real superara esto seguido, migrar al patrón cursor de safety-events.ts.
  */
 export const dynamic = "force-dynamic";
 
@@ -43,11 +50,13 @@ export async function GET(req: Request) {
     );
   }
 
+  const PAGE_SIZE = 50;
   const rows = await prisma.conversation.findMany({
     // `messages: { some: {} }` → solo conversaciones con ≥1 mensaje.
     where: { userId: session.user.id, messages: { some: {} } },
     orderBy: { updatedAt: "desc" },
-    take: 50,
+    // 51 para detectar si hay más allá del tope sin un count() extra.
+    take: PAGE_SIZE + 1,
     select: {
       id: true,
       title: true,
@@ -56,12 +65,13 @@ export async function GET(req: Request) {
     },
   });
 
-  const conversations = rows.map((c) => ({
+  const truncated = rows.length > PAGE_SIZE;
+  const conversations = (truncated ? rows.slice(0, PAGE_SIZE) : rows).map((c) => ({
     id: c.id,
     title: c.title,
     updatedAt: c.updatedAt,
     messageCount: c._count.messages,
   }));
 
-  return Response.json({ conversations }, { headers: NO_STORE });
+  return Response.json({ conversations, truncated }, { headers: NO_STORE });
 }
