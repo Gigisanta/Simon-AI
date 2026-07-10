@@ -230,6 +230,7 @@ function ChildCard({ child, onChanged }: { child: ChildRow; onChanged(): void })
           <button
             type="button"
             onClick={() => setConfirming(true)}
+            aria-expanded={confirming}
             disabled={pending}
             className="inline-flex min-h-11 items-center font-semibold text-danger underline-offset-2 hover:underline disabled:opacity-50"
           >
@@ -252,6 +253,7 @@ function ChildCard({ child, onChanged }: { child: ChildRow; onChanged(): void })
           <button
             type="button"
             onClick={() => setConfirmingExport(true)}
+            aria-expanded={confirmingExport}
             disabled={downloading}
             className="inline-flex min-h-11 items-center font-semibold text-ink-soft underline-offset-2 hover:underline disabled:opacity-50"
           >
@@ -294,7 +296,7 @@ function ChildCard({ child, onChanged }: { child: ChildRow; onChanged(): void })
       {eventsOpen && (
         <div className="mt-2 rounded-2xl border border-line bg-sand p-4">
           {eventsLoading ? (
-            <p className="text-ink-soft">Cargando actividad…</p>
+            <p role="status" className="text-ink-soft">Cargando actividad…</p>
           ) : eventsError ? (
             <p role="alert" className="font-semibold text-danger">{eventsError}</p>
           ) : events && events.length > 0 ? (

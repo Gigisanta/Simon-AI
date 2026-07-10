@@ -130,6 +130,7 @@ export function LearnExplorer({ cards }: { cards: KnowledgeCardRow[] }) {
         <button
           type="button"
           onClick={() => setCategory("all")}
+          aria-pressed={category === "all"}
           className={`min-h-11 rounded-full border px-4 text-sm font-bold transition-colors ${
             category === "all"
               ? "border-brand bg-brand text-brand-fg"
@@ -143,6 +144,7 @@ export function LearnExplorer({ cards }: { cards: KnowledgeCardRow[] }) {
             key={key}
             type="button"
             onClick={() => setCategory(key)}
+            aria-pressed={category === key}
             className={`min-h-11 rounded-full border px-4 text-sm font-bold transition-colors ${
               category === key
                 ? "border-brand bg-brand text-brand-fg"
@@ -156,7 +158,7 @@ export function LearnExplorer({ cards }: { cards: KnowledgeCardRow[] }) {
 
       {/* --- Grid de fichas --- */}
       {filtered.length === 0 ? (
-        <p className="mt-10 text-center text-base text-ink-soft">
+        <p aria-live="polite" className="mt-10 text-center text-base text-ink-soft">
           No encontramos fichas para tu búsqueda. Probá con otra palabra o
           elegí otra categoría.
         </p>

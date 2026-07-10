@@ -473,4 +473,5 @@ if (failures.length > 0) {
   for (const f of failures) console.error(f);
   process.exit(1);
 }
-console.log(`MEMORY SUITE: ${passed}/${passed} casos OK`);
+const total = passed + failures.length;
+console.log(`MEMORY SUITE: ${passed}/${total} casos OK`);

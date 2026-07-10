@@ -181,7 +181,7 @@ export function ConversationList({
         <div className="flex-1 overflow-y-auto px-3 py-4 sm:px-4 [scrollbar-width:thin] [scrollbar-color:var(--color-line)_transparent]">
           <div className="mx-auto w-full max-w-2xl">
             {loading && (
-              <p className="py-10 text-center text-base text-ink-soft motion-safe:animate-pulse">
+              <p role="status" className="py-10 text-center text-base text-ink-soft motion-safe:animate-pulse">
                 Cargando tus conversaciones…
               </p>
             )}
@@ -268,6 +268,7 @@ export function ConversationList({
                                   type="button"
                                   onClick={() => void handleDelete(c.id)}
                                   disabled={deletingId === c.id}
+                                  aria-label={`Confirmar borrado de "${c.title}"`}
                                   className="min-h-11 rounded-full px-3 text-sm font-bold text-danger transition-colors hover:bg-sand hover:text-danger-strong disabled:opacity-50"
                                 >
                                   {deletingId === c.id ? "Borrando…" : "Borrar"}
@@ -276,6 +277,7 @@ export function ConversationList({
                                   type="button"
                                   onClick={() => setConfirmId(null)}
                                   disabled={deletingId === c.id}
+                                  aria-label="Cancelar borrado"
                                   className="min-h-11 rounded-full px-3 text-sm font-bold text-ink-soft transition-colors hover:bg-sand disabled:opacity-50"
                                 >
                                   No
