@@ -59,6 +59,11 @@ export function ConversationList({
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [openingId, setOpeningId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  // Guarda de single-flight: cada apertura incrementa el contador y captura su
+  // valor; al resolver, si ya hubo un click posterior, se descarta la respuesta.
+  // Sin esto, dos taps rápidos podían abrir la conversación cuyo fetch resolvía
+  // último, no la última clickeada (last-resolved-wins → hilo equivocado).
+  const openSeqRef = useRef(0);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -91,17 +96,25 @@ export function ConversationList({
 
   // Abrir una conversación: trae el detalle y delega al chat el setMessages.
   async function handleOpen(id: string) {
+    const seq = ++openSeqRef.current;
+    const isStale = () => seq !== openSeqRef.current;
     setOpeningId(id);
     try {
       const res = await fetch(`/api/conversations/${id}`, { cache: "no-store" });
       if (!res.ok) throw new Error(String(res.status));
       const detail = (await res.json()) as ConversationDetail;
+      // Otra fila fue clickeada después: se ignora este resultado obsoleto.
+      if (isStale()) return;
       onOpenConversation(detail);
     } catch {
       // Falla amable: se marca el error general de la lista y no se cierra.
+      // Un fallo de una apertura ya superada no debe pisar la UI actual.
+      if (isStale()) return;
       setError(true);
     } finally {
-      setOpeningId(null);
+      // Solo la última apertura en vuelo limpia el spinner (evita apagarlo
+      // mientras otra sigue cargando).
+      if (!isStale()) setOpeningId(null);
     }
   }
 

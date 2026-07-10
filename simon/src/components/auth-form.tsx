@@ -4,13 +4,32 @@ import { useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import { childEmail } from "@/lib/guardian";
 
-/** better-auth devuelve mensajes en inglés; los mapeamos a un español cercano. */
-function translateAuthError(message: string | undefined, audience: Audience): string {
+type Audience = "adult" | "child";
+
+/**
+ * better-auth devuelve mensajes en inglés; los mapeamos a un español cercano.
+ *
+ * TODAS las ramas se filtran por audiencia: el flujo del menor (ingresa con
+ * "usuario", nunca con email) no puede ver mensajes que mencionen "email" ni
+ * texto en inglés del backend. Para el menor, cualquier fallo cae en un mensaje
+ * genérico en voseo que solo habla de usuario y contraseña.
+ */
+export function translateAuthError(
+  message: string | undefined,
+  audience: Audience,
+): string {
   const m = (message ?? "").toLowerCase();
+
+  if (audience === "child") {
+    // El menor no distingue "no verificado" de "no existe": todo se resuelve
+    // pidiéndole que revise usuario y contraseña. Nunca se menciona email.
+    if (m.includes("password") && m.includes("short"))
+      return "La contraseña es muy corta (mínimo 8 caracteres).";
+    return "No pudimos entrar con esos datos. Revisá tu usuario y tu contraseña.";
+  }
+
   if (m.includes("invalid email or password") || m.includes("invalid password"))
-    return audience === "child"
-      ? "Usuario o contraseña incorrectos."
-      : "Email o contraseña incorrectos.";
+    return "Email o contraseña incorrectos.";
   if (m.includes("email not verified") || m.includes("not verified"))
     return "Tenés que verificar tu email antes de entrar. Revisá tu casilla.";
   if (m.includes("already exists") || m.includes("already registered"))
@@ -20,8 +39,6 @@ function translateAuthError(message: string | undefined, audience: Audience): st
   if (m.includes("invalid email")) return "Ese email no parece válido.";
   return message || "No se pudo completar. Probá de nuevo.";
 }
-
-type Audience = "adult" | "child";
 type Mode = "signin" | "signup";
 
 const inputClass =

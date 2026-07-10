@@ -21,6 +21,8 @@ const NO_STORE = { "cache-control": "no-store" };
 
 // Borrado: acotado por usuario contra scripting/errores en ráfaga.
 const DELETE_RATE_LIMIT_PER_MINUTE = 20;
+// Lectura de una conversación: tope holgado por usuario contra scraping/scripting.
+const READ_RATE_LIMIT_PER_MINUTE = 60;
 
 const UNAUTHENTICATED = () =>
   Response.json({ error: "No autenticado" }, { status: 401, headers: NO_STORE });
@@ -37,6 +39,21 @@ export async function GET(
 ) {
   const session = await auth.api.getSession({ headers: req.headers });
   if (!session) return UNAUTHENTICATED();
+
+  const rl = await checkRateLimit(
+    `conversations:read:${session.user.id}`,
+    READ_RATE_LIMIT_PER_MINUTE,
+    60_000,
+  );
+  if (!rl.ok) {
+    return Response.json(
+      { error: "Demasiadas consultas seguidas. Esperá un momento." },
+      {
+        status: 429,
+        headers: { ...NO_STORE, "retry-after": String(rl.retryAfterSeconds) },
+      },
+    );
+  }
 
   const { id } = await params;
   const conversation = await prisma.conversation.findFirst({

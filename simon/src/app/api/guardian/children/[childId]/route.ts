@@ -16,7 +16,7 @@
  */
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { requireGuardian } from "@/lib/guardian-auth";
+import { requireGuardian, findOwnedChild } from "@/lib/guardian-auth";
 import { sameOriginOk } from "@/lib/env-check";
 import { z } from "zod";
 
@@ -36,21 +36,12 @@ const patchSchema = z.object({
 const NOT_FOUND = () =>
   Response.json({ error: "Menor no encontrado." }, { status: 404 });
 
-/**
- * Vínculo de tutela del par (tutor de la sesión, childId). Devuelve null si el
- * childId no existe, no es un menor, o no está a cargo de este tutor/a — los
- * tres casos colapsan en 404 para no revelar existencia de cuentas ajenas.
- */
-async function findOwnedChild(guardianUserId: string, childId: string) {
-  return prisma.guardian.findFirst({
-    where: {
-      guardianUserId,
-      childUserId: childId,
-      childUser: { role: "child" },
-    },
-    select: { id: true, childUser: { select: { id: true, name: true } } },
-  });
-}
+// Proyección de este endpoint: el id del vínculo (para PATCH) + datos básicos del
+// menor. La autorización (where con los tres constraints) vive en findOwnedChild.
+const OWNED_CHILD_SELECT = {
+  id: true,
+  childUser: { select: { id: true, name: true } },
+} as const;
 
 export async function DELETE(
   req: Request,
@@ -93,7 +84,7 @@ export async function DELETE(
   }
 
   const { childId } = await params;
-  const link = await findOwnedChild(guard.user.id, childId);
+  const link = await findOwnedChild(guard.user.id, childId, OWNED_CHILD_SELECT);
   if (!link) return NOT_FOUND();
 
   // Resumen de lo que se va a borrar (para informar al tutor/a).
@@ -179,7 +170,7 @@ export async function PATCH(
   }
 
   const { childId } = await params;
-  const link = await findOwnedChild(guard.user.id, childId);
+  const link = await findOwnedChild(guard.user.id, childId, OWNED_CHILD_SELECT);
   if (!link) return NOT_FOUND();
 
   await prisma.guardian.update({

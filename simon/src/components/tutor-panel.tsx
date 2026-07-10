@@ -385,6 +385,14 @@ export function TutorPanel({
       setError("Ingresá un año de nacimiento válido.");
       return;
     }
+    // Espeja el rango que valida el server (edad 16–18 → minYear/maxYear):
+    // feedback instantáneo en vez de esperar el rechazo del POST.
+    if (year < minYear || year > maxYear) {
+      setError(
+        `El año de nacimiento debe estar entre ${minYear} y ${maxYear}.`,
+      );
+      return;
+    }
 
     setPending(true);
     try {

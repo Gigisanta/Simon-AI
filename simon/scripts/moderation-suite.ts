@@ -22,7 +22,9 @@ delete process.env.AI_API_KEY;
 import {
   mapFlaggedCategories,
   moderate,
+  openAiKeyUsable,
   parseLlmClassification,
+  shouldWarnKeyInvalid,
   type ModerationResult,
 } from "../src/lib/moderation";
 import {
@@ -437,6 +439,50 @@ for (const c of historyCases) {
   }
 }
 
+// ---------- Re-probe de la key OpenAI tras 401/403 (reloj falso, sin red) ----------
+// La key inválida NO queda apagada para siempre: se re-prueba pasado el TTL de
+// re-probe. openAiKeyUsable es la decisión pura (invalidAt, now, reprobeMs).
+type ReprobeCase = {
+  invalidAt: number | null;
+  now: number;
+  reprobeMs: number;
+  expect: boolean;
+  note: string;
+};
+const HOUR = 60 * 60 * 1_000;
+const reprobeCases: ReprobeCase[] = [
+  { invalidAt: null, now: 999, reprobeMs: 6 * HOUR, expect: true, note: "nunca inválida → usable" },
+  { invalidAt: 1_000, now: 1_000, reprobeMs: 6 * HOUR, expect: false, note: "recién marcada inválida (mismo instante) → NO usable" },
+  { invalidAt: 1_000, now: 1_000 + 6 * HOUR - 1, reprobeMs: 6 * HOUR, expect: false, note: "1 ms antes del TTL → NO usable (dentro de ventana)" },
+  { invalidAt: 1_000, now: 1_000 + 6 * HOUR, reprobeMs: 6 * HOUR, expect: true, note: "exactamente al TTL → re-probe habilitado (borde)" },
+  { invalidAt: 1_000, now: 1_000 + 12 * HOUR, reprobeMs: 6 * HOUR, expect: true, note: "muy pasado el TTL → re-probe habilitado" },
+];
+for (const c of reprobeCases) {
+  const got = openAiKeyUsable(c.invalidAt, c.now, c.reprobeMs);
+  if (got === c.expect) passed += 1;
+  else failures.push(`  ✗ [reprobe: ${c.note}] esperado ${c.expect} · obtenido ${got}`);
+}
+
+// ---------- Aviso recurrente de degradación (throttle, reloj falso) ----------
+type WarnCase = {
+  lastWarnAt: number | null;
+  now: number;
+  intervalMs: number;
+  expect: boolean;
+  note: string;
+};
+const warnCases: WarnCase[] = [
+  { lastWarnAt: null, now: 42, intervalMs: HOUR, expect: true, note: "primera vez (nunca advertido) → avisa" },
+  { lastWarnAt: 1_000, now: 1_000, intervalMs: HOUR, expect: false, note: "recién advertido → throttle (no repite)" },
+  { lastWarnAt: 1_000, now: 1_000 + HOUR - 1, intervalMs: HOUR, expect: false, note: "1 ms antes del intervalo → throttle" },
+  { lastWarnAt: 1_000, now: 1_000 + HOUR, intervalMs: HOUR, expect: true, note: "al cumplirse el intervalo → re-avisa (borde)" },
+];
+for (const c of warnCases) {
+  const got = shouldWarnKeyInvalid(c.lastWarnAt, c.now, c.intervalMs);
+  if (got === c.expect) passed += 1;
+  else failures.push(`  ✗ [warn: ${c.note}] esperado ${c.expect} · obtenido ${got}`);
+}
+
 const total =
   mapCases.length +
   llmParseCases.length +
@@ -445,7 +491,9 @@ const total =
   stripCases.length +
   1 +
   lastUserCases.length +
-  historyCases.length;
+  historyCases.length +
+  reprobeCases.length +
+  warnCases.length;
 
 async function main() {
   await testNoKey();

@@ -11,13 +11,19 @@ import { SESSION_GAP_MS } from "@/lib/session-limit";
  * misma regla de racha: un cierre de ≥ 30 min (SESSION_GAP_MS) la reinicia.
  */
 
-const STORAGE_KEY = "simon-session-start";
+// Prefijo por-usuario: en tablets compartidas cada cuenta tiene su propia
+// racha; sin namespacing, el tiempo transcurrido se filtraba entre menores.
+const STORAGE_PREFIX = "simon-session-start";
 const SHOW_AFTER_MIN = 20;
 const PAUSE_HINT_MIN = 30;
 
-function readRecord(): { start: number; last: number } | null {
+function storageKey(userId: string): string {
+  return `${STORAGE_PREFIX}:${userId}`;
+}
+
+function readRecord(key: string): { start: number; last: number } | null {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(key);
     if (!raw) return null;
     const parsed: unknown = JSON.parse(raw);
     if (
@@ -34,12 +40,23 @@ function readRecord(): { start: number; last: number } | null {
   return null;
 }
 
-export function SessionTimer({ serverWarned }: { serverWarned: boolean }) {
+export function SessionTimer({
+  serverWarned,
+  userId,
+}: {
+  serverWarned: boolean;
+  userId: string | undefined;
+}) {
   const [elapsedMin, setElapsedMin] = useState(0);
 
   useEffect(() => {
+    // Sin usuario resuelto (sesión cargando) no se persiste nada: evita
+    // arrancar una racha bajo una clave anónima que otra cuenta podría heredar.
+    // El display queda oculto por la guarda de render (no hace falta setState).
+    if (!userId) return;
+    const key = storageKey(userId);
     const now = Date.now();
-    let record = readRecord();
+    let record = readRecord(key);
     if (!record || now - record.last >= SESSION_GAP_MS) {
       record = { start: now, last: now };
     }
@@ -48,7 +65,7 @@ export function SessionTimer({ serverWarned }: { serverWarned: boolean }) {
       const t = Date.now();
       record = { start: record!.start, last: t };
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(record));
+        localStorage.setItem(key, JSON.stringify(record));
       } catch {
         // sin persistencia: el timer sigue valiendo para esta visita
       }
@@ -58,9 +75,9 @@ export function SessionTimer({ serverWarned }: { serverWarned: boolean }) {
     tick();
     const id = setInterval(tick, 30_000);
     return () => clearInterval(id);
-  }, []);
+  }, [userId]);
 
-  if (elapsedMin < SHOW_AFTER_MIN) return null;
+  if (!userId || elapsedMin < SHOW_AFTER_MIN) return null;
 
   return (
     <p aria-live="off" className="text-xs text-ink-soft tabular-nums">

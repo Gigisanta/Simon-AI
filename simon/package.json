@@ -13,6 +13,8 @@
     "moderation-suite": "tsx scripts/moderation-suite.ts",
     "retrieval-suite": "tsx scripts/retrieval-suite.ts",
     "guardian-suite": "tsx scripts/guardian-suite.ts",
+    "guardian-auth-suite": "tsx scripts/guardian-auth-suite.ts",
+    "env-check-suite": "tsx scripts/env-check-suite.ts",
     "alerts-suite": "tsx scripts/alerts-suite.ts",
     "memory-suite": "tsx scripts/memory-suite.ts",
     "training-export-suite": "tsx scripts/training-export-suite.ts",

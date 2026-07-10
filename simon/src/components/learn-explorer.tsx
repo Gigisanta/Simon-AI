@@ -177,6 +177,14 @@ export function LearnExplorer({ cards }: { cards: KnowledgeCardRow[] }) {
                   {CATEGORY_LABELS[card.category] ?? card.category}
                 </span>
                 <p className="mt-1.5 text-base font-bold text-ink">{card.title}</p>
+                {!card.reviewed && (
+                  // Mismo criterio que el diálogo (línea 202): la ficha aún no
+                  // pasó revisión profesional. Se avisa ya en la grilla para no
+                  // depender de abrirla.
+                  <span className="mt-2 inline-flex rounded-full bg-sand px-2.5 py-0.5 text-xs font-bold text-ink-soft">
+                    En revisión
+                  </span>
+                )}
               </button>
             );
           })}

@@ -16,7 +16,7 @@
  */
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { requireGuardian } from "@/lib/guardian-auth";
+import { requireGuardian, findOwnedChild } from "@/lib/guardian-auth";
 import { z } from "zod";
 
 const RATE_LIMIT_PER_MINUTE = 60;
@@ -34,21 +34,9 @@ const querySchema = z.object({
 const NOT_FOUND = () =>
   Response.json({ error: "Menor no encontrado." }, { status: 404 });
 
-/**
- * Vínculo de tutela del par (tutor de la sesión, childId). null si el childId no
- * existe, no es un menor, o no está a cargo de este tutor/a — los tres colapsan
- * en 404 (no se revela existencia de cuentas ajenas). Patrón idéntico a ../route.ts.
- */
-async function findOwnedChild(guardianUserId: string, childId: string) {
-  return prisma.guardian.findFirst({
-    where: {
-      guardianUserId,
-      childUserId: childId,
-      childUser: { role: "child" },
-    },
-    select: { id: true },
-  });
-}
+// Solo se necesita saber que el vínculo existe → id. La autorización (where con
+// los tres constraints) vive en findOwnedChild (@/lib/guardian-auth).
+const OWNED_CHILD_SELECT = { id: true } as const;
 
 export async function GET(
   req: Request,
@@ -81,7 +69,7 @@ export async function GET(
   const { limit, cursor } = parsed.data;
 
   const { childId } = await params;
-  const link = await findOwnedChild(guard.user.id, childId);
+  const link = await findOwnedChild(guard.user.id, childId, OWNED_CHILD_SELECT);
   if (!link) return NOT_FOUND();
 
   // Paginación por cursor: se pide limit+1 para saber si hay una página más sin

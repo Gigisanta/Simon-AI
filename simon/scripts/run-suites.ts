@@ -23,6 +23,8 @@ const SUITES = [
   "moderation",
   "memory",
   "guardian",
+  "guardian-auth",
+  "env-check",
   "alerts",
   "rate-limit",
   "retrieval",

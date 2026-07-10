@@ -61,12 +61,39 @@ const CHILD_SIGNUP_AUTH_TTL_MS = 30_000;
 const authorizedChildSignups = new Map<string, number>();
 
 /**
+ * Barrido oportunista de entradas vencidas. Sin esto, un alta que falla DESPUÉS
+ * de autorizar pero ANTES de consumir (p.ej. `signUpEmail` lanza) dejaría la
+ * entrada colgada para siempre: el TTL se chequea al consumir, pero si nadie
+ * consume nunca, nunca se evicta y el Map crece sin techo (fuga de memoria).
+ *
+ * Se hace en el propio flujo (no con setTimeout) a propósito: en serverless los
+ * timers no sobreviven al fin de la request, y el volumen de altas de menores
+ * es bajo, así que iterar el Map en cada llamada es trivial. Una entrada está
+ * vencida cuando `now > expiresAt`; el borde exacto (`now === expiresAt`) sigue
+ * siendo válido y NO se barre — misma semántica que `consume`.
+ */
+function sweepExpiredChildSignups(now: number): void {
+  for (const [key, expiresAt] of authorizedChildSignups) {
+    if (expiresAt < now) authorizedChildSignups.delete(key);
+  }
+}
+
+/**
  * Autoriza UN alta del email sintético dado. Llamar SOLO desde el flujo
  * server-side del tutor/a, justo antes de `auth.api.signUpEmail`.
  * `now` se inyecta para poder testear de forma determinística.
  */
 export function authorizeChildSignup(email: string, now: number = Date.now()): void {
+  sweepExpiredChildSignups(now);
   authorizedChildSignups.set(email.toLowerCase(), now + CHILD_SIGNUP_AUTH_TTL_MS);
+}
+
+/**
+ * Cantidad de autorizaciones pendientes en memoria. Solo para observabilidad y
+ * para que las suites verifiquen la eviction del barrido; no es parte del flujo.
+ */
+export function pendingChildSignupCount(): number {
+  return authorizedChildSignups.size;
 }
 
 /**
@@ -80,6 +107,10 @@ export function consumeChildSignupAuthorization(
 ): boolean {
   const key = email.toLowerCase();
   const expiresAt = authorizedChildSignups.get(key);
+  // Barrido oportunista del resto de entradas vencidas (evita la fuga de altas
+  // autorizadas pero nunca consumidas). No altera la semántica de ESTA entrada:
+  // se resuelve explícitamente abajo, borrándola siempre que exista.
+  sweepExpiredChildSignups(now);
   if (expiresAt === undefined) return false;
   authorizedChildSignups.delete(key);
   return now <= expiresAt;

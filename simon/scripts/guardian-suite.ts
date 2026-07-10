@@ -21,6 +21,7 @@ import {
   CHILD_EMAIL_DOMAIN,
   consumeChildSignupAuthorization,
   isChildEmail,
+  pendingChildSignupCount,
   usernameFromEmail,
 } from "../src/lib/guardian";
 import { originAllowed } from "../src/lib/env-check";
@@ -221,6 +222,43 @@ function check(cond: boolean, note: string) {
   check(
     consumeChildSignupAuthorization(email, t0 + 1_000) === true,
     "authz: autorización case-insensitive",
+  );
+}
+
+// ---------- 5b. Barrido de entradas vencidas (anti fuga de memoria) ----------
+{
+  // Sin barrido, un alta autorizada que NUNCA se consume (p.ej. signUpEmail
+  // lanza justo después de autorizar) dejaría la entrada colgada para siempre.
+  // Se verifica que authorize y consume evictan oportunistamente lo vencido.
+  const t0 = 5_000_000;
+  const a = childEmail("sweep_a");
+  const b = childEmail("sweep_b");
+  const c = childEmail("sweep_c");
+
+  const before = pendingChildSignupCount();
+  authorizeChildSignup(a, t0); // expira t0+30000
+  authorizeChildSignup(b, t0 + 10_000); // expira t0+40000
+  check(
+    pendingChildSignupCount() === before + 2,
+    "sweep: dos altas autorizadas quedan pendientes",
+  );
+
+  // Autorizar c en t0+31000 (a ya venció): el propio authorize barre a `a`.
+  authorizeChildSignup(c, t0 + 31_000); // expira t0+61000
+  check(
+    pendingChildSignupCount() === before + 2,
+    "sweep: authorize evicta la entrada vencida y nunca consumida (a)",
+  );
+
+  // Consumir c en t0+41000 (b ya venció): el mismo consume barre `b`, sin
+  // alterar la resolución de c (recién autorizada, sigue vigente).
+  check(
+    consumeChildSignupAuthorization(c, t0 + 41_000) === true,
+    "sweep: c sigue consumible pese al barrido concurrente",
+  );
+  check(
+    pendingChildSignupCount() === before,
+    "sweep: consume evicta la vencida (b) y consume c → vuelve al baseline",
   );
 }
 

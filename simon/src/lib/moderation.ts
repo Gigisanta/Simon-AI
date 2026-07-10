@@ -7,9 +7,11 @@
  *
  * CASCADA (moderate()):
  *   1. OpenAI Moderation API ("omni-moderation-latest") si hay OPENAI_API_KEY
- *      válida. Si responde 2xx → se usa (source "openai"). Un 401/403 marca la
- *      key como inválida POR PROCESO (no se reintenta cada request — evita sumar
- *      latencia muerta a cada mensaje) y cae al paso 2. Timeouts/5xx/429 son
+ *      válida. Si responde 2xx → se usa (source "openai"). Un 401/403 desactiva
+ *      la key POR PROCESO (no se reintenta cada request — evita sumar latencia
+ *      muerta a cada mensaje) y cae al paso 2, PERO se la RE-PRUEBA cada ~6 h por
+ *      si el proveedor rehabilitó/rotó la key sin redeploy; mientras tanto se
+ *      re-advierte la degradación a baja frecuencia. Timeouts/5xx/429 son
  *      transitorios: se cae al paso 2 pero NO se invalida la key.
  *   2. Moderador LLM real: clasificador de seguridad con el modelo small
  *      (deepseek-v4-flash u otro provider vía env). Conservador por diseño
@@ -89,10 +91,56 @@ export function mapFlaggedCategories(categories: string[]): SafetyFlag {
 const OPENAI_TIMEOUT_MS = 3_000;
 const LLM_TIMEOUT_MS = 8_000;
 
+/**
+ * Tras un 401/403 la key se desactiva por proceso para no sumar latencia muerta
+ * a cada request. Pero desactivarla PARA SIEMPRE esconde una recuperación real
+ * (key rotada/re-habilitada en el proveedor sin redeploy): se RE-PRUEBA una vez
+ * pasado este intervalo. Latencia amortizada: 1 request cada 6 h absorbe el
+ * costo del re-probe; el resto sigue yendo directo al moderador LLM.
+ */
+const OPENAI_KEY_REPROBE_MS = 6 * 60 * 60 * 1_000; // 6 horas
+
+/**
+ * La degradación (OpenAI apagada, corriendo solo con el moderador LLM) debe
+ * seguir siendo visible después del primer console.error. Se re-advierte, como
+ * mucho, una vez por este intervalo mientras la key siga inválida.
+ */
+const OPENAI_KEY_WARN_INTERVAL_MS = 60 * 60 * 1_000; // 1 hora
+
 // Avisos/estado por proceso (no se repiten en cada request).
 let warnedNoOpenAiKey = false;
-// Se enciende cuando OpenAI responde 401/403: la key no sirve, no se reintenta.
-let openAiKeyInvalid = false;
+// Epoch ms del último 401/403 (null = key nunca marcada inválida este proceso).
+let openAiKeyInvalidAt: number | null = null;
+// Epoch ms del último aviso recurrente de degradación (throttle).
+let lastKeyInvalidWarnAt: number | null = null;
+
+/**
+ * ¿Se puede (re)probar OpenAI ahora? Pura y testeable con reloj falso.
+ *  - Nunca marcada inválida (`invalidAt === null`) → sí.
+ *  - Marcada inválida → solo una vez pasado `reprobeMs` desde el último 401/403
+ *    (re-probe); dentro de la ventana, no (se va directo al moderador LLM).
+ */
+export function openAiKeyUsable(
+  invalidAt: number | null,
+  now: number,
+  reprobeMs: number = OPENAI_KEY_REPROBE_MS,
+): boolean {
+  if (invalidAt === null) return true;
+  return now - invalidAt >= reprobeMs;
+}
+
+/**
+ * ¿Toca re-advertir la degradación? Pura y testeable con reloj falso. Primera
+ * vez (`lastWarnAt === null`) siempre; después, throttle por `intervalMs`.
+ */
+export function shouldWarnKeyInvalid(
+  lastWarnAt: number | null,
+  now: number,
+  intervalMs: number = OPENAI_KEY_WARN_INTERVAL_MS,
+): boolean {
+  if (lastWarnAt === null) return true;
+  return now - lastWarnAt >= intervalMs;
+}
 
 /** Resultado "no disponible" canónico (fail-open de la capa). */
 function unavailable(): ModerationResult {
@@ -110,6 +158,7 @@ function unavailable(): ModerationResult {
 async function moderateOpenAI(
   text: string,
   apiKey: string,
+  now: number,
 ): Promise<ModerationResult | null> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), OPENAI_TIMEOUT_MS);
@@ -126,8 +175,9 @@ async function moderateOpenAI(
 
     if (res.status === 401 || res.status === 403) {
       // Key inválida/no autorizada: no reintentar en cada request (latencia
-      // muerta). Se marca por proceso y se cae a la capa LLM.
-      openAiKeyInvalid = true;
+      // muerta). Se marca con timestamp (para el re-probe con TTL) y se cae a la
+      // capa LLM. Si esto ocurre en un re-probe, reinicia la ventana.
+      openAiKeyInvalidAt = now;
       console.error(
         `[moderation] OpenAI ${res.status}: OPENAI_API_KEY inválida — ` +
           "capa OpenAI desactivada por proceso; cae al moderador LLM.",
@@ -315,15 +365,37 @@ async function moderateLLM(text: string): Promise<ModerationResult> {
  * Modera un texto siguiendo la cascada (OpenAI → LLM → no disponible).
  * Nunca lanza.
  */
-export async function moderate(text: string): Promise<ModerationResult> {
+export async function moderate(
+  text: string,
+  now: number = Date.now(),
+): Promise<ModerationResult> {
   const apiKey = process.env.OPENAI_API_KEY;
 
-  // Paso 1: OpenAI, solo si hay key y no fue marcada inválida este proceso.
-  if (apiKey && !openAiKeyInvalid) {
-    const openai = await moderateOpenAI(text, apiKey);
-    if (openai) return openai;
-    // null → caé al LLM (401/403 invalidó la key, o fue un fallo transitorio).
-  } else if (!apiKey && !warnedNoOpenAiKey) {
+  // Paso 1: OpenAI, solo si hay key y (nunca fue inválida, o ya toca re-probar).
+  if (apiKey) {
+    if (openAiKeyUsable(openAiKeyInvalidAt, now)) {
+      // (Re)probamos OpenAI. Si sigue 401/403, moderateOpenAI reinicia la
+      // ventana (openAiKeyInvalidAt = now) y volvemos a caer al LLM.
+      const openai = await moderateOpenAI(text, apiKey, now);
+      if (openai) {
+        // Un 2xx tras un período inválido = key recuperada: se limpia el estado.
+        openAiKeyInvalidAt = null;
+        lastKeyInvalidWarnAt = null;
+        return openai;
+      }
+      // null → caé al LLM (401/403 invalidó la key, o fue un fallo transitorio).
+    } else if (shouldWarnKeyInvalid(lastKeyInvalidWarnAt, now)) {
+      // Dentro de la ventana de invalidez: no reprobamos (sin latencia muerta),
+      // pero re-advertimos la degradación a baja frecuencia para que no quede
+      // invisible tras el primer error.
+      lastKeyInvalidWarnAt = now;
+      console.error(
+        "[moderation] OpenAI sigue desactivada (OPENAI_API_KEY inválida desde el " +
+          "último 401/403); corriendo solo con el moderador LLM. Se re-probará " +
+          "automáticamente pasadas ~6 h.",
+      );
+    }
+  } else if (!warnedNoOpenAiKey) {
     console.warn(
       "[moderation] OPENAI_API_KEY no configurada; capa 1 (OpenAI) omitida, " +
         "se usa el moderador LLM.",

@@ -31,7 +31,7 @@
  */
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { requireGuardian } from "@/lib/guardian-auth";
+import { requireGuardian, findOwnedChild } from "@/lib/guardian-auth";
 import { usernameFromEmail } from "@/lib/guardian";
 
 // Export = varias queries a la DB de datos de un menor. Límite bajo contra abuso
@@ -45,34 +45,21 @@ const MESSAGE_BATCH = 500;
 const NOT_FOUND = () =>
   Response.json({ error: "Menor no encontrado." }, { status: 404 });
 
-/**
- * Vínculo de tutela + datos de perfil del menor en una sola query. null si el
- * childId no existe, no es un menor, o no está a cargo de este tutor/a (→ 404).
- * Patrón de authz idéntico a ../route.ts, extendido con el perfil a exportar.
- */
-async function findOwnedChildForExport(guardianUserId: string, childId: string) {
-  const link = await prisma.guardian.findFirst({
-    where: {
-      guardianUserId,
-      childUserId: childId,
-      childUser: { role: "child" },
-    },
+// Variante de proyección de export: además del vínculo, trae el perfil del menor
+// en la MISMA query. Sin password/hashes (viven en account, no se tocan). La
+// autorización (where con los tres constraints) vive en findOwnedChild.
+const EXPORT_CHILD_SELECT = {
+  consentAt: true,
+  childUser: {
     select: {
-      consentAt: true,
-      // Perfil del menor: sin password/hashes (viven en account, no se tocan).
-      childUser: {
-        select: {
-          name: true,
-          email: true,
-          birthYear: true,
-          role: true,
-          createdAt: true,
-        },
-      },
+      name: true,
+      email: true,
+      birthYear: true,
+      role: true,
+      createdAt: true,
     },
-  });
-  return link;
-}
+  },
+} as const;
 
 /**
  * Trae todos los mensajes de una conversación paginando por cursor en batches,
@@ -121,7 +108,7 @@ export async function GET(
   }
 
   const { childId } = await params;
-  const link = await findOwnedChildForExport(guard.user.id, childId);
+  const link = await findOwnedChild(guard.user.id, childId, EXPORT_CHILD_SELECT);
   if (!link) return NOT_FOUND();
 
   const child = link.childUser;

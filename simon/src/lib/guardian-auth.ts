@@ -3,6 +3,8 @@
  * exportar handlers HTTP, por eso esto vive en lib y no en la ruta.
  */
 import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@/generated/prisma/client";
 
 export type GuardianSessionUser = {
   id: string;
@@ -52,4 +54,55 @@ export async function requireGuardian(
     };
   }
   return { ok: true, user };
+}
+
+/**
+ * Cliente mínimo (solo el delegate `guardian.findFirst`) que necesita
+ * {@link findOwnedChild}. Tiparlo así permite inyectar un fake determinístico en
+ * los tests sin arrastrar el tipo completo (y muy complejo) de `PrismaClient`.
+ */
+export type GuardianOwnershipClient = {
+  guardian: {
+    findFirst: (args: {
+      where: {
+        guardianUserId: string;
+        childUserId: string;
+        childUser: { role: "child" };
+      };
+      select: Prisma.GuardianSelect;
+    }) => Promise<unknown>;
+  };
+};
+
+/**
+ * Vínculo de tutela del par (tutor de la sesión, childId), o null si el childId
+ * no existe, no es un menor, o no está a cargo de este tutor/a — los tres casos
+ * colapsan en null (y el caller responde 404) para no revelar la existencia de
+ * cuentas ajenas.
+ *
+ * INVARIANTE DE AUTORIZACIÓN (idéntica en las tres rutas del tutor/a): el `where`
+ * exige SIEMPRE los tres constraints juntos — `guardianUserId` (dueño),
+ * `childUserId` (el menor pedido) y `childUser.role === "child"` (que sea un
+ * menor, no otro rol). Quitar cualquiera abriría un IDOR. El `select` es lo único
+ * que varía por ruta (de ahí el parámetro `select` genérico), sin tocar la
+ * autorización.
+ *
+ * @param select  proyección de campos por ruta (id, perfil para export, etc.).
+ * @param client  inyectable solo para tests; en producción usa el `prisma` real.
+ */
+export function findOwnedChild<S extends Prisma.GuardianSelect>(
+  guardianUserId: string,
+  childId: string,
+  select: S,
+  client?: GuardianOwnershipClient,
+): Promise<Prisma.GuardianGetPayload<{ select: S }> | null> {
+  const db = client ?? (prisma as unknown as GuardianOwnershipClient);
+  return db.guardian.findFirst({
+    where: {
+      guardianUserId,
+      childUserId: childId,
+      childUser: { role: "child" },
+    },
+    select,
+  }) as Promise<Prisma.GuardianGetPayload<{ select: S }> | null>;
 }

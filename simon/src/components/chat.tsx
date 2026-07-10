@@ -175,7 +175,7 @@ export function Chat() {
       }),
   );
 
-  const { messages, sendMessage, setMessages, status, error } = useChat({
+  const { messages, sendMessage, setMessages, stop, status, error } = useChat({
     transport,
   });
 
@@ -216,6 +216,9 @@ export function Chat() {
   // (control del chico sobre retomar un tema sensible).
   function handleResume() {
     if (!resumable) return;
+    // Corta cualquier stream en curso: sin esto, una respuesta en vuelo del
+    // hilo actual podía escribirse sobre el historial recién reinyectado.
+    stop();
     setMessages(toUiMessages(resumable.messages));
     conversationIdRef.current = resumable.id;
     setResumable(null);
@@ -223,6 +226,9 @@ export function Chat() {
 
   // Abrir una conversación desde la lista: mismo mapeo que handleResume.
   function handleOpenConversation(detail: ConversationDetail) {
+    // Corta el stream en curso antes de cambiar de hilo: evita que una
+    // respuesta en vuelo (p.ej. de crisis) se pegue a la conversación abierta.
+    stop();
     setMessages(toUiMessages(detail.messages));
     conversationIdRef.current = detail.id;
     setResumable(null);
@@ -231,6 +237,9 @@ export function Chat() {
 
   // Nueva conversación: limpia el hilo y el id (el próximo /api/chat crea una).
   function handleNewConversation() {
+    // Corta el stream en curso: sin esto, una respuesta en vuelo del hilo
+    // anterior seguía escribiéndose en la conversación nueva y vacía.
+    stop();
     setMessages([]);
     conversationIdRef.current = null;
     // Espejo en state: sin esto quedaba stale y la lista seguía marcando la
@@ -336,7 +345,7 @@ export function Chat() {
                 <path d="M3 6h.01M3 12h.01M3 18h.01" />
               </svg>
             </button>
-            <SessionTimer serverWarned={serverWarned} />
+            <SessionTimer serverWarned={serverWarned} userId={session?.user.id} />
           </div>
         </div>
 

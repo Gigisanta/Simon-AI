@@ -26,6 +26,8 @@ import { z } from "zod";
 
 // Alta de menores: acotado por tutor/a (evita scripting de creación masiva).
 const CREATE_RATE_LIMIT_PER_MINUTE = 10;
+// Listado (lectura): tope holgado por tutor/a, igual que las otras rutas de lectura.
+const LIST_RATE_LIMIT_PER_MINUTE = 60;
 
 /** IP del cliente (evidencia de consentimiento, F5). */
 function clientIp(req: Request): string | null {
@@ -205,6 +207,19 @@ export async function POST(req: Request) {
 export async function GET(req: Request) {
   const guard = await requireGuardian(req);
   if (!guard.ok) return guard.response;
+
+  // Rate limit por tutor/a (lectura). Mismo shape 429 que las demás rutas.
+  const rl = await checkRateLimit(
+    `guardian:children:read:${guard.user.id}`,
+    LIST_RATE_LIMIT_PER_MINUTE,
+    60_000,
+  );
+  if (!rl.ok) {
+    return Response.json(
+      { error: "Demasiadas consultas seguidas. Esperá un momento." },
+      { status: 429, headers: { "retry-after": String(rl.retryAfterSeconds) } },
+    );
+  }
 
   const rows = await prisma.guardian.findMany({
     where: { guardianUserId: guard.user.id },
