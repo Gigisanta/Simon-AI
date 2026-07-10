@@ -12,6 +12,9 @@ export const metadata: Metadata = {
   title: "Simón — Acompañamos cada paso",
   description:
     "Simón — asistente de IA para acompañar y orientar. No reemplaza a un profesional de la salud.",
+  // App privada de familias con datos de menores: no indexar ni seguir enlaces
+  // (refuerza el disallow total de src/app/robots.ts).
+  robots: { index: false, follow: false },
 };
 
 // Fix 2025 para el teclado virtual en chats mobile: `interactiveWidget:
