@@ -14,7 +14,11 @@
  * Sale con código 1 si algún caso falla (sirve como gate en CI).
  */
 import { createChecker } from "./suite-helpers";
-import { canChat } from "../src/lib/consent";
+import {
+  blockedChatMessage,
+  canChat,
+  NO_GUARDIAN_CHAT_REPLY,
+} from "../src/lib/consent";
 import {
   authorizeChildSignup,
   buildCreateChildSchema,
@@ -52,6 +56,25 @@ const { check, done } = createChecker("Guardian suite");
   // Menor con consentAt → ok.
   const r3 = canChat("child", { consentAt: new Date("2026-07-08T00:00:00Z") });
   check(r3.ok === true, "canChat: child con consentAt → ok");
+}
+
+// ---------- 1b. blockedChatMessage: mensaje amable del gate del chat ----------
+{
+  // Menor huérfano (sin tutor/a vivo) → mensaje amable (no 403 crudo). Es el gate
+  // que evita que un menor opere sin supervisión tras borrarse su tutor/a.
+  check(
+    blockedChatMessage("no-guardian") === NO_GUARDIAN_CHAT_REPLY,
+    "blockedChatMessage: no-guardian → mensaje amable de huérfano",
+  );
+  // El mensaje mantiene el tono de acompañamiento (no punitivo) y deriva a un
+  // adulto responsable.
+  check(
+    NO_GUARDIAN_CHAT_REPLY.length > 0 && /adulto|cuida|mamá|papá/i.test(NO_GUARDIAN_CHAT_REPLY),
+    "blockedChatMessage: el texto de huérfano deriva a un adulto responsable",
+  );
+  // Otros motivos caen al 403 genérico (null): NO se filtra un texto por defecto.
+  check(blockedChatMessage("no-consent") === null, "blockedChatMessage: no-consent → null (403 genérico)");
+  check(blockedChatMessage("cualquier-otro") === null, "blockedChatMessage: motivo desconocido → null (fail-safe)");
 }
 
 // ---------- 2. Validación zod del alta ----------

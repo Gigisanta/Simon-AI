@@ -53,7 +53,7 @@ import { withTransientRetry } from "@/lib/ai/retry";
 import { decideResponsePath, decidePostGenPath } from "@/lib/chat-precedence";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { sameOriginOk } from "@/lib/env-check";
-import { canUserChat } from "@/lib/consent";
+import { blockedChatMessage, canUserChat } from "@/lib/consent";
 import { maybeAlertGuardian, maybePatternAlert, type AlertCategory } from "@/lib/alerts";
 import { MAX_CHILD_AGE, MIN_CHILD_AGE } from "@/lib/guardian";
 import type { KnowledgeCard } from "@/generated/prisma/client";
@@ -155,10 +155,18 @@ export async function POST(req: Request) {
   const userRole = session.user.role;
 
   // --- Gate de consentimiento (M-P1, Ley 25.326) ---
-  // Un menor solo puede chatear si su tutor/a registró el consentimiento.
-  // Los tutores (guardians) pasan directo (no consultan la DB).
+  // Un menor solo puede chatear si su tutor/a registró el consentimiento Y sigue
+  // teniendo un tutor/a vivo. Los tutores (guardians) pasan directo (no consultan
+  // la DB). Si el menor quedó HUÉRFANO (sin tutor/a: p.ej. el tutor/a borró su
+  // cuenta y el cascade eliminó el vínculo), NO se opera sin supervisión: se
+  // corta con un mensaje amable (mismo tono que el límite de sesión) en vez de un
+  // 403 crudo. El resto de los motivos cae al 403 genérico.
   const consent = await canUserChat(session.user);
   if (!consent.ok) {
+    const friendly = blockedChatMessage(consent.reason);
+    if (friendly) {
+      return fixedTextResponse(friendly, { "cache-control": "no-store" });
+    }
     return Response.json(
       { error: "Falta el consentimiento de tu tutor/a para usar el chat" },
       { status: 403 },

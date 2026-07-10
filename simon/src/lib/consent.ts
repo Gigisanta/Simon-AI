@@ -16,6 +16,34 @@ export type ConsentGuardian = { consentAt: Date | null } | null;
 export type ChatDecision = { ok: true } | { ok: false; reason: string };
 
 /**
+ * Mensaje amable (mismo tono que SESSION_LIMIT_REPLY) para el menor cuando su
+ * cuenta quedó SIN un tutor/a vivo — p.ej. el tutor/a borró su propia cuenta y
+ * el cascade eliminó el vínculo Guardian. En vez de operar sin supervisión, el
+ * chat se corta con esta explicación (no un 403 crudo): el menor entiende qué
+ * pasó y a quién recurrir, sin culpa. La supervisión es un requisito duro
+ * (Ley 25.326): sin adulto responsable no hay chat.
+ */
+export const NO_GUARDIAN_CHAT_REPLY =
+  "Ahora mismo tu cuenta no está conectada con la de un adulto que te acompañe, así que no puedo seguir la charla. Pedile a tu mamá, papá o a la persona que te cuida que configure tu acceso desde su cuenta. En cuanto esté listo, vuelvo a estar acá para vos. 💙";
+
+/**
+ * Traduce el motivo de bloqueo del chat a un mensaje amable para mostrarle al
+ * menor (respuesta de texto fija, como el límite de sesión), o `null` si el caso
+ * debe caer al 403 genérico. Función pura y testeable.
+ *
+ * `no-guardian`: menor huérfano (sin tutor/a vivo) → mensaje explicativo.
+ * Otros motivos (p.ej. `no-consent`) caen al 403 genérico por defecto.
+ */
+export function blockedChatMessage(reason: string): string | null {
+  switch (reason) {
+    case "no-guardian":
+      return NO_GUARDIAN_CHAT_REPLY;
+    default:
+      return null;
+  }
+}
+
+/**
  * Decide si un usuario puede chatear, dado su rol y su vínculo de tutela.
  * Función pura: sin efectos, sin DB.
  */
