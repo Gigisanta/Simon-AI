@@ -39,6 +39,23 @@ export function translateAuthError(
   if (m.includes("invalid email")) return "Ese email no parece válido.";
   return message || "No se pudo completar. Probá de nuevo.";
 }
+
+/**
+ * ¿El error de signup indica que el email ya está registrado? better-auth
+ * responde con code USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL (HTTP 422). Matcheamos
+ * por code (estable) y por mensaje como respaldo. El llamador lo usa para NO
+ * revelar la existencia de la cuenta y mostrar el mismo aviso que un alta nueva.
+ */
+function isExistingUserError(error: {
+  code?: string;
+  message?: string;
+}): boolean {
+  const code = (error.code ?? "").toUpperCase();
+  if (code.includes("ALREADY_EXISTS")) return true;
+  const m = (error.message ?? "").toLowerCase();
+  return m.includes("already exists") || m.includes("already registered");
+}
+
 type Mode = "signin" | "signup";
 
 const inputClass =
@@ -77,16 +94,21 @@ export function AuthForm() {
       } else {
         res = await authClient.signUp.email({ email, password, name });
       }
-      if (res.error) {
-        setError(translateAuthError(res.error.message, audience));
-      } else if (audience === "adult" && mode === "signup") {
-        // Con verificación de email, el registro no inicia sesión: avisamos.
+      const isAdultSignup = audience === "adult" && mode === "signup";
+      // Alta con verificación de email: el registro no inicia sesión. Un email
+      // ya registrado (better-auth: USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL, 422)
+      // debe caer en el MISMO aviso neutro que el alta exitosa, para no permitir
+      // enumeración de cuentas registradas. Ambos caminos son indistinguibles
+      // para un atacante, pero claros para quien se registra de buena fe.
+      if (isAdultSignup && (!res.error || isExistingUserError(res.error))) {
         setError(null);
         setMode("signin");
         setPassword("");
         setNotice(
-          "Te enviamos un email para verificar tu cuenta. Confirmalo y después iniciá sesión.",
+          "Si el email es válido, vas a recibir un correo para verificar tu cuenta. Revisá tu bandeja (y el spam).",
         );
+      } else if (res.error) {
+        setError(translateAuthError(res.error.message, audience));
       } else {
         window.location.reload();
       }
@@ -140,7 +162,7 @@ export function AuthForm() {
       </p>
 
       {notice && (
-        <div className="mt-4 rounded-2xl border border-brand/40 bg-brand-soft p-3 text-sm text-brand-strong">
+        <div role="status" className="mt-4 rounded-2xl border border-brand/40 bg-brand-soft p-3 text-sm text-brand-strong">
           {notice}
         </div>
       )}
