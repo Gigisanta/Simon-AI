@@ -68,17 +68,26 @@ async function handlePurge(req: Request): Promise<Response> {
     // lock + la purga van en UNA transacción interactiva → misma conexión (el
     // adapter de Neon usa Pool/WebSocket) y liberación automática en el commit,
     // sin unlock manual ni riesgo de rotación de conexión.
-    const result = await prisma.$transaction(async (tx) => {
-      return purgeUnderLock({
-        tryLock: async () => {
-          const rows = await tx.$queryRaw<
-            { locked: boolean }[]
-          >`SELECT pg_try_advisory_xact_lock(hashtext(${PURGE_LOCK_NAME})) AS locked`;
-          return rows[0]?.locked === true;
-        },
-        purge: () => purgeExpiredData(tx, now),
-      });
-    });
+    const result = await prisma.$transaction(
+      async (tx) => {
+        return purgeUnderLock({
+          tryLock: async () => {
+            const rows = await tx.$queryRaw<
+              { locked: boolean }[]
+            >`SELECT pg_try_advisory_xact_lock(hashtext(${PURGE_LOCK_NAME})) AS locked`;
+            return rows[0]?.locked === true;
+          },
+          purge: () => purgeExpiredData(tx, now),
+        });
+      },
+      // El timeout DEFAULT de Prisma para transacciones interactivas es 5s: en un
+      // dataset grande (backlog acumulado, barrido de huérfanos con cascade) la
+      // purga lo excede y TODA la transacción hace rollback. Lo subimos acorde a
+      // maxDuration=60 (55s de trabajo + margen para el commit/handler). maxWait
+      // 5s: si no consigue conexión del pool en ese lapso, falla rápido en vez de
+      // colgar la invocación del cron.
+      { timeout: 55_000, maxWait: 5_000 },
+    );
 
     if (result.skipped) {
       console.log("[cron/purge] otra corrida tiene el lock — se saltea");
