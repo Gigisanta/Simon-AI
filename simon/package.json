@@ -14,6 +14,7 @@
     "retrieval-suite": "tsx scripts/retrieval-suite.ts",
     "guardian-suite": "tsx scripts/guardian-suite.ts",
     "guardian-auth-suite": "tsx scripts/guardian-auth-suite.ts",
+    "safety-events-suite": "tsx scripts/safety-events-suite.ts",
     "env-check-suite": "tsx scripts/env-check-suite.ts",
     "alerts-suite": "tsx scripts/alerts-suite.ts",
     "memory-suite": "tsx scripts/memory-suite.ts",

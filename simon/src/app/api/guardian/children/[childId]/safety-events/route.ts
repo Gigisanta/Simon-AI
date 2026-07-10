@@ -17,12 +17,23 @@
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { requireGuardian, findOwnedChild } from "@/lib/guardian-auth";
+import {
+  resolveSafetyEvents,
+  type SafetyEventRow,
+} from "@/lib/safety-events";
 import { z } from "zod";
 
 const RATE_LIMIT_PER_MINUTE = 60;
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 50;
+
+// Ejecutor real de la query; en tests se inyecta un fake (ver safety-events.ts).
+function runSafetyEventsQuery(
+  args: Parameters<typeof prisma.safetyEvent.findMany>[0],
+) {
+  return prisma.safetyEvent.findMany(args) as Promise<SafetyEventRow[]>;
+}
 
 // Validación estricta de los query params (nunca confiar en el cliente).
 const querySchema = z.object({
@@ -69,30 +80,19 @@ export async function GET(
   const { limit, cursor } = parsed.data;
 
   const { childId } = await params;
-  const link = await findOwnedChild(guard.user.id, childId, OWNED_CHILD_SELECT);
-  if (!link) return NOT_FOUND();
 
-  // Paginación por cursor: se pide limit+1 para saber si hay una página más sin
-  // un count() extra. Orden estable (createdAt desc, id desc como desempate).
-  const rows = await prisma.safetyEvent.findMany({
-    where: { userId: childId },
-    // SOLO metadata: nunca conversationId ni ningún campo con texto del menor.
-    select: { id: true, category: true, layer: true, createdAt: true, notifiedAt: true },
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    take: limit + 1,
-    ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-  });
+  // Autorización + query + paginación viven en lib/safety-events.ts (lógica pura
+  // testeada). findChild colapsa "no encontrado / ajeno / no-menor" en null → 404
+  // (anti-enumeración). NOT_FOUND() se mantiene por si el resolver devuelve 404.
+  const result = await resolveSafetyEvents(
+    {
+      findChild: (guardianUserId, cid) =>
+        findOwnedChild(guardianUserId, cid, OWNED_CHILD_SELECT),
+      runQuery: runSafetyEventsQuery,
+    },
+    { guardianUserId: guard.user.id, childId, limit, cursor },
+  );
 
-  const hasMore = rows.length > limit;
-  const page = hasMore ? rows.slice(0, limit) : rows;
-
-  return Response.json({
-    events: page.map((e) => ({
-      category: e.category,
-      layer: e.layer,
-      createdAt: e.createdAt,
-      notifiedAt: e.notifiedAt,
-    })),
-    nextCursor: hasMore ? page[page.length - 1]!.id : null,
-  });
+  if (result.status === 404) return NOT_FOUND();
+  return Response.json(result.body);
 }
