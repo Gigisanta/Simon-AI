@@ -107,6 +107,24 @@ async function pipeline(
   }
 }
 
+/**
+ * Superficie interna expuesta SOLO para scripts/auth-storage-suite.ts: permite
+ * testear el fallback in-memory (memGet/memSet/memIncrement/memSweep, TTLs) de
+ * forma determinística sin red. No la use código de producción.
+ */
+export const __testing = {
+  memStore,
+  memGet,
+  memSet,
+  memIncrement,
+  memSweep,
+  /** Reinicia el estado in-memory + el reloj de sweep entre casos de test. */
+  reset() {
+    memStore.clear();
+    lastSweep = 0;
+  },
+};
+
 /** Forma estructural del SecondaryStorage de better-auth 1.6 (TTL en segundos). */
 export type AuthSecondaryStorage = {
   get: (key: string) => Promise<string | null>;
