@@ -59,10 +59,13 @@ import { MAX_CHILD_AGE, MIN_CHILD_AGE } from "@/lib/guardian";
 import type { KnowledgeCard } from "@/generated/prisma/client";
 
 // Holgura para: generateText completo (respuesta corta ≤1000 tokens) + hasta
-// dos llamadas a la Moderation API (entrada y salida, timeout 3s c/u). Entra
-// cómodo en 60s. No streameamos: generamos completo, moderamos y mostramos
+// dos llamadas a la Moderation API (entrada y salida, timeout 3s c/u).
+// Peor caso teórico con withTransientRetry (generación ~25s ×2 + fallback ~8s ×2
+// + moderación) ronda 65-70s, por lo que 60 quedaba justo: 90 da margen real
+// sin cambiar el timeout interno de cada llamada (ver lib/ai/retry.ts).
+// No streameamos: generamos completo, moderamos y mostramos
 // (decisión de diseño — ver docs/research-ux.md §2).
-export const maxDuration = 60;
+export const maxDuration = 90;
 
 // Límites defensivos (costo + abuso). Ver docs/security-review.md.
 const MAX_MESSAGE_CHARS = 4_000; // el cliente corta en 2000; el servidor manda
