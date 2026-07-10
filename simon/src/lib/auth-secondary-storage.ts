@@ -134,6 +134,50 @@ export type AuthSecondaryStorage = {
 };
 
 /**
+ * Invalida las copias de sesión de un usuario en el secondaryStorage (Redis) —
+ * L4. Complementa el borrado en DB (cascade al borrar el menor/tutor, o
+ * `session.deleteMany` al suspender el consentimiento).
+ *
+ * POR QUÉ HACE FALTA: con Upstash configurado, better-auth cachea cada sesión en
+ * Redis y su `findSession` CONFÍA en esa copia si existe (aun con
+ * `storeSessionInDatabase: true`, solo cae a la DB cuando la copia NO está). Si
+ * al borrar/suspender al menor se borran únicamente las filas de DB, las copias
+ * de Redis seguirían autenticando al menor hasta que expiren por TTL — un menor
+ * sin supervisión seguiría chateando. Este helper las elimina explícitamente.
+ *
+ * Replica EXACTAMENTE el esquema de claves del internal-adapter de better-auth:
+ *   - `active-sessions-<userId>` → JSON `[{ token, expiresAt }]` (lista índice).
+ *   - `<token>`                  → copia de la sesión.
+ * Borra cada token de la lista y después la lista. Best-effort: las operaciones
+ * del storage degradan a in-memory ante un fallo de Redis y NUNCA lanzan (un
+ * incidente de Redis no debe romper el borrado/suspensión; además, sin la copia
+ * en Redis, `findSession` cae a la DB, que ya está limpia → falla cerrado).
+ *
+ * Sin env de Upstash → no hay secondaryStorage: las sesiones viven solo en DB y
+ * el cascade/deleteMany ya las cubre; el helper es un no-op.
+ */
+export async function revokeUserSessions(userId: string): Promise<void> {
+  const storage = upstashSecondaryStorage();
+  if (!storage) return;
+
+  const listRaw = await storage.get(`active-sessions-${userId}`);
+  if (listRaw) {
+    let sessions: Array<{ token?: string }> = [];
+    try {
+      const parsed = JSON.parse(listRaw);
+      if (Array.isArray(parsed)) sessions = parsed;
+    } catch {
+      // Lista corrupta: igual se borra la clave índice abajo.
+      sessions = [];
+    }
+    for (const s of sessions) {
+      if (s?.token) await storage.delete(s.token);
+    }
+  }
+  await storage.delete(`active-sessions-${userId}`);
+}
+
+/**
  * Storage compartido si hay env de Upstash; undefined si no (comportamiento
  * actual intacto: better-auth usa memory).
  */

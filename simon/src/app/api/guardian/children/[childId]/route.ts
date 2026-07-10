@@ -21,6 +21,7 @@ import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { requireGuardian, findOwnedChild } from "@/lib/guardian-auth";
 import { sameOriginOk } from "@/lib/env-check";
+import { revokeUserSessions } from "@/lib/auth-secondary-storage";
 import type { Prisma } from "@/generated/prisma/client";
 import { z } from "zod";
 
@@ -140,6 +141,11 @@ export async function DELETE(
     );
   }
 
+  // L4: el cascade borró las filas de Session en DB, pero las copias en Redis
+  // secondaryStorage seguirían autenticando al menor hasta su TTL. Se invalidan
+  // explícitamente (no-op si no hay Upstash configurado).
+  await revokeUserSessions(childId);
+
   return Response.json({
     ok: true,
     deleted: { conversations, messages, memories, safetyEvents },
@@ -200,10 +206,12 @@ export async function PATCH(
 
   // Suspensión: cortar las sesiones activas del menor para que el bloqueo tenga
   // efecto YA (no espera a que su sesión expire). No hay cascade acá (el menor NO
-  // se borra), así que se hace deleteMany explícito. Las copias de sesión en Redis
-  // secondaryStorage se invalidan en revokeUserSessions (Lote 4).
+  // se borra), así que se borran en DB (deleteMany) Y en Redis secondaryStorage
+  // (revokeUserSessions) — si solo se borra en DB, la copia en Redis seguiría
+  // autenticando al menor hasta su TTL.
   if (consentRevoked === true) {
     await prisma.session.deleteMany({ where: { userId: childId } });
+    await revokeUserSessions(childId);
   }
 
   return Response.json({

@@ -15,7 +15,11 @@
  * Sale con código 1 si algún caso falla (gate de CI).
  */
 import { createChecker } from "./suite-helpers";
-import { upstashSecondaryStorage, __testing } from "../src/lib/auth-secondary-storage";
+import {
+  revokeUserSessions,
+  upstashSecondaryStorage,
+  __testing,
+} from "../src/lib/auth-secondary-storage";
 
 const { check, done } = createChecker("Auth-storage suite");
 
@@ -225,6 +229,87 @@ async function testKeyPrefix() {
   );
 }
 
+// ---------- 8. revokeUserSessions: borra las copias de sesión en Redis (L4) ----------
+async function testRevokeUserSessions() {
+  __testing.reset();
+  withUpstashEnv();
+
+  // Mock que captura los comandos e imita Upstash: el GET de la lista índice
+  // devuelve dos sesiones; los DEL responden OK. Registramos cada comando.
+  const commands: string[][] = [];
+  const prev = globalThis.fetch;
+  globalThis.fetch = (async (_url: string, init: RequestInit) => {
+    const batch = JSON.parse(init.body as string) as string[][];
+    for (const c of batch) commands.push(c);
+    const [op, key] = batch[0]!;
+    if (op === "GET" && key!.endsWith("active-sessions-u1")) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => [
+          { result: JSON.stringify([{ token: "tok_a" }, { token: "tok_b" }]) },
+        ],
+      } as unknown as Response;
+    }
+    return { ok: true, status: 200, json: async () => [{ result: 1 }] } as unknown as Response;
+  }) as typeof fetch;
+
+  await revokeUserSessions("u1");
+  globalThis.fetch = prev;
+
+  const dels = commands.filter((c) => c[0] === "DEL").map((c) => c[1]);
+  check(
+    commands.some((c) => c[0] === "GET" && c[1] === `${KEY_PREFIX}active-sessions-u1`),
+    "revoke: consulta la lista índice active-sessions-<id> (con prefijo)",
+  );
+  check(dels.includes(`${KEY_PREFIX}tok_a`), "revoke: borra el token tok_a de la lista");
+  check(dels.includes(`${KEY_PREFIX}tok_b`), "revoke: borra el token tok_b de la lista");
+  check(
+    dels.includes(`${KEY_PREFIX}active-sessions-u1`),
+    "revoke: borra la propia clave índice active-sessions-<id>",
+  );
+  // Cada token se borra ANTES que la clave índice (orden del internal-adapter).
+  const idxDel = dels.indexOf(`${KEY_PREFIX}active-sessions-u1`);
+  check(
+    dels.indexOf(`${KEY_PREFIX}tok_a`) < idxDel && dels.indexOf(`${KEY_PREFIX}tok_b`) < idxDel,
+    "revoke: borra los tokens antes que la clave índice",
+  );
+}
+
+// ---------- 9. revokeUserSessions sin lista / sin env → no rompe ----------
+async function testRevokeEdgeCases() {
+  // Sin lista índice (usuario sin sesiones en Redis): igual borra la clave índice,
+  // sin intentar borrar tokens.
+  __testing.reset();
+  withUpstashEnv();
+  const commands: string[][] = [];
+  const prev = globalThis.fetch;
+  globalThis.fetch = (async (_url: string, init: RequestInit) => {
+    const batch = JSON.parse(init.body as string) as string[][];
+    for (const c of batch) commands.push(c);
+    return { ok: true, status: 200, json: async () => [{ result: null }] } as unknown as Response;
+  }) as typeof fetch;
+  await revokeUserSessions("sin_sesiones");
+  globalThis.fetch = prev;
+  const dels = commands.filter((c) => c[0] === "DEL").map((c) => c[1]);
+  check(
+    dels.length === 1 && dels[0] === `${KEY_PREFIX}active-sessions-sin_sesiones`,
+    "revoke: sin lista índice → solo borra la clave índice (sin tokens)",
+  );
+
+  // Sin env de Upstash → no-op: no toca fetch (las sesiones viven solo en DB).
+  clearUpstashEnv();
+  let touched = false;
+  const prev2 = globalThis.fetch;
+  globalThis.fetch = (async () => {
+    touched = true;
+    return { ok: true, status: 200, json: async () => [] } as unknown as Response;
+  }) as typeof fetch;
+  await revokeUserSessions("cualquiera");
+  globalThis.fetch = prev2;
+  check(!touched, "revoke: sin env de Upstash → no-op (no toca Redis)");
+}
+
 async function main() {
   await testHealthy();
   await testDegradeNon200();
@@ -232,6 +317,8 @@ async function main() {
   await testDegradeMalformed();
   testNoEnv();
   await testKeyPrefix();
+  await testRevokeUserSessions();
+  await testRevokeEdgeCases();
 
   // Restaura fetch y limpia env para no contaminar otros procesos.
   globalThis.fetch = originalFetch;

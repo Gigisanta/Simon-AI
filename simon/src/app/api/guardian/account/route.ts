@@ -31,6 +31,7 @@ import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { requireGuardian } from "@/lib/guardian-auth";
 import { sameOriginOk } from "@/lib/env-check";
+import { revokeUserSessions } from "@/lib/auth-secondary-storage";
 import { z } from "zod";
 
 // Borrado irreversible de varias cuentas → tope muy bajo contra errores/scripting.
@@ -144,6 +145,14 @@ export async function DELETE(req: Request) {
       { status: 500 },
     );
   }
+
+  // L4: el cascade borró las Session en DB (tutor/a + menores), pero las copias en
+  // Redis secondaryStorage seguirían autenticando hasta su TTL. Se invalidan
+  // explícitamente para todos (no-op si no hay Upstash configurado).
+  await Promise.all([
+    revokeUserSessions(guardianUserId),
+    ...childIds.map((id) => revokeUserSessions(id)),
+  ]);
 
   return Response.json({
     ok: true,
