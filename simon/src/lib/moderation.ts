@@ -25,6 +25,7 @@
 import { generateText } from "ai";
 import type { SafetyFlag } from "./safety";
 import { aiConfigured, smallModel } from "./ai/provider";
+import { withTransientRetry } from "./ai/retry";
 
 export interface ModerationResult {
   /** true solo si alguna capa (OpenAI o LLM) clasificó con éxito. */
@@ -268,17 +269,28 @@ export function parseLlmClassification(raw: string): ModerationResult {
  */
 async function moderateLLM(text: string): Promise<ModerationResult> {
   if (!aiConfigured()) return unavailable();
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
   const startedAt = Date.now();
   try {
-    const generated = await generateText({
-      model: smallModel(),
-      system: LLM_SYSTEM_PROMPT,
-      prompt: `TEXTO A CLASIFICAR:\n"""\n${text}\n"""`,
-      temperature: 0,
-      maxOutputTokens: 60,
-      abortSignal: controller.signal,
+    // #36: 1 reintento corto SOLO ante error transitorio (5xx/red). El
+    // AbortController se crea DENTRO del factory → cada intento tiene su propio
+    // timeout fresco (LLM_TIMEOUT_MS); un abort/timeout NO se reintenta. Peor
+    // caso ≈ fallo-rápido + backoff + 1 intento (≤~16s), holgado dentro de la
+    // moderación (corre en paralelo con la generación en el chat).
+    const generated = await withTransientRetry(async () => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
+      try {
+        return await generateText({
+          model: smallModel(),
+          system: LLM_SYSTEM_PROMPT,
+          prompt: `TEXTO A CLASIFICAR:\n"""\n${text}\n"""`,
+          temperature: 0,
+          maxOutputTokens: 60,
+          abortSignal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeout);
+      }
     });
     const result = parseLlmClassification(generated.text);
     const ms = Date.now() - startedAt;
@@ -294,8 +306,6 @@ async function moderateLLM(text: string): Promise<ModerationResult> {
       err instanceof Error ? err.message : err,
     );
     return unavailable();
-  } finally {
-    clearTimeout(timeout);
   }
 }
 

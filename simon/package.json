@@ -16,6 +16,10 @@
     "alerts-suite": "tsx scripts/alerts-suite.ts",
     "memory-suite": "tsx scripts/memory-suite.ts",
     "training-export-suite": "tsx scripts/training-export-suite.ts",
+    "safety-docs-suite": "tsx scripts/safety-docs-suite.ts",
+    "retention-suite": "tsx scripts/retention-suite.ts",
+    "retry-suite": "tsx scripts/retry-suite.ts",
+    "chat-precedence-suite": "tsx scripts/chat-precedence-suite.ts",
     "export-training": "tsx scripts/export-training.ts",
     "db:seed": "tsx prisma/seed.ts"
   },

@@ -48,6 +48,9 @@ import {
   sessionWindowQuery,
 } from "@/lib/session-limit";
 import { moderate, type ModerationResult } from "@/lib/moderation";
+import { interactionLogTtlCutoff } from "@/lib/retention";
+import { withTransientRetry } from "@/lib/ai/retry";
+import { decideResponsePath } from "@/lib/chat-precedence";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { sameOriginOk } from "@/lib/env-check";
 import { canUserChat } from "@/lib/consent";
@@ -67,9 +70,8 @@ const MAX_MESSAGE_CHARS = 4_000; // el cliente corta en 2000; el servidor manda
 // rolling summary cubriendo lo más viejo, alcanza una ventana reciente más chica
 // (menos tokens, menos costo). El recorte fino por tamaño lo hace assembleContext.
 const MAX_HISTORY_MESSAGES = 24;
-// Retención de InteractionLog (telemetría): 180 días. Purga lazy en el
-// query-path, junto con el TTL de UserMemory (minimización, Ley 25.326).
-const INTERACTION_LOG_TTL_DAYS = 180;
+// Retención de InteractionLog (telemetría, 180d) y su corte temporal viven en
+// lib/retention.ts — MISMA fuente que usa el cron de purga (#9): cero duplicación.
 const RATE_LIMIT_PER_MINUTE = 15;
 const RATE_LIMIT_PER_DAY = 400;
 
@@ -482,12 +484,7 @@ export async function POST(req: Request) {
         where: { userId, updatedAt: { lt: memoryTtlCutoff(now) } },
       });
       await prisma.interactionLog.deleteMany({
-        where: {
-          userId,
-          createdAt: {
-            lt: new Date(now.getTime() - INTERACTION_LOG_TTL_DAYS * 24 * 60 * 60 * 1000),
-          },
-        },
+        where: { userId, createdAt: { lt: interactionLogTtlCutoff(now) } },
       });
     } catch (err) {
       console.error("[chat] error en purga TTL diferida (no bloquea):", err);
@@ -653,18 +650,26 @@ export async function POST(req: Request) {
     | { ok: false }
   > {
     try {
-      const g = await generateText({
-        model: chatModel(),
-        system: sys,
-        messages: modelMessages,
-        temperature: genTemperature,
-        maxOutputTokens: genMaxOutputTokens, // por rol: corto para menores
-        // M3: un modelo colgado no puede dejar al menor esperando hasta el
-        // maxDuration de la ruta. Se aborta y el catch de acá abajo devuelve el
-        // fallback amable. Cubre la generación paralela y la regeneración por
-        // riesgo (ambas pasan por generateReply).
-        abortSignal: AbortSignal.timeout(generationTimeoutMs()),
-      });
+      // #36: 1 reintento corto SOLO ante error transitorio (5xx/red). El
+      // AbortSignal.timeout se crea DENTRO del factory → cada intento tiene su
+      // propia señal fresca (una ya abortada quedaría inservible). Un
+      // timeout/abort NO es transitorio → no se reintenta (es el tope de latencia
+      // aceptado). Peor caso real ≈ fallo-rápido + backoff + 1 intento completo,
+      // dentro del maxDuration=60 (ver lib/ai/retry.ts).
+      const g = await withTransientRetry(() =>
+        generateText({
+          model: chatModel(),
+          system: sys,
+          messages: modelMessages,
+          temperature: genTemperature,
+          maxOutputTokens: genMaxOutputTokens, // por rol: corto para menores
+          // M3: un modelo colgado no puede dejar al menor esperando hasta el
+          // maxDuration de la ruta. Se aborta y el catch de acá abajo devuelve el
+          // fallback amable. Cubre la generación paralela y la regeneración por
+          // riesgo (ambas pasan por generateReply).
+          abortSignal: AbortSignal.timeout(generationTimeoutMs()),
+        }),
+      );
       return {
         ok: true,
         text: g.text,
@@ -687,17 +692,43 @@ export async function POST(req: Request) {
     configured ? generateReply(systemForParallel) : Promise.resolve(null),
   ]);
 
+  // #32: la DECISIÓN de precedencia PRE-generación se centraliza en la función
+  // pura decideResponsePath (fuente única del orden crisis > sesión > no-ai,
+  // testeada exhaustivamente en chat-precedence-suite). La regex-crisis ya
+  // retornó más arriba (corte previo al costo del LLM) → acá regexCrisis:false;
+  // los campos post-generación van en su valor "continuar" para que la función
+  // devuelva el corte temprano o "normal" = seguir al flujo de generación. Los
+  // efectos (persistencia, alertas, logging) NO se movieron: cada rama conserva
+  // su bloque. Las ramas POST-generación (fallback-error, moderación de salida)
+  // siguen el MISMO orden inline más abajo — cubierto por la suite (gap
+  // documentado: no ruteado por la función en el handler para no reestructurar
+  // el entrelazado de moderación de salida).
+  const preGenPath = decideResponsePath({
+    regexCrisis: false,
+    moderationInputCrisis:
+      inputMod.mappedFlag === "crisis" || inputMod.mappedFlag === "abuso",
+    sessionOver: sState === "over",
+    aiReady: configured && parallelGen !== null,
+    generationOk: true,
+    outputFlagged: false,
+    outputUnavailableReplace: false,
+  });
+
   // 1) Crisis/abuso desde la moderación de entrada → plantilla fija. Gana sobre
   //    todo; la generación paralela se descarta (NO se persiste).
-  if (inputMod.mappedFlag === "crisis" || inputMod.mappedFlag === "abuso") {
-    // Se captura el flag ya narrowed en una const: el after() difiere la llamada
-    // y TS no preserva el narrowing de una propiedad dentro del closure.
-    const alertCategory = inputMod.mappedFlag;
+  if (preGenPath === "crisis-template") {
+    // El narrowing del if de arriba no lo tiene TS acá, pero mappedFlag es
+    // crisis|abuso por construcción de preGenPath; se estrecha explícito.
+    const inputCrisisFlag =
+      inputMod.mappedFlag === "abuso" ? "abuso" : "crisis";
+    // Se captura el flag en una const: el after() difiere la llamada y TS no
+    // preserva el narrowing de una propiedad dentro del closure.
+    const alertCategory = inputCrisisFlag;
     const eventId = await recordSafetyEvent(
-      inputMod.topCategory ?? inputMod.mappedFlag,
+      inputMod.topCategory ?? inputCrisisFlag,
       `moderation-input:${inputMod.source}`,
     );
-    const reply = crisisReply(inputMod.mappedFlag);
+    const reply = crisisReply(inputCrisisFlag);
     const assistantMessageId = await saveAssistant(reply, "derivacion");
     after(() => alertGuardianSafely(eventId, alertCategory));
     logInteraction("crisis-template", {
@@ -726,7 +757,7 @@ export async function POST(req: Request) {
 
   // 2) Sesión vencida (M-S7) → cierre amable. Gana sobre la respuesta normal (la
   //    crisis ya se evaluó arriba). Generación paralela descartada.
-  if (sState === "over") {
+  if (preGenPath === "session-limit") {
     const assistantMessageId = await saveAssistant(SESSION_LIMIT_REPLY, "session-limit");
     logInteraction("session-limit", {
       moderationInput: inputMod,
@@ -737,7 +768,7 @@ export async function POST(req: Request) {
   }
 
   // 3) IA no configurada (dev): no hubo generación que paralelizar.
-  if (!configured || !parallelGen) {
+  if (preGenPath === "no-ai") {
     const reply =
       "Simón todavía no tiene configurado el proveedor de IA en este entorno (falta AI_API_KEY). Pedile a la persona que administra la app que lo configure.";
     const assistantMessageId = await saveAssistant(reply, null);
@@ -749,7 +780,9 @@ export async function POST(req: Request) {
   //    Si la generación paralela corrió SIN el addendum (la regex no lo había
   //    marcado), se regenera una vez con el addendum de contención. Caso raro:
   //    vale la 2ª llamada.
-  let generated = parallelGen;
+  // preGenPath !== "no-ai" ⇒ aiReady ⇒ parallelGen != null (garantía de
+  // decideResponsePath); la rama no-ai ya retornó. Aserción justificada.
+  let generated = parallelGen!;
   if (inputMod.mappedFlag === "riesgo" && regexFlag !== "riesgo") {
     generated = await generateReply(baseSystem + riesgoAddendum);
   }

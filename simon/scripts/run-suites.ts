@@ -27,6 +27,10 @@ const SUITES = [
   "rate-limit",
   "retrieval",
   "training-export",
+  "safety-docs",
+  "retention",
+  "retry",
+  "chat-precedence",
 ] as const;
 
 const here = dirname(fileURLToPath(import.meta.url));

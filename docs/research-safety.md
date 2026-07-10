@@ -215,6 +215,7 @@ SESSION CONTINUES with restricted scope (no topic change, stays in safe-messagin
 
 **CRITICAL (T1, T4, T6, T7) — exact text, no LLM variation:**
 
+<!-- TEMPLATE:critical-start -->
 ```
 Lo que me estás contando es muy importante y quiero que estés seguro/a.
 Por favor, contactá ahora mismo a alguien que te pueda ayudar:
@@ -228,9 +229,11 @@ Por favor, contactá ahora mismo a alguien que te pueda ayudar:
 Si sentís que estás en peligro ahora mismo, llamá al 911 o pedile ayuda a alguien cercano.
 Yo soy una IA y no puedo ayudarte en este momento como lo haría una persona real.
 ```
+<!-- TEMPLATE:critical-end -->
 
 **HIGH (T2, T3) — exact text, no LLM variation:**
 
+<!-- TEMPLATE:high-start -->
 ```
 Gracias por contarme esto. Lo que sentís es válido, y me alegra que lo hayas compartido.
 Quiero asegurarme de que tengas apoyo real:
@@ -241,9 +244,11 @@ Quiero asegurarme de que tengas apoyo real:
 
 ¿Hay un adulto de confianza — familiar, docente, profesional — con quien puedas hablar hoy?
 ```
+<!-- TEMPLATE:high-end -->
 
 **ABUSE (T4) — exact text:**
 
+<!-- TEMPLATE:abuse-start -->
 ```
 Gracias por contarme. Lo que me decís es muy serio y hay personas que pueden ayudarte.
 Lo que te está pasando no está bien y no es tu culpa.
@@ -255,6 +260,7 @@ Lo que te está pasando no está bien y no es tu culpa.
 Podés llamar vos, o pedirle a alguien de confianza que llame por vos.
 Yo soy una IA y no puedo protegerte, pero estas líneas sí pueden.
 ```
+<!-- TEMPLATE:abuse-end -->
 
 ### 3.4 Argentine Crisis Resources (Verified)
 
