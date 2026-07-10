@@ -17,6 +17,9 @@
  * Camino crítico (supresión de datos de menores, Ley 25.326): sale con código 1
  * si algún caso falla.
  */
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 import { createChecker } from "./suite-helpers";
 import {
   purgeExpiredData,
@@ -58,7 +61,58 @@ function makeFakeClient(counts: {
 
 const now = new Date("2026-07-10T12:00:00.000Z");
 
+// ---------- 0. Config del $transaction de la ruta del cron (anti-drift) ----------
+// La transacción interactiva de src/app/api/cron/purge/route.ts DEBE llevar un
+// segundo argumento con `timeout` (default de Prisma = 5s: en un backlog grande la
+// purga lo excede y TODA la transacción hace rollback) y `maxWait` explícito. Sin
+// framework que importe la ruta (arrastra Prisma/env), lo validamos leyendo el
+// texto de la ruta con regex — mismo patrón que retry-suite con maxDuration. Si
+// alguien quita el segundo argumento del $transaction, este caso falla.
+function testTransactionConfig() {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const routePath = join(here, "..", "src", "app", "api", "cron", "purge", "route.ts");
+  const src = readFileSync(routePath, "utf8");
+
+  // maxDuration inline de la ruta (presupuesto de la invocación).
+  const durMatch = src.match(
+    /export\s+const\s+maxDuration\s*(?::\s*[A-Za-z0-9_]+\s*)?=\s*(\d+)\s*;/,
+  );
+  check(durMatch !== null, "route.ts: se encuentra el literal `export const maxDuration`");
+  const maxDurationMs = durMatch ? Number(durMatch[1]) * 1000 : 0;
+
+  check(src.includes("prisma.$transaction("), "route.ts: usa prisma.$transaction(...)");
+  // Segundo argumento del $transaction: el objeto de opciones (sin llaves
+  // anidadas, con `timeout`) que CIERRA el call — va pegado al `)` de cierre
+  // (tolerando comentarios/espacios antes). Si alguien quita el segundo argumento
+  // el objeto desaparece y este match es null (queda solo el callback y `)`).
+  const optsMatch = src.match(/(\{[^{}]*\btimeout\b[^{}]*\})\s*,?\s*\)/);
+  check(
+    optsMatch !== null,
+    "route.ts: $transaction lleva un SEGUNDO argumento (objeto de opciones)",
+  );
+  const opts = optsMatch?.[1] ?? "";
+
+  const timeoutMatch = opts.match(/timeout:\s*([\d_]+)/);
+  const maxWaitMatch = opts.match(/maxWait:\s*([\d_]+)/);
+  check(timeoutMatch !== null, "route.ts: el $transaction fija `timeout` explícito");
+  check(maxWaitMatch !== null, "route.ts: el $transaction fija `maxWait` explícito");
+
+  // timeout debe cubrir el presupuesto (>= maxDuration*1000 - margen para el
+  // commit/handler). Con maxDuration=60s y margen 6s el piso es 54s.
+  const MARGIN_MS = 6_000;
+  const timeoutMs = timeoutMatch ? Number(timeoutMatch[1].replace(/_/g, "")) : 0;
+  check(
+    timeoutMs >= maxDurationMs - MARGIN_MS,
+    `route.ts: timeout (${timeoutMs}ms) >= maxDuration*1000 - ${MARGIN_MS} (${maxDurationMs - MARGIN_MS}ms) — no debe quedar en el default 5s`,
+  );
+  // maxWait acotado y positivo (falla rápido si no consigue conexión del pool).
+  const maxWaitMs = maxWaitMatch ? Number(maxWaitMatch[1].replace(/_/g, "")) : 0;
+  check(maxWaitMs > 0, "route.ts: maxWait > 0 (falla rápido si no hay conexión del pool)");
+}
+
 async function main() {
+testTransactionConfig();
+
 // ---------- 1. Se llama a las cuatro tablas, con el where correcto ----------
 {
   const { client, calls } = makeFakeClient({
