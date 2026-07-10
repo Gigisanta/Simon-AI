@@ -51,6 +51,7 @@ import { moderate, type ModerationResult } from "@/lib/moderation";
 import { interactionLogTtlCutoff } from "@/lib/retention";
 import { withTransientRetry } from "@/lib/ai/retry";
 import { CHAT_ROUTE_MAX_DURATION_S } from "@/lib/ai/limits";
+import { createTtlSingleFlight } from "@/lib/single-flight";
 import { decideResponsePath, decidePostGenPath } from "@/lib/chat-precedence";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { rateLimitMessage } from "@/lib/ui-messages";
@@ -65,7 +66,6 @@ import {
 import { hasVisibleContent, safeTruncate } from "@/lib/text";
 import { maybeAlertGuardian, maybePatternAlert, type AlertCategory } from "@/lib/alerts";
 import { deriveChildAge } from "@/lib/guardian";
-import type { KnowledgeCard } from "@/generated/prisma/client";
 
 // Holgura para: generateText completo (respuesta corta ≤1000 tokens) + hasta
 // dos llamadas a la Moderation API (entrada y salida, timeout 3s c/u).
@@ -133,15 +133,15 @@ const TEMPERATURE_CHILD = 0.6;
 // reflejarse en TODAS las instancias. Aceptable: no hay lecturas críticas de
 // fichas (a diferencia de seguridad/consentimiento, que nunca se cachean).
 const KNOWLEDGE_CACHE_TTL_MS = 5 * 60_000;
-let knowledgeCache: { cards: KnowledgeCard[]; expiresAt: number } | null = null;
 
-async function loadKnowledgeCards(): Promise<KnowledgeCard[]> {
-  const nowMs = Date.now();
-  if (knowledgeCache && knowledgeCache.expiresAt > nowMs) return knowledgeCache.cards;
-  const cards = await prisma.knowledgeCard.findMany();
-  knowledgeCache = { cards, expiresAt: nowMs + KNOWLEDGE_CACHE_TTL_MS };
-  return cards;
-}
+// Single-flight + TTL: dentro del TTL devuelve la misma referencia de array (de
+// la que depende el WeakMap de tokenizeCards en system-prompt.ts); al vencer, N
+// requests concurrentes comparten UNA sola findMany() en vez de dispararla N
+// veces. Un error no se cachea → la próxima request reintenta.
+const loadKnowledgeCards = createTtlSingleFlight(
+  () => prisma.knowledgeCard.findMany(),
+  KNOWLEDGE_CACHE_TTL_MS,
+);
 
 /** Extrae el texto plano de un UIMessage (partes tipo "text"). */
 function messageText(message: UIMessage): string {
@@ -555,6 +555,28 @@ export async function POST(req: Request) {
       }
     }
 
+    const now = new Date();
+    // --- TTL (M-D / B4): purgas lazy DIFERIDAS a after() ---
+    // La minimización de datos (UserMemory 90d, InteractionLog 180d) no tiene que
+    // bloquear la respuesta al menor: se ejecuta tras responder, vía after(). Para
+    // que un dato vencido no se USE aunque la purga quede pendiente, la lectura de
+    // UserMemory (más abajo) filtra por el mismo corte temporal.
+    // Se registra ACÁ (antes de la rama fija de crisis) para que TODOS los caminos
+    // de respuesta la programen: la rama crisis-regex retorna temprano y antes
+    // quedaba fuera de la purga, a diferencia de las demás ramas fijas.
+    after(async () => {
+      try {
+        await prisma.userMemory.deleteMany({
+          where: { userId, updatedAt: { lt: memoryTtlCutoff(now) } },
+        });
+        await prisma.interactionLog.deleteMany({
+          where: { userId, createdAt: { lt: interactionLogTtlCutoff(now) } },
+        });
+      } catch (err) {
+        console.error("[chat] error en purga TTL diferida (no bloquea):", err);
+      }
+    });
+
     // Crisis, abuso o trastorno alimentario: plantilla fija, el LLM no interviene.
     if (regexFlag === "crisis" || regexFlag === "abuso" || regexFlag === "alimentario") {
       const reply = crisisReply(regexFlag);
@@ -596,25 +618,6 @@ export async function POST(req: Request) {
     // así una crisis nunca queda enmascarada por otra rama.
 
     let effectiveFlag: SafetyFlag = regexFlag; // null | "riesgo"
-
-    const now = new Date();
-    // --- TTL (M-D / B4): purgas lazy DIFERIDAS a after() ---
-    // La minimización de datos (UserMemory 90d, InteractionLog 180d) no tiene que
-    // bloquear la respuesta al menor: se ejecuta tras responder, vía after(). Para
-    // que un dato vencido no se USE aunque la purga quede pendiente, la lectura de
-    // UserMemory (más abajo) filtra por el mismo corte temporal.
-    after(async () => {
-      try {
-        await prisma.userMemory.deleteMany({
-          where: { userId, updatedAt: { lt: memoryTtlCutoff(now) } },
-        });
-        await prisma.interactionLog.deleteMany({
-          where: { userId, createdAt: { lt: interactionLogTtlCutoff(now) } },
-        });
-      } catch (err) {
-        console.error("[chat] error en purga TTL diferida (no bloquea):", err);
-      }
-    });
 
     // --- Contexto (fichas + memoria + resumen) + ventana de sesión, en paralelo ---
     // Todo lo que necesita la generación, más los mensajes recientes para el

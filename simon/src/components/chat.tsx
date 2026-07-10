@@ -246,14 +246,23 @@ export function Chat() {
           conversationId: conversationIdRef.current ?? undefined,
         }),
         fetch: (async (info: RequestInfo | URL, init?: RequestInit) => {
+          // Reset por-request ANTES de disparar: si el fetch RECHAZA (offline,
+          // DNS, corte) nunca llega una respuesta HTTP y, sin esto, el ref
+          // conservaría el status de un intento anterior (p.ej. 429) — onError y
+          // el render mostrarían un mensaje viejo para un fallo de red. Al
+          // resetear primero, un rechazo deja ref/state en null y
+          // chatErrorMessage cae en el genérico de conexión.
+          errorStatusRef.current = null;
+          setErrorStatus(null);
           const res = await fetch(info, init);
           const id = res.headers.get("x-conversation-id");
           if (id) conversationIdRef.current = id;
-          // Recordar el status para el mapeo de error amigable (429/403). Se
-          // limpia en el camino OK para no arrastrar un status viejo. Ref para
-          // onError (fresco), state para el render.
-          errorStatusRef.current = res.ok ? null : res.status;
-          setErrorStatus(errorStatusRef.current);
+          // Sólo un status HTTP real de error se recuerda para el mapeo amigable
+          // (429/403). Ref para onError (fresco), state para el render.
+          if (!res.ok) {
+            errorStatusRef.current = res.status;
+            setErrorStatus(res.status);
+          }
           return res;
         }) as typeof fetch,
       }),

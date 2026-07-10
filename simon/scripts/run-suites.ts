@@ -33,6 +33,7 @@ const SUITES = [
   "alerts",
   "rate-limit",
   "retrieval",
+  "knowledge-cache",
   "training-export",
   "safety-docs",
   "retention",
