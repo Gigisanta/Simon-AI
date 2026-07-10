@@ -198,9 +198,50 @@ async function testOwnedChild() {
   );
 }
 
+// ---------- (c/priv) cursor ajeno o inexistente → página vacía neutra ----------
+// La paginación usa prisma.safetyEvent.findMany con `cursor` (NO findUnique/
+// update/delete): un cursor que no existe o que pertenece a OTRO usuario NO
+// lanza P2025 (esa excepción reveladora es exclusiva de las operaciones "OrThrow"
+// / update / delete) — findMany simplemente no encuentra la posición y devuelve
+// []. Además el `where: { userId: childId }` acota SIEMPRE al menor pedido, así
+// que un cursor ajeno jamás puede ampliar el alcance a eventos de otra cuenta.
+// El resultado es una página vacía y neutra (200), nunca un error que delate.
+async function testForeignOrUnknownCursor() {
+  // El cursor va scopeado por userId del menor incluso cuando se pasa un cursor:
+  // no puede escapar del filtro (anti-enumeración por cursor).
+  const scoped = safetyEventsQuery("mine", 20, "evento_de_otro_menor");
+  check(
+    scoped.where.userId === "mine" && scoped.cursor?.id === "evento_de_otro_menor",
+    "cursor ajeno: la query sigue scopeada por userId del menor (el cursor no amplía el alcance)",
+  );
+
+  // findMany con cursor desconocido devuelve [] (no lanza) → el resolver arma una
+  // página vacía y neutra (200), sin filtrar ni tirar un status revelador.
+  const seen: { args?: ReturnType<typeof safetyEventsQuery> } = {};
+  const res = await resolveSafetyEvents(
+    {
+      findChild: async () => ({ id: "link1" }),
+      runQuery: async (args) => {
+        seen.args = args;
+        return []; // comportamiento real de findMany ante un cursor inexistente/ajeno
+      },
+    },
+    { guardianUserId: "g1", childId: "mine", limit: 20, cursor: "cursor_inexistente" },
+  );
+  check(
+    res.status === 200 && res.body.events.length === 0 && res.body.nextCursor === null,
+    "cursor inexistente/ajeno → página vacía neutra (200), sin P2025 ni status revelador",
+  );
+  check(
+    !!seen.args && seen.args.where.userId === "mine" && seen.args.cursor?.id === "cursor_inexistente",
+    "cursor inexistente/ajeno → la query ejecutada sigue scopeada por userId del menor",
+  );
+}
+
 async function main() {
   await testNotFound();
   await testOwnedChild();
+  await testForeignOrUnknownCursor();
 
   done();
 }
