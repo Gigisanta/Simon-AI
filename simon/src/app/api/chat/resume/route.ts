@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 // Retomar conversación: devuelve la última conversación del usuario para que el
 // cliente ofrezca "¿Seguimos donde quedamos?". NUNCA expone safetyFlag ni datos
@@ -8,12 +9,31 @@ export const dynamic = "force-dynamic";
 
 const NO_STORE = { "cache-control": "no-store" };
 
+// Endpoint autenticado de LECTURA: mismo tope holgado por usuario que el resto
+// de las lecturas (conversations, safety-events) contra scraping/scripting.
+const READ_RATE_LIMIT_PER_MINUTE = 60;
+
 export async function GET(req: Request) {
   const session = await auth.api.getSession({ headers: req.headers });
   if (!session) {
     return Response.json(
       { error: "No autenticado" },
       { status: 401, headers: NO_STORE },
+    );
+  }
+
+  const rl = await checkRateLimit(
+    `chat:resume:${session.user.id}`,
+    READ_RATE_LIMIT_PER_MINUTE,
+    60_000,
+  );
+  if (!rl.ok) {
+    return Response.json(
+      { error: "Demasiadas consultas seguidas. Esperá un momento." },
+      {
+        status: 429,
+        headers: { ...NO_STORE, "retry-after": String(rl.retryAfterSeconds) },
+      },
     );
   }
 
