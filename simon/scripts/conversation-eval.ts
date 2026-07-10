@@ -352,7 +352,13 @@ function extractJson(text: string): Judgement | null {
   if (start === -1 || end === -1 || end <= start) return null;
   try {
     return JSON.parse(text.slice(start, end + 1)) as Judgement;
-  } catch {
+  } catch (err) {
+    // Diagnóstico: el juez devolvió algo que parecía JSON pero no parsea. Se
+    // loguea un prefijo acotado (no es contenido de menores: es la salida del
+    // modelo evaluador) para poder depurar sin volar la corrida.
+    console.error(
+      `[conversation-eval] JSON del juez no parsea (${err instanceof Error ? err.message : err}); text=${JSON.stringify(text.slice(0, 300))}`,
+    );
     return null;
   }
 }
