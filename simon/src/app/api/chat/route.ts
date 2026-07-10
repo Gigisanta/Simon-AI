@@ -53,7 +53,12 @@ import { withTransientRetry } from "@/lib/ai/retry";
 import { decideResponsePath, decidePostGenPath } from "@/lib/chat-precedence";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { sameOriginOk } from "@/lib/env-check";
-import { blockedChatMessage, canUserChat } from "@/lib/consent";
+import {
+  blockedChatMessage,
+  canUserChat,
+  isRaceDeletionError,
+  NO_GUARDIAN_CHAT_REPLY,
+} from "@/lib/consent";
 import { maybeAlertGuardian, maybePatternAlert, type AlertCategory } from "@/lib/alerts";
 import { MAX_CHILD_AGE, MIN_CHILD_AGE } from "@/lib/guardian";
 import type { KnowledgeCard } from "@/generated/prisma/client";
@@ -300,12 +305,20 @@ export async function POST(req: Request) {
   // límite de sesión, fallback) un fallo de DB no puede suprimir el texto que se
   // le devuelve al menor (los teléfonos de ayuda). Si la DB falla, se loguea y el
   // caller devuelve igual el fixedTextResponse.
-  // Devuelve el id del mensaje assistant creado (o null si la DB falló) para
-  // referenciarlo en InteractionLog. Nunca lanza (M1).
+  //
+  // Devuelve `{ id, raceDeleted }`:
+  //   - `id`: id del mensaje assistant creado (o null si la escritura falló) para
+  //     referenciarlo en InteractionLog.
+  //   - `raceDeleted`: true SOLO si el fallo fue una carrera de borrado del menor
+  //     (P2003/P2025 — ver isRaceDeletionError). En ese caso el texto del LLM NO
+  //     debe entregarse (el path normal lo chequea). Los paths de respuesta FIJA
+  //     (crisis/sesión/fallback) IGNORAN este flag y entregan igual (M1): jamás se
+  //     le niega a un menor los recursos de ayuda por una carrera de borrado.
+  // Nunca lanza (M1).
   async function saveAssistant(
     content: string,
     safetyFlag: string | null,
-  ): Promise<string | null> {
+  ): Promise<{ id: string | null; raceDeleted: boolean }> {
     try {
       // Dos escrituras (crear el mensaje + bumpear updatedAt) en UNA transacción:
       // una sola ida a la DB y consistencia atómica del par.
@@ -319,10 +332,19 @@ export async function POST(req: Request) {
           data: { updatedAt: new Date() },
         }),
       ]);
-      return created.id;
+      return { id: created.id, raceDeleted: false };
     } catch (err) {
+      // Carrera de borrado del menor (P2003/P2025): la Conversation/User se borró
+      // mientras generábamos. Evento ESPERADO → log conciso, sin volcar el stack.
+      if (isRaceDeletionError(err)) {
+        console.warn(
+          "[chat] carrera: el menor/su conversación se borró durante la generación (no se persiste ni entrega el texto del LLM)",
+        );
+        return { id: null, raceDeleted: true };
+      }
+      // Fallo transitorio (red/pool/timeout): comportamiento actual (M1).
       console.error("[chat] error guardando la respuesta del asistente (se devuelve igual):", err);
-      return null;
+      return { id: null, raceDeleted: false };
     }
   }
 
@@ -444,7 +466,7 @@ export async function POST(req: Request) {
   // Crisis, abuso o trastorno alimentario: plantilla fija, el LLM no interviene.
   if (regexFlag === "crisis" || regexFlag === "abuso" || regexFlag === "alimentario") {
     const reply = crisisReply(regexFlag);
-    const assistantMessageId = await saveAssistant(reply, "derivacion");
+    const { id: assistantMessageId } = await saveAssistant(reply, "derivacion");
     if (regexFlag !== "alimentario") {
       after(() => alertGuardianSafely(regexEventId, regexFlag));
     }
@@ -739,7 +761,7 @@ export async function POST(req: Request) {
       `moderation-input:${inputMod.source}`,
     );
     const reply = crisisReply(inputCrisisFlag);
-    const assistantMessageId = await saveAssistant(reply, "derivacion");
+    const { id: assistantMessageId } = await saveAssistant(reply, "derivacion");
     after(() => alertGuardianSafely(eventId, alertCategory));
     logInteraction("crisis-template", {
       moderationInput: inputMod,
@@ -768,7 +790,7 @@ export async function POST(req: Request) {
   // 2) Sesión vencida (M-S7) → cierre amable. Gana sobre la respuesta normal (la
   //    crisis ya se evaluó arriba). Generación paralela descartada.
   if (preGenPath === "session-limit") {
-    const assistantMessageId = await saveAssistant(SESSION_LIMIT_REPLY, "session-limit");
+    const { id: assistantMessageId } = await saveAssistant(SESSION_LIMIT_REPLY, "session-limit");
     logInteraction("session-limit", {
       moderationInput: inputMod,
       safetyFlagFinal: "session-limit",
@@ -781,7 +803,7 @@ export async function POST(req: Request) {
   if (preGenPath === "no-ai") {
     const reply =
       "Simón todavía no tiene configurado el proveedor de IA en este entorno (falta AI_API_KEY). Pedile a la persona que administra la app que lo configure.";
-    const assistantMessageId = await saveAssistant(reply, null);
+    const { id: assistantMessageId } = await saveAssistant(reply, null);
     logInteraction("no-ai", { moderationInput: inputMod, assistantMessageId });
     return fixedTextResponse(reply, responseHeaders);
   }
@@ -803,7 +825,7 @@ export async function POST(req: Request) {
   //    dependencia de datos (moderate() necesita generated.text).
   if (!generated.ok) {
     const reply = "Uy, tuve un problema para responderte recién. ¿Probamos de nuevo?";
-    const assistantMessageId = await saveAssistant(reply, null);
+    const { id: assistantMessageId } = await saveAssistant(reply, null);
     logInteraction("fallback-error", {
       model: chatModelId(),
       moderationInput: inputMod,
@@ -840,7 +862,7 @@ export async function POST(req: Request) {
     // No mostramos el output del LLM: lo sustituimos por un mensaje seguro fijo.
     const safe = safeOutputReplacement(outputMod.mappedFlag);
     const finalFlag = outputMod.mappedFlag ?? "moderation-output";
-    const assistantMessageId = await saveAssistant(safe, finalFlag);
+    const { id: assistantMessageId } = await saveAssistant(safe, finalFlag);
     if (outputMod.mappedFlag === "crisis" || outputMod.mappedFlag === "abuso") {
       const alertCategory = outputMod.mappedFlag; // narrowing para el closure
       after(() => alertGuardianSafely(eventId, alertCategory));
@@ -882,7 +904,7 @@ export async function POST(req: Request) {
       );
       const finalFlag =
         decision.action === "replace" ? decision.flag : "moderation-unavailable";
-      const assistantMessageId = await saveAssistant(decision.reply, finalFlag);
+      const { id: assistantMessageId } = await saveAssistant(decision.reply, finalFlag);
       if (
         decision.action === "replace" &&
         (decision.flag === "crisis" || decision.flag === "abuso")
@@ -931,7 +953,56 @@ export async function POST(req: Request) {
   // necesita un flag compuesto hoy: ningún consumidor cruza ambas dimensiones.
   // saveAssistant ya es a prueba de fallos (M1): no requiere try/catch acá.
   const finalFlag = needsSessionWarn ? "session-warn" : effectiveFlag;
-  const assistantMessageId = await saveAssistant(finalText, finalFlag);
+
+  // --- Re-chequeo de consentimiento/existencia (TOCTOU) ANTES de persistir/
+  //     entregar el texto del LLM ---
+  // `canUserChat` se evaluó al ENTRAR (línea ~170) pero la generación tarda hasta
+  // ~90s; en ese intervalo el tutor/a pudo revocar el consentimiento o borrar al
+  // menor. Sin este re-chequeo, la respuesta del LLM se persistía y entregaba
+  // igual. Es un chequeo BARATO (guardians: sin DB; menores: un findUnique por el
+  // unique childUserId) y aplica SOLO a este path normal: las respuestas FIJAS de
+  // seguridad (crisis/derivación/límite) SIEMPRE se entregan (M1) y no se tocan.
+  // Si el re-chequeo bloquea, NO se persiste el texto del LLM y se devuelve el
+  // MISMO desenlace que el guard original (mensaje amable de huérfano para
+  // `no-guardian`; 403 genérico para el resto, p.ej. `consent-revoked`).
+  const recheck = await canUserChat(session.user);
+  if (!recheck.ok) {
+    logInteraction("blocked-midflight", {
+      model: chatModelId(),
+      moderationInput: inputMod,
+      moderationOutput: outputMod,
+      safetyFlagFinal: recheck.reason,
+      historyMessagesSent: dbHistory.length,
+    });
+    const friendly = blockedChatMessage(recheck.reason);
+    if (friendly) {
+      return fixedTextResponse(friendly, { ...responseHeaders, "cache-control": "no-store" });
+    }
+    return Response.json(
+      { error: "Falta el consentimiento de tu tutor/a para usar el chat" },
+      { status: 403, headers: { "cache-control": "no-store" } },
+    );
+  }
+
+  const saved = await saveAssistant(finalText, finalFlag);
+  // Carrera fina: el re-chequeo pasó pero el menor se borró entre ese SELECT y el
+  // INSERT (P2003/P2025). No se entrega el texto del LLM; mismo mensaje amable de
+  // huérfano que el guard original. (Un fallo transitorio NO llega acá: raceDeleted
+  // es false y se entrega igual — M1.)
+  if (saved.raceDeleted) {
+    logInteraction("blocked-midflight", {
+      model: chatModelId(),
+      moderationInput: inputMod,
+      moderationOutput: outputMod,
+      safetyFlagFinal: "no-guardian",
+      historyMessagesSent: dbHistory.length,
+    });
+    return fixedTextResponse(NO_GUARDIAN_CHAT_REPLY, {
+      ...responseHeaders,
+      "cache-control": "no-store",
+    });
+  }
+  const assistantMessageId = saved.id;
 
   // B2.3: rolling summary incremental de esta conversación. La decisión fina
   // (hilo largo Y atrasado) la toma updateRollingSummary; se dispara fire-and-

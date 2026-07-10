@@ -17,8 +17,10 @@ import { createChecker } from "./suite-helpers";
 import {
   blockedChatMessage,
   canChat,
+  isRaceDeletionError,
   NO_GUARDIAN_CHAT_REPLY,
 } from "../src/lib/consent";
+import { Prisma } from "../src/generated/prisma/client";
 import {
   authorizeChildSignup,
   buildCreateChildSchema,
@@ -96,6 +98,43 @@ const { check, done } = createChecker("Guardian suite");
   // Otros motivos caen al 403 genérico (null): NO se filtra un texto por defecto.
   check(blockedChatMessage("no-consent") === null, "blockedChatMessage: no-consent → null (403 genérico)");
   check(blockedChatMessage("cualquier-otro") === null, "blockedChatMessage: motivo desconocido → null (fail-safe)");
+}
+
+// ---------- 1c. isRaceDeletionError: carrera TOCTOU del chat (P2003/P2025) ----------
+// El re-chequeo del chat NO debe entregar el texto del LLM si el menor se borró
+// durante la generación (FK rota / registro inexistente); un fallo transitorio, en
+// cambio, mantiene el comportamiento actual (M1: la respuesta gana). Se distinguen
+// por el código de Prisma.
+{
+  const p2003 = new Prisma.PrismaClientKnownRequestError("fk violation", {
+    code: "P2003",
+    clientVersion: "test",
+  });
+  const p2025 = new Prisma.PrismaClientKnownRequestError("record not found", {
+    code: "P2025",
+    clientVersion: "test",
+  });
+  const p2002 = new Prisma.PrismaClientKnownRequestError("unique", {
+    code: "P2002",
+    clientVersion: "test",
+  });
+  check(isRaceDeletionError(p2003) === true, "isRaceDeletionError: P2003 (FK rota) → true");
+  check(isRaceDeletionError(p2025) === true, "isRaceDeletionError: P2025 (inexistente) → true");
+  check(
+    isRaceDeletionError(p2002) === false,
+    "isRaceDeletionError: P2002 (otro código Prisma) → false",
+  );
+  // Un fallo transitorio (timeout de red, error común) NO es carrera de borrado:
+  // debe conservar el comportamiento actual (entregar igual — M1).
+  check(
+    isRaceDeletionError(new Error("ETIMEDOUT")) === false,
+    "isRaceDeletionError: error transitorio (no-Prisma) → false (M1: entrega igual)",
+  );
+  check(isRaceDeletionError(null) === false, "isRaceDeletionError: null → false (no crashea)");
+  check(
+    isRaceDeletionError({ code: "P2025" }) === false,
+    "isRaceDeletionError: objeto duck-typed (no-instanceof) → false (no se confunde)",
+  );
 }
 
 // ---------- 2. Validación zod del alta ----------

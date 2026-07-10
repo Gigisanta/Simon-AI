@@ -9,6 +9,7 @@
  * `canUserChat` consulta la DB.
  */
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@/generated/prisma/client";
 
 /** Vínculo de tutela con solo lo necesario para decidir el acceso. */
 export type ConsentGuardian = {
@@ -46,6 +47,29 @@ export function blockedChatMessage(reason: string): string | null {
     default:
       return null;
   }
+}
+
+/**
+ * ¿El error de persistencia corresponde a que el menor —o su fila / sus datos—
+ * DESAPARECIÓ mientras se generaba la respuesta? Es la carrera TOCTOU esperada
+ * del chat: `canUserChat` se evaluó al inicio, la generación tarda hasta ~90s y
+ * en el ínterin el tutor/a pudo borrar al menor (el cascade arrastra User →
+ * Conversation → Message). Códigos de Prisma que la delatan:
+ *   - P2003: violación de FK (el `conversationId` ya no apunta a una Conversation
+ *            viva porque el User dueño se borró).
+ *   - P2025: el registro a crear/actualizar ya no existe (Conversation borrada).
+ *
+ * Se distingue del fallo TRANSITORIO (red/timeout/pool) para dos cosas:
+ *   (a) loguearlo como evento ESPERADO de carrera, sin stack ruidoso, y
+ *   (b) NO entregar el texto del LLM a una cuenta que ya no debería recibirlo.
+ * Un fallo transitorio, en cambio, conserva el comportamiento actual (M1: la
+ * respuesta gana sobre la persistencia). Función pura y testeable.
+ */
+export function isRaceDeletionError(err: unknown): boolean {
+  return (
+    err instanceof Prisma.PrismaClientKnownRequestError &&
+    (err.code === "P2003" || err.code === "P2025")
+  );
 }
 
 /**
