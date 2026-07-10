@@ -38,6 +38,12 @@ model User {
   // solo tutor/a por ahora.
   guardedBy     Guardian?  @relation("guardedBy")
 
+  // Barrido de menores huérfanos (retention.orphanChildWhere): filtra por
+  // role="child" + updatedAt < corte de gracia. Sin este índice el deleteMany del
+  // cron es un full-table-scan de `user`. (`guardedBy` es una relación, no una
+  // columna, así que no entra en el índice; el filtro por role+updatedAt es el que
+  // acota el barrido.)
+  @@index([role, updatedAt])
   @@map("user")
 }
 

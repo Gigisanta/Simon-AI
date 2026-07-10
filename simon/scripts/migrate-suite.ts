@@ -180,6 +180,31 @@ async function main() {
       "migración: consentRevokedAt es nullable (aditiva, segura sobre datos existentes)",
     );
   }
+
+  // ---------- 5. Índice del barrido de huérfanos: User [role, updatedAt] ----------
+  {
+    const schema = readFileSync(join(here, "..", "prisma", "schema.prisma"), "utf8");
+    check(
+      /@@index\(\[role, updatedAt\]\)/.test(schema),
+      "schema: User @@index([role, updatedAt]) (barrido de huérfanos)",
+    );
+
+    const idxMig = readFileSync(
+      join(here, "..", "prisma", "migrations", "20260710050000_add_user_role_updatedat_idx", "migration.sql"),
+      "utf8",
+    );
+    // Nombre y tabla EXACTOS que genera Prisma (tabla `user` en minúscula por el
+    // @@map). Verificado con `prisma migrate diff`.
+    check(
+      /CREATE INDEX "user_role_updatedAt_idx" ON "user"\("role", "updatedAt"\)/.test(idxMig),
+      "migración: user_role_updatedAt_idx sobre (role, updatedAt)",
+    );
+    // Aditiva: solo CREATE INDEX, sin ALTER/DROP que toque datos existentes.
+    check(
+      !/\b(DROP|ALTER|DELETE|UPDATE)\b/i.test(idxMig),
+      "migración: solo CREATE INDEX (aditiva, no reescribe ni borra datos)",
+    );
+  }
 }
 
 main()
