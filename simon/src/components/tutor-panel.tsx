@@ -2,6 +2,7 @@
 
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { authClient } from "@/lib/auth-client";
 import { MAX_CHILD_AGE, MIN_CHILD_AGE } from "@/lib/guardian";
 
 export type ChildRow = {
@@ -422,9 +423,11 @@ const ChildCard = memo(function ChildCard({
 export function TutorPanel({
   initialChildren,
   emailVerified,
+  email,
 }: {
   initialChildren: ChildRow[];
   emailVerified: boolean;
+  email: string;
 }) {
   const router = useRouter();
   // Referencia estable para no re-renderizar cada ChildCard (memo) al tipear
@@ -438,6 +441,26 @@ export function TutorPanel({
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+
+  // Reenvío del email de verificación (CTA del banner de abajo). El endpoint de
+  // better-auth /send-verification-email valida server-side que el email sea el
+  // de la sesión (EMAIL_MISMATCH si no) y que no esté ya verificado, y trae rate
+  // limit propio (3/60s); acá solo manejamos los estados de UI.
+  const [resendState, setResendState] = useState<
+    "idle" | "loading" | "sent" | "error"
+  >("idle");
+
+  async function handleResendVerification() {
+    if (resendState === "loading" || resendState === "sent") return;
+    setResendState("loading");
+    // Pasamos el email de la sesión (no un input del tutor/a): el server igual lo
+    // exige idéntico al de la sesión, así que nunca se reenvía a un mail ajeno.
+    const { error: resendError } = await authClient.sendVerificationEmail({
+      email,
+      callbackURL: "/tutor",
+    });
+    setResendState(resendError ? "error" : "sent");
+  }
 
   async function handleSubmit(e: { preventDefault(): void }) {
     e.preventDefault();
@@ -505,8 +528,35 @@ export function TutorPanel({
 
       {!emailVerified && (
         <div className="mt-4 rounded-2xl border border-accent/60 bg-peach p-4 text-sm text-accent-deep">
-          Verificá tu email para poder dar de alta a un menor. Revisá tu casilla
-          (o la consola del servidor, en desarrollo) el enlace de verificación.
+          <p>
+            Verificá tu email para poder dar de alta a un menor. Revisá tu
+            casilla (o la consola del servidor, en desarrollo) el enlace de
+            verificación.
+          </p>
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={handleResendVerification}
+              disabled={resendState === "loading" || resendState === "sent"}
+              className="min-h-11 rounded-full bg-accent-deep px-4 py-1.5 font-bold text-white hover:opacity-90 disabled:opacity-50"
+            >
+              {resendState === "loading"
+                ? "Enviando…"
+                : resendState === "sent"
+                  ? "Email enviado"
+                  : "Reenviar email de verificación"}
+            </button>
+            {resendState === "sent" && (
+              <span role="status" className="font-semibold">
+                Listo, te lo reenviamos. Revisá tu casilla (y el spam).
+              </span>
+            )}
+            {resendState === "error" && (
+              <span role="alert" className="font-semibold text-danger">
+                No se pudo reenviar. Esperá un momento y probá de nuevo.
+              </span>
+            )}
+          </div>
         </div>
       )}
 

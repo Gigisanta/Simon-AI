@@ -39,7 +39,11 @@ export default async function TutorPage() {
     <div className="flex flex-1 flex-col">
       <SiteHeader />
       <div className="pb-24 md:pb-0">
-        <TutorPanel initialChildren={children} emailVerified={session.user.emailVerified} />
+        <TutorPanel
+          initialChildren={children}
+          emailVerified={session.user.emailVerified}
+          email={session.user.email}
+        />
       </div>
       <BottomNav />
     </div>
