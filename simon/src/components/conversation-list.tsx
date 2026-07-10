@@ -255,7 +255,7 @@ export function ConversationList({
                                   type="button"
                                   onClick={() => void handleDelete(c.id)}
                                   disabled={deletingId === c.id}
-                                  className="min-h-11 rounded-full px-3 text-sm font-bold text-danger transition-colors hover:bg-sand disabled:opacity-50"
+                                  className="min-h-11 rounded-full px-3 text-sm font-bold text-danger transition-colors hover:bg-sand hover:text-danger-strong disabled:opacity-50"
                                 >
                                   {deletingId === c.id ? "Borrando…" : "Borrar"}
                                 </button>

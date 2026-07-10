@@ -150,6 +150,12 @@ model Message {
   createdAt      DateTime     @default(now())
 
   @@index([conversationId, createdAt])
+  // M-S7: la ventana de sesión (sessionWindowQuery) filtra mensajes de TODAS las
+  // conversaciones del usuario por `createdAt >= now-75min`. Message no tiene
+  // columna userId (el userId vive en Conversation), así que el predicado a nivel
+  // de esta tabla es el rango de createdAt: este índice lo cubre con un range scan
+  // en vez de un seq scan del historial completo.
+  @@index([createdAt])
 }
 
 // ---------- Eventos de seguridad (anonimizados) ----------

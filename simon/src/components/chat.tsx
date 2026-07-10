@@ -233,6 +233,9 @@ export function Chat() {
   function handleNewConversation() {
     setMessages([]);
     conversationIdRef.current = null;
+    // Espejo en state: sin esto quedaba stale y la lista seguía marcando la
+    // conversación anterior como "actual" tras empezar una nueva.
+    setCurrentConversationId(null);
     setResumable(null);
     setListOpen(false);
   }

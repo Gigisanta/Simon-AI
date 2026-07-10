@@ -8,6 +8,8 @@
  * testeada en scripts/memory-suite.ts; route.ts aporta los timestamps.
  */
 
+import type { Prisma } from "@/generated/prisma/client";
+
 export const SESSION_GAP_MS = 30 * 60_000; // gap >= 30 min corta la racha
 export const SESSION_WARN_MS = 30 * 60_000; // >= 30 min → avisar pausa
 export const SESSION_OVER_MS = 45 * 60_000; // >= 45 min → cerrar la sesión
@@ -36,6 +38,33 @@ export function isFirstOfSession(assistantTimestamps: Date[], now: Date): boolea
     const ms = t.getTime();
     return Number.isFinite(ms) && ms <= nowMs && nowMs - ms < SESSION_GAP_MS;
   });
+}
+
+/**
+ * M-S7: construcción de la ventana de sesión como valor puro (sin DB), para que
+ * la regresión del bug real (`take:60`, que truncaba ráfagas y dejaba eludir el
+ * corte de 45 min) tenga cobertura de test. route.ts pasa este objeto tal cual a
+ * `prisma.message.findMany`. Invariantes que el test fija:
+ *   - `where.createdAt.gte === now - (SESSION_OVER_MS + SESSION_GAP_MS)` (75 min):
+ *     cota que garantiza traer TODA la racha necesaria para detectar "over".
+ *   - SIN `take`/limit: la cota temporal ya acota el resultado; reintroducir un
+ *     `take` volvería a permitir el bypass y rompe el test.
+ *   - filtra por `conversation.userId` (sesión cross-conversation, por uso).
+ */
+export function sessionWindowQuery(
+  userId: string,
+  now: Date,
+) {
+  return {
+    where: {
+      conversation: { userId },
+      createdAt: {
+        gte: new Date(now.getTime() - (SESSION_OVER_MS + SESSION_GAP_MS)),
+      },
+    },
+    orderBy: { createdAt: "desc" as const },
+    select: { createdAt: true, role: true, safetyFlag: true },
+  } satisfies Prisma.MessageFindManyArgs;
 }
 
 export function sessionState(

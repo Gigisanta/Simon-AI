@@ -41,12 +41,11 @@ import {
 } from "@/lib/ai/memory";
 import {
   isFirstOfSession,
-  SESSION_GAP_MS,
   SESSION_LIMIT_REPLY,
-  SESSION_OVER_MS,
   SESSION_WARN_APPENDIX,
   sessionLimitApplies,
   sessionState,
+  sessionWindowQuery,
 } from "@/lib/session-limit";
 import { moderate, type ModerationResult } from "@/lib/moderation";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -526,21 +525,11 @@ export async function POST(req: Request) {
       }),
       // Ventana de sesión (M-S7 / M-F1): SOLO para menores (B3.2). Guardians:
       // sin cálculo (no hay warn/over/primer-mensaje), se evita la query.
-      // Ventana temporal = SESSION_OVER_MS + SESSION_GAP_MS (75 min): cota que
-      // garantiza traer TODOS los mensajes necesarios para detectar "over" (una
-      // racha ≥45 min cuyo mensaje de cruce cae, como mucho, un gap <30 min
-      // antes del umbral). SIN `take`: la cota temporal ya acota el resultado —
-      // el take:60 anterior truncaba a >~1.33 msg/min y dejaba pasar sesiones
-      // vencidas (bypass del límite de 45 min).
+      // La construcción de la query (ventana temporal de 75 min, SIN `take`,
+      // filtro cross-conversation por userId) vive en sessionWindowQuery —
+      // función pura testeada, para que reintroducir un `take` rompa el gate.
       sessionLimitApplies(role)
-        ? prisma.message.findMany({
-            where: {
-              conversation: { userId },
-              createdAt: { gte: new Date(now.getTime() - (SESSION_OVER_MS + SESSION_GAP_MS)) },
-            },
-            orderBy: { createdAt: "desc" },
-            select: { createdAt: true, role: true, safetyFlag: true },
-          })
+        ? prisma.message.findMany(sessionWindowQuery(userId, now))
         : Promise.resolve(
             [] as { createdAt: Date; role: string; safetyFlag: string | null }[],
           ),

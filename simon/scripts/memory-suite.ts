@@ -10,6 +10,9 @@
  *      delimitadores <<< / >>> inyectados se eliminan).
  *   4. parseSummaryAndFacts() — parseo defensivo: JSON roto → sin hechos,
  *      nunca lanza.
+ *   7. sessionWindowQuery() — la construcción de la ventana de sesión (M-S7):
+ *      75 min, SIN take/limit, filtro cross-conversation por userId.
+ *   8. ageRegisterInstruction() — registro etario por franja CEFR (research §7.1).
  *
  * Camino crítico: un error acá deja pasar PII/inyección al prompt o rompe el
  * límite de tiempo para menores. Sale con código 1 si algún caso falla.
@@ -22,8 +25,12 @@ import {
   SESSION_LIMIT_REPLY,
   SESSION_WARN_APPENDIX,
   sessionState,
+  sessionWindowQuery,
 } from "../src/lib/session-limit";
-import { buildSystemPrompt } from "../src/lib/ai/system-prompt";
+import {
+  ageRegisterInstruction,
+  buildSystemPrompt,
+} from "../src/lib/ai/system-prompt";
 import {
   parseRollingSummary,
   parseSummaryAndFacts,
@@ -262,6 +269,79 @@ check(notArray.facts.length === 0, "parse: hechos no-array → []");
   check(
     (parseRollingSummary(`{"resumen": "${"w".repeat(2000)}"}`) ?? "").length === 1200,
     "rolling: se recorta a ~150 palabras (1200 chars)",
+  );
+}
+
+// ---------- 7. sessionWindowQuery (M-S7: regresión del take:60) ----------
+{
+  const swNow = new Date("2026-07-08T12:00:00Z");
+  const q = sessionWindowQuery("user-123", swNow);
+
+  // Filtra por userId a través de la relación conversation (cross-conversation:
+  // la sesión se mide por uso, no por hilo).
+  check(
+    q.where.conversation.userId === "user-123",
+    "sessionWindowQuery: filtra por conversation.userId (cross-conversation)",
+  );
+  // Cota temporal EXACTA = now - (SESSION_OVER_MS + SESSION_GAP_MS) = 75 min.
+  check(
+    q.where.createdAt.gte.getTime() ===
+      swNow.getTime() - (SESSION_OVER_MS + SESSION_GAP_MS),
+    "sessionWindowQuery: createdAt.gte = now - 75 min (over + gap)",
+  );
+  check(
+    swNow.getTime() - q.where.createdAt.gte.getTime() === 75 * 60_000,
+    "sessionWindowQuery: la ventana es de 75 minutos",
+  );
+  // Regresión del BUG REAL: NO puede haber `take`/limit. El take:60 anterior
+  // truncaba las ráfagas y dejaba eludir el corte de 45 min. Si alguien lo
+  // reintroduce, estos dos casos fallan.
+  check(!("take" in q), "sessionWindowQuery: SIN take (reintroducirlo reabre el bypass)");
+  check(!("limit" in q), "sessionWindowQuery: SIN limit");
+  // Orden e including-shape estables (lo que route.ts consume: createdAt/role/safetyFlag).
+  check(q.orderBy.createdAt === "desc", "sessionWindowQuery: orden createdAt desc");
+  check(
+    q.select.createdAt === true &&
+      q.select.role === true &&
+      q.select.safetyFlag === true,
+    "sessionWindowQuery: selecciona createdAt/role/safetyFlag",
+  );
+}
+
+// ---------- 8. ageRegisterInstruction (§7.1: franjas etarias CEFR) ----------
+{
+  // Franja 6–9 → A1, máx 8 palabras/oración.
+  const a1 = ageRegisterInstruction(8);
+  check(a1.includes("la persona tiene 8 años"), "age: interpola la edad (8)");
+  check(a1.includes("8 palabras") && a1.includes("nivel A1"), "age: 8 años → 8 palabras / A1");
+
+  // Franja 10–13 → A2, máx 12 palabras/oración.
+  const a2 = ageRegisterInstruction(11);
+  check(a2.includes("12 palabras") && a2.includes("nivel A2"), "age: 11 años → 12 palabras / A2");
+
+  // Franja 14–18 → B1, máx 15 palabras/oración.
+  const b1 = ageRegisterInstruction(16);
+  check(b1.includes("15 palabras") && b1.includes("nivel B1"), "age: 16 años → 15 palabras / B1");
+
+  // Bordes exactos entre franjas (off-by-one).
+  check(ageRegisterInstruction(9).includes("nivel A1"), "age: borde 9 → A1 (<=9)");
+  check(ageRegisterInstruction(10).includes("nivel A2"), "age: borde 10 → A2");
+  check(ageRegisterInstruction(13).includes("nivel A2"), "age: borde 13 → A2 (<=13)");
+  check(ageRegisterInstruction(14).includes("nivel B1"), "age: borde 14 → B1");
+
+  // Edades de holgura fuera de la franja canónica (la ruta valida el rango
+  // 4..19; la función pura igual devuelve la banda por extremo, nunca lanza).
+  check(ageRegisterInstruction(4).includes("nivel A1"), "age: 4 años (holgura) → A1");
+  check(ageRegisterInstruction(19).includes("nivel B1"), "age: 19 años (holgura) → B1");
+
+  // buildSystemPrompt: `age` undefined → NO se inyecta el bloque de registro; con
+  // edad válida sí. (La ruta decide cuándo pasar `age`; el prompt lo refleja.)
+  const noAge = buildSystemPrompt({ cards: [], memories: [] });
+  check(!noAge.includes("REGISTRO SEGÚN LA EDAD"), "age: sin edad → sin bloque de registro");
+  const withAge = buildSystemPrompt({ cards: [], memories: [], age: 8 });
+  check(
+    withAge.includes("REGISTRO SEGÚN LA EDAD") && withAge.includes("8 palabras"),
+    "age: con edad válida → bloque de registro presente",
   );
 }
 
