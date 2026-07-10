@@ -40,6 +40,9 @@ import {
   parseSummaryAndFacts,
   rollingSummaryDue,
 } from "../src/lib/ai/memory";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 import type { KnowledgeCard, UserMemory } from "../src/generated/prisma/client";
 import {
   assembleContext,
@@ -464,6 +467,41 @@ check(notArray.facts.length === 0, "parse: hechos no-array → []");
   check(r1.length > 0 && r1[0].slug === "cud", "cache: rankea la ficha del CUD primera");
   check(r1.map((c) => c.slug).join() === r2.map((c) => c.slug).join(), "cache: resultados idénticos entre hits");
   check(naive.some((x) => x.s > 0), "cache: el corpus de prueba matchea (sanity del cálculo naive)");
+}
+
+// ---------- 11. Integridad de UserMemory (ciclo 12, Lote 1) ----------
+{
+  // Cada hecho se acota a MAX_FACT_CHARS (300) para no exceder el límite de fila
+  // del unique btree; el count sigue topado en 5.
+  const longFact = "x".repeat(1000);
+  const capped = parseSummaryAndFacts(
+    `{"resumen": "r", "hechos": ${JSON.stringify([longFact, "corto"])}}`,
+  );
+  check(capped.facts[0]!.length === 300, "lote1: cada hecho se acota a 300 chars (MAX_FACT_CHARS)");
+  check(capped.facts[1] === "corto", "lote1: un hecho corto no se toca");
+
+  // El unique de idempotencia está declarado en el schema y en la migración con
+  // el nombre EXACTO que genera Prisma (verificado con `prisma migrate diff`).
+  const here = dirname(fileURLToPath(import.meta.url));
+  const schema = readFileSync(join(here, "..", "prisma", "schema.prisma"), "utf8");
+  const migration = readFileSync(
+    join(here, "..", "prisma", "migrations", "20260710030000_add_usermemory_unique_content", "migration.sql"),
+    "utf8",
+  );
+  check(
+    /@@unique\(\[userId,\s*kind,\s*content\]\)/.test(schema),
+    "lote1: schema declara @@unique([userId, kind, content]) en UserMemory",
+  );
+  check(
+    /CREATE UNIQUE INDEX "UserMemory_userId_kind_content_key" ON "UserMemory"\("userId",\s*"kind",\s*"content"\)/.test(migration),
+    "lote1: migración crea el unique con el nombre exacto de Prisma",
+  );
+  // La migración dedupea ANTES de crear el unique (si no, fallaría con duplicados
+  // preexistentes) y el DELETE precede al CREATE UNIQUE INDEX.
+  check(
+    /DELETE FROM "UserMemory"[\s\S]*ctid[\s\S]*CREATE UNIQUE INDEX/.test(migration),
+    "lote1: la migración dedupea (por ctid) antes de crear el índice único",
+  );
 }
 
 // ---------- Resultado ----------

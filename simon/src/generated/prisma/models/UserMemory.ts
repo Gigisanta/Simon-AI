@@ -205,6 +205,7 @@ export type UserMemoryOrderByWithRelationInput = {
 
 export type UserMemoryWhereUniqueInput = Prisma.AtLeast<{
   id?: string
+  userId_kind_content?: Prisma.UserMemoryUserIdKindContentCompoundUniqueInput
   AND?: Prisma.UserMemoryWhereInput | Prisma.UserMemoryWhereInput[]
   OR?: Prisma.UserMemoryWhereInput[]
   NOT?: Prisma.UserMemoryWhereInput | Prisma.UserMemoryWhereInput[]
@@ -214,7 +215,7 @@ export type UserMemoryWhereUniqueInput = Prisma.AtLeast<{
   createdAt?: Prisma.DateTimeFilter<"UserMemory"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"UserMemory"> | Date | string
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
-}, "id">
+}, "id" | "userId_kind_content">
 
 export type UserMemoryOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
@@ -310,6 +311,12 @@ export type UserMemoryListRelationFilter = {
 
 export type UserMemoryOrderByRelationAggregateInput = {
   _count?: Prisma.SortOrder
+}
+
+export type UserMemoryUserIdKindContentCompoundUniqueInput = {
+  userId: string
+  kind: string
+  content: string
 }
 
 export type UserMemoryCountOrderByAggregateInput = {

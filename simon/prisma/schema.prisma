@@ -228,6 +228,14 @@ model UserMemory {
   // Purga TTL (retention.purgeExpiredData): deleteMany por `updatedAt < corte 90d`.
   // Sin este índice el barrido es un full-table-scan de UserMemory.
   @@index([updatedAt])
+  // Idempotencia del summarizer (memory.ts): dos invocaciones concurrentes de
+  // summarizeStaleConversation (sin lock, marcan summarizedAt al final) pueden
+  // extraer y guardar el MISMO hecho dos veces. Este unique + `skipDuplicates`
+  // en el createMany hace que la segunda inserción sea un no-op en vez de un
+  // duplicado. `content` está acotado en el parseo (MAX_FACT_CHARS, ~atómico y
+  // corto) para no exceder el límite de fila del índice btree de Postgres, así
+  // el unique va directo sobre el texto sin necesidad de una columna hash.
+  @@unique([userId, kind, content])
 }
 
 // ---------- Telemetría de interacción (dataset de entrenamiento) ----------

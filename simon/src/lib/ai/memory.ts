@@ -97,6 +97,14 @@ export function memoryTtlCutoff(now: Date): Date {
 const STALE_AFTER_MS = 60 * 60 * 1000; // 1h sin actividad = conversación cerrada
 const MIN_MESSAGES_TO_SUMMARIZE = 4;
 const MAX_FACTS = 5;
+// Tope defensivo por hecho. Los hechos son "atómicos y cortos" (así lo pide el
+// prompt), pero el modelo no está obligado a respetarlo, y `content` es el texto
+// de la clave `@@unique([userId, kind, content])` de UserMemory: un valor muy
+// largo excedería el límite de fila del índice btree de Postgres (~2704 bytes) y
+// haría fallar el insert. Acotarlo acá mantiene el unique directo sobre el texto
+// (sin columna hash) siempre correcto. 300 chars ≤ 1200 bytes UTF-8, bien por
+// debajo del límite aun sumando userId+kind.
+const MAX_FACT_CHARS = 300;
 const MAX_TRANSCRIPT_MESSAGES = 30; // ventana enviada al modelo small
 const MAX_CHARS_PER_MESSAGE = 500;
 const MAX_SUMMARY_CHARS = 900; // tope defensivo ~120 palabras
@@ -148,7 +156,9 @@ export function parseSummaryAndFacts(raw: string): {
   const facts = Array.isArray(obj.hechos)
     ? obj.hechos
         .filter((f): f is string => typeof f === "string" && f.trim().length > 0)
-        .map((f) => f.trim())
+        // Trim + tope por hecho (MAX_FACT_CHARS): mantiene `content` dentro del
+        // límite de fila del unique btree de UserMemory.
+        .map((f) => f.trim().slice(0, MAX_FACT_CHARS))
         .slice(0, MAX_FACTS)
     : [];
   return { summary, facts };
@@ -269,8 +279,13 @@ export async function summarizeStaleConversation(userId: string): Promise<void> 
           if (f.length > 0 && !known.has(f) && !fresh.includes(f)) fresh.push(f);
         }
         if (fresh.length > 0) {
+          // skipDuplicates: junto con @@unique([userId, kind, content]) hace que
+          // una invocación concurrente que ya insertó estos hechos no derive en
+          // duplicados (la race que este fix cierra). En el caso secuencial no
+          // cambia nada: `known`/`fresh` ya filtran los repetidos conocidos.
           await prisma.userMemory.createMany({
             data: fresh.map((content) => ({ userId, kind: "fact", content })),
+            skipDuplicates: true,
           });
         }
       }
