@@ -175,6 +175,14 @@ export const auth = betterAuth({
     customRules: {
       "/sign-in/email": { window: 60, max: 5 },
       "/sign-up/email": { window: 60, max: 3 },
+      // Solicitud de reseteo de contraseña (authClient.requestPasswordReset →
+      // endpoint /request-password-reset de better-auth 1.6). Sin esta regla el
+      // path caería al tope global (30/60s), suficiente para spamear con emails
+      // de reseteo a una víctima. 3/60s lo frena. El match de customRules es por
+      // path EXACTO relativo al handler de auth (sin basePath), igual que las de
+      // arriba. Nota: 1.6 ya trae una special-rule interna 60/3 para este path;
+      // fijarla acá la vuelve explícita e independiente de internals de la lib.
+      "/request-password-reset": { window: 60, max: 3 },
     },
   },
 });
