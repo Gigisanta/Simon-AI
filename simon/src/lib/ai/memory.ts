@@ -305,6 +305,22 @@ export function rollingSummaryDue(totalMessages: number, uncovered: number): boo
   return totalMessages > ROLLING_TRIGGER_TOTAL && uncovered > ROLLING_TRIGGER_UNCOVERED;
 }
 
+/**
+ * Cláusula `where` del compare-and-set (CAS) de updateRollingSummary. La
+ * escritura solo se aplica si `rollingSummarizedUntil` sigue siendo el valor que
+ * se leyó al empezar (`expectedUntil`, que puede ser null en la primera pasada):
+ * si otra request concurrente ya regeneró el resumen y avanzó el cursor, este
+ * updateMany afecta 0 filas y la escritura vieja se descarta en vez de pisar la
+ * nueva. En el caso secuencial el valor no cambió, así que el update se aplica
+ * normal (sin cambio de comportamiento). Función pura — testeada en memory-suite.
+ */
+export function rollingSummaryCasWhere(
+  conversationId: string,
+  expectedUntil: Date | null,
+): { id: string; rollingSummarizedUntil: Date | null } {
+  return { id: conversationId, rollingSummarizedUntil: expectedUntil };
+}
+
 function rollingSummaryPrompt(previous: string | null, transcript: string): string {
   // M4 (anti-injection): el resumen previo y los mensajes nuevos son TEXTO a
   // resumir, nunca instrucciones. Se sanitizan y los mensajes van entre
@@ -409,8 +425,13 @@ export async function updateRollingSummary(conversationId: string): Promise<void
     const summary = parseRollingSummary(generated.text);
     if (!summary) return; // no pisar el resumen previo con una salida ilegible
 
-    await prisma.conversation.update({
-      where: { id: conversationId },
+    // Compare-and-set: solo escribe si `rollingSummarizedUntil` sigue siendo el
+    // que leímos (`cutoff`). Si dos requests concurrentes regeneran a la vez, la
+    // segunda ve el cursor ya movido y su updateMany afecta 0 filas — no pisa el
+    // resumen recién escrito ni retrocede el cursor. Secuencialmente no cambia
+    // nada. `updateMany` (no `update`) para poder condicionar por un campo no-id.
+    await prisma.conversation.updateMany({
+      where: rollingSummaryCasWhere(conversationId, cutoff),
       data: {
         rollingSummary: stripDelimiterSequences(summary),
         // Cubre hasta el último mensaje incluido en esta pasada.

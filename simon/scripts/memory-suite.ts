@@ -38,6 +38,7 @@ import {
   MEMORY_INJECTION_PATTERNS,
   parseRollingSummary,
   parseSummaryAndFacts,
+  rollingSummaryCasWhere,
   rollingSummaryDue,
 } from "../src/lib/ai/memory";
 import { readFileSync } from "node:fs";
@@ -501,6 +502,27 @@ check(notArray.facts.length === 0, "parse: hechos no-array → []");
   check(
     /DELETE FROM "UserMemory"[\s\S]*ctid[\s\S]*CREATE UNIQUE INDEX/.test(migration),
     "lote1: la migración dedupea (por ctid) antes de crear el índice único",
+  );
+}
+
+// ---------- 12. Compare-and-set del rolling summary (ciclo 12, Lote 2) ----------
+{
+  const until = new Date("2026-07-08T11:00:00Z");
+  // Caso normal (cursor previo no-null): el where exige el mismo cursor leído.
+  const w = rollingSummaryCasWhere("conv-1", until);
+  check(w.id === "conv-1", "lote2: CAS where filtra por id de conversación");
+  check(
+    w.rollingSummarizedUntil instanceof Date &&
+      w.rollingSummarizedUntil.getTime() === until.getTime(),
+    "lote2: CAS where condiciona por el rollingSummarizedUntil esperado",
+  );
+  // Primera pasada (cursor null): el where matchea NULL (compare-and-set inicial).
+  const w0 = rollingSummaryCasWhere("conv-2", null);
+  check(w0.rollingSummarizedUntil === null, "lote2: CAS where con cursor null → matchea NULL");
+  // Solo id + rollingSummarizedUntil (no arrastra otros campos que aflojen el CAS).
+  check(
+    Object.keys(w).sort().join(",") === "id,rollingSummarizedUntil",
+    "lote2: CAS where expone exactamente { id, rollingSummarizedUntil }",
   );
 }
 
