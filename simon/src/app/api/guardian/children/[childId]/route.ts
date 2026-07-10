@@ -19,6 +19,7 @@
  */
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { rateLimitMessage } from "@/lib/ui-messages";
 import { requireGuardian, findOwnedChild } from "@/lib/guardian-auth";
 import { isRecordNotFoundError } from "@/lib/guardian-children";
 import { sameOriginOk } from "@/lib/env-check";
@@ -81,7 +82,7 @@ export async function DELETE(
   );
   if (!rl.ok) {
     return Response.json(
-      { error: "Demasiados intentos seguidos. Esperá un momento." },
+      { error: rateLimitMessage("intentos", "m") },
       { status: 429, headers: { "retry-after": String(rl.retryAfterSeconds) } },
     );
   }
@@ -178,7 +179,7 @@ export async function PATCH(
   );
   if (!rl.ok) {
     return Response.json(
-      { error: "Demasiados cambios seguidos. Esperá un momento." },
+      { error: rateLimitMessage("cambios", "m") },
       { status: 429, headers: { "retry-after": String(rl.retryAfterSeconds) } },
     );
   }

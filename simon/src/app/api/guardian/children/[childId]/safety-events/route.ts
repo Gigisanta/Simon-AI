@@ -16,6 +16,7 @@
  */
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { rateLimitMessage } from "@/lib/ui-messages";
 import { requireGuardian, findOwnedChild } from "@/lib/guardian-auth";
 import {
   resolveSafetyEvents,
@@ -63,7 +64,7 @@ export async function GET(
   );
   if (!rl.ok) {
     return Response.json(
-      { error: "Demasiadas consultas seguidas. Esperá un momento." },
+      { error: rateLimitMessage("consultas", "f") },
       { status: 429, headers: { "retry-after": String(rl.retryAfterSeconds) } },
     );
   }

@@ -53,6 +53,7 @@ import { withTransientRetry } from "@/lib/ai/retry";
 import { CHAT_ROUTE_MAX_DURATION_S } from "@/lib/ai/limits";
 import { decideResponsePath, decidePostGenPath } from "@/lib/chat-precedence";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { rateLimitMessage } from "@/lib/ui-messages";
 import { sameOriginOk } from "@/lib/env-check";
 import {
   blockedChatMessage,
@@ -231,7 +232,7 @@ export async function POST(req: Request) {
     const limited = !minute.ok ? minute : !day.ok ? day : null;
     if (limited && !limited.ok) {
       return Response.json(
-        { error: "Demasiados mensajes seguidos. Esperá un momento." },
+        { error: rateLimitMessage("mensajes", "m") },
         {
           status: 429,
           headers: { "retry-after": String(limited.retryAfterSeconds) },

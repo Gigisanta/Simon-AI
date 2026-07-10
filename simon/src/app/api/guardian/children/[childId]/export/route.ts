@@ -31,6 +31,7 @@
  */
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { rateLimitMessage } from "@/lib/ui-messages";
 import { requireGuardian, findOwnedChild } from "@/lib/guardian-auth";
 import { usernameFromEmail } from "@/lib/guardian";
 import { buildExportedConversations } from "@/lib/export-conversations";
@@ -103,7 +104,7 @@ export async function GET(
   );
   if (!rl.ok) {
     return Response.json(
-      { error: "Demasiadas descargas seguidas. Esperá un momento." },
+      { error: rateLimitMessage("descargas", "f") },
       { status: 429, headers: { "retry-after": String(rl.retryAfterSeconds) } },
     );
   }

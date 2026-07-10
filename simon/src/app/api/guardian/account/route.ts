@@ -29,6 +29,7 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { rateLimitMessage } from "@/lib/ui-messages";
 import { requireGuardian } from "@/lib/guardian-auth";
 import { isRecordNotFoundError } from "@/lib/guardian-children";
 import { sameOriginOk } from "@/lib/env-check";
@@ -68,7 +69,7 @@ export async function DELETE(req: Request) {
   );
   if (!rl.ok) {
     return Response.json(
-      { error: "Demasiados intentos seguidos. Esperá un momento." },
+      { error: rateLimitMessage("intentos", "m") },
       { status: 429, headers: { "retry-after": String(rl.retryAfterSeconds) } },
     );
   }

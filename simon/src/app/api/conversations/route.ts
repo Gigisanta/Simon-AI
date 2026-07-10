@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { rateLimitMessage } from "@/lib/ui-messages";
 
 /**
  * Listado de conversaciones del usuario autenticado (B1).
@@ -45,7 +46,7 @@ export async function GET(req: Request) {
   );
   if (!rl.ok) {
     return Response.json(
-      { error: "Demasiadas consultas seguidas. Esperá un momento." },
+      { error: rateLimitMessage("consultas", "f") },
       {
         status: 429,
         headers: { ...NO_STORE, "retry-after": String(rl.retryAfterSeconds) },

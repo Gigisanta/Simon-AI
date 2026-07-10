@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { rateLimitMessage } from "@/lib/ui-messages";
 
 // Retomar conversación: devuelve la última conversación del usuario para que el
 // cliente ofrezca "¿Seguimos donde quedamos?". NUNCA expone safetyFlag ni datos
@@ -29,7 +30,7 @@ export async function GET(req: Request) {
   );
   if (!rl.ok) {
     return Response.json(
-      { error: "Demasiadas consultas seguidas. Esperá un momento." },
+      { error: rateLimitMessage("consultas", "f") },
       {
         status: 429,
         headers: { ...NO_STORE, "retry-after": String(rl.retryAfterSeconds) },

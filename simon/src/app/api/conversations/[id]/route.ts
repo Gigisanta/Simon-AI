@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { rateLimitMessage } from "@/lib/ui-messages";
 import { sameOriginOk } from "@/lib/env-check";
 
 /**
@@ -50,7 +51,7 @@ export async function GET(
   );
   if (!rl.ok) {
     return Response.json(
-      { error: "Demasiadas consultas seguidas. Esperá un momento." },
+      { error: rateLimitMessage("consultas", "f") },
       {
         status: 429,
         headers: { ...NO_STORE, "retry-after": String(rl.retryAfterSeconds) },
@@ -109,7 +110,7 @@ export async function DELETE(
   );
   if (!rl.ok) {
     return Response.json(
-      { error: "Demasiados borrados seguidos. Esperá un momento." },
+      { error: rateLimitMessage("borrados", "m") },
       { status: 429, headers: { "retry-after": String(rl.retryAfterSeconds) } },
     );
   }
