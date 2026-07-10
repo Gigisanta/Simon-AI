@@ -26,6 +26,7 @@
     "safety-docs-suite": "tsx scripts/safety-docs-suite.ts",
     "retention-suite": "tsx scripts/retention-suite.ts",
     "purge-suite": "tsx scripts/purge-suite.ts",
+    "resend-verification-suite": "tsx scripts/resend-verification-suite.ts",
     "retry-suite": "tsx scripts/retry-suite.ts",
     "chat-precedence-suite": "tsx scripts/chat-precedence-suite.ts",
     "csp-suite": "tsx scripts/csp-suite.ts",

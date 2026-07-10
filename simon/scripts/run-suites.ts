@@ -37,6 +37,7 @@ const SUITES = [
   "safety-docs",
   "retention",
   "purge",
+  "resend-verification",
   "retry",
   "chat-precedence",
   "csp",
