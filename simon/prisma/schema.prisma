@@ -57,6 +57,11 @@ model Guardian {
   consentAt        DateTime?
   consentIp        String?
   consentUserAgent String?
+  // Revocación de consentimiento (Ley 25.326, derecho de oposición): el tutor/a
+  // puede SUSPENDER el acceso del menor sin borrar sus datos. null = consentimiento
+  // vigente; no-null = suspendido desde ese instante. `canChat` trata un consent
+  // revocado como no-consent (bloquea el chat). Reanudar = volver a null.
+  consentRevokedAt DateTime?
   // Alertas de crisis al tutor/a (M-P2). Activadas por defecto.
   alertsEnabled    Boolean   @default(true)
   createdAt        DateTime  @default(now())

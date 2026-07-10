@@ -4,7 +4,10 @@
  * DELETE → derecho de supresión (Ley 25.326 art. 16): borra la cuenta del
  *          menor y TODOS sus datos (conversaciones, mensajes, memorias,
  *          eventos de seguridad, sesiones y vínculo de tutela) vía cascade.
- * PATCH  → activa/desactiva las alertas de crisis (Guardian.alertsEnabled).
+ * PATCH  → activa/desactiva las alertas de crisis (Guardian.alertsEnabled) y/o
+ *          suspende/reanuda el consentimiento (Guardian.consentRevokedAt) sin
+ *          borrar datos (derecho de oposición). Suspender corta las sesiones
+ *          activas del menor para que el bloqueo tenga efecto de inmediato.
  *
  * CAMINO CRÍTICO (borrado irreversible de datos de un menor):
  * - Solo el tutor/a del menor: si el childId no es un menor SUYO → 404 (nunca
@@ -18,6 +21,7 @@ import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { requireGuardian, findOwnedChild } from "@/lib/guardian-auth";
 import { sameOriginOk } from "@/lib/env-check";
+import type { Prisma } from "@/generated/prisma/client";
 import { z } from "zod";
 
 // Borrado: irreversible → límite bajo contra scripting/errores en ráfaga.
@@ -29,9 +33,20 @@ const deleteSchema = z.object({
   confirm: z.literal(true, { error: "Falta la confirmación explícita." }),
 });
 
-const patchSchema = z.object({
-  alertsEnabled: z.boolean(),
-});
+// Al menos uno de los dos campos. `alertsEnabled` (alertas de crisis) y
+// `consentRevoked` (suspender/reanudar el consentimiento) son independientes: se
+// pueden mandar por separado o juntos.
+const patchSchema = z
+  .object({
+    alertsEnabled: z.boolean().optional(),
+    // true = suspender el consentimiento (bloquea el chat, sin borrar datos);
+    // false = reanudarlo.
+    consentRevoked: z.boolean().optional(),
+  })
+  .refine(
+    (d) => d.alertsEnabled !== undefined || d.consentRevoked !== undefined,
+    { error: "Nada para actualizar (alertsEnabled o consentRevoked)." },
+  );
 
 const NOT_FOUND = () =>
   Response.json({ error: "Menor no encontrado." }, { status: 404 });
@@ -173,10 +188,27 @@ export async function PATCH(
   const link = await findOwnedChild(guard.user.id, childId, OWNED_CHILD_SELECT);
   if (!link) return NOT_FOUND();
 
-  await prisma.guardian.update({
-    where: { id: link.id },
-    data: { alertsEnabled: parsed.data.alertsEnabled },
-  });
+  const { alertsEnabled, consentRevoked } = parsed.data;
+  const data: Prisma.GuardianUpdateInput = {};
+  if (alertsEnabled !== undefined) data.alertsEnabled = alertsEnabled;
+  if (consentRevoked !== undefined) {
+    // Suspender = fijar el instante de revocación; reanudar = volver a null.
+    data.consentRevokedAt = consentRevoked ? new Date() : null;
+  }
 
-  return Response.json({ ok: true, alertsEnabled: parsed.data.alertsEnabled });
+  await prisma.guardian.update({ where: { id: link.id }, data });
+
+  // Suspensión: cortar las sesiones activas del menor para que el bloqueo tenga
+  // efecto YA (no espera a que su sesión expire). No hay cascade acá (el menor NO
+  // se borra), así que se hace deleteMany explícito. Las copias de sesión en Redis
+  // secondaryStorage se invalidan en revokeUserSessions (Lote 4).
+  if (consentRevoked === true) {
+    await prisma.session.deleteMany({ where: { userId: childId } });
+  }
+
+  return Response.json({
+    ok: true,
+    ...(alertsEnabled !== undefined ? { alertsEnabled } : {}),
+    ...(consentRevoked !== undefined ? { consentRevoked } : {}),
+  });
 }

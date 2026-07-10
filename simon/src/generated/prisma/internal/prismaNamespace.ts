@@ -1289,6 +1289,7 @@ export const GuardianScalarFieldEnum = {
   consentAt: 'consentAt',
   consentIp: 'consentIp',
   consentUserAgent: 'consentUserAgent',
+  consentRevokedAt: 'consentRevokedAt',
   alertsEnabled: 'alertsEnabled',
   createdAt: 'createdAt'
 } as const

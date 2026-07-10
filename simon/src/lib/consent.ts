@@ -11,7 +11,12 @@
 import { prisma } from "@/lib/prisma";
 
 /** Vínculo de tutela con solo lo necesario para decidir el acceso. */
-export type ConsentGuardian = { consentAt: Date | null } | null;
+export type ConsentGuardian = {
+  consentAt: Date | null;
+  // Revocación standalone (Ley 25.326, derecho de oposición): si es no-null, el
+  // tutor/a suspendió el acceso — se trata como no-consent aunque `consentAt` esté.
+  consentRevokedAt?: Date | null;
+} | null;
 
 export type ChatDecision = { ok: true } | { ok: false; reason: string };
 
@@ -55,6 +60,10 @@ export function canChat(
   if (role !== "child") return { ok: true };
   if (!guardian) return { ok: false, reason: "no-guardian" };
   if (!guardian.consentAt) return { ok: false, reason: "no-consent" };
+  // Consentimiento revocado (suspensión standalone): bloquea igual que no-consent,
+  // sin borrar datos. Gana sobre `consentAt`: un consentimiento previo revocado
+  // NO habilita el chat.
+  if (guardian.consentRevokedAt) return { ok: false, reason: "consent-revoked" };
   return { ok: true };
 }
 
@@ -69,7 +78,7 @@ export async function canUserChat(user: {
   if (user.role !== "child") return canChat(user.role, null);
   const guardian = await prisma.guardian.findUnique({
     where: { childUserId: user.id },
-    select: { consentAt: true },
+    select: { consentAt: true, consentRevokedAt: true },
   });
   return canChat(user.role, guardian);
 }

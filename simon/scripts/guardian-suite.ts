@@ -56,6 +56,27 @@ const { check, done } = createChecker("Guardian suite");
   // Menor con consentAt → ok.
   const r3 = canChat("child", { consentAt: new Date("2026-07-08T00:00:00Z") });
   check(r3.ok === true, "canChat: child con consentAt → ok");
+
+  // Consentimiento REVOCADO (suspensión standalone): bloquea aunque haya consentAt.
+  const r4 = canChat("child", {
+    consentAt: new Date("2026-07-08T00:00:00Z"),
+    consentRevokedAt: new Date("2026-07-09T00:00:00Z"),
+  });
+  check(
+    r4.ok === false && r4.reason === "consent-revoked",
+    "canChat: child con consentimiento revocado → bloqueado (consent-revoked)",
+  );
+  // Reanudado (consentRevokedAt null) junto a consentAt → vuelve a ok.
+  const r5 = canChat("child", {
+    consentAt: new Date("2026-07-08T00:00:00Z"),
+    consentRevokedAt: null,
+  });
+  check(r5.ok === true, "canChat: child con consentRevokedAt null → ok (reanudado)");
+  // consentRevokedAt ausente (undefined) es compatible hacia atrás → ok.
+  check(
+    canChat("child", { consentAt: new Date("2026-07-08T00:00:00Z"), consentRevokedAt: undefined }).ok === true,
+    "canChat: consentRevokedAt undefined (compat) → ok",
+  );
 }
 
 // ---------- 1b. blockedChatMessage: mensaje amable del gate del chat ----------

@@ -157,6 +157,29 @@ async function main() {
       "migración: InteractionLog_createdAt_idx",
     );
   }
+
+  // ---------- 4. consentRevokedAt: columna aditiva (revocación standalone) ----------
+  {
+    const schema = readFileSync(join(here, "..", "prisma", "schema.prisma"), "utf8");
+    check(
+      /consentRevokedAt\s+DateTime\?/.test(schema),
+      "schema: Guardian.consentRevokedAt DateTime? (nullable)",
+    );
+
+    const consentMig = readFileSync(
+      join(here, "..", "prisma", "migrations", "20260710040000_add_guardian_consent_revoked", "migration.sql"),
+      "utf8",
+    );
+    check(
+      /ALTER TABLE "Guardian" ADD COLUMN\s+"consentRevokedAt" TIMESTAMP\(3\)/.test(consentMig),
+      "migración: ADD COLUMN consentRevokedAt TIMESTAMP(3) (nombre exacto de Prisma)",
+    );
+    // ADITIVA y segura: columna nullable, sin NOT NULL ni DEFAULT que reescriba filas.
+    check(
+      !/NOT NULL/.test(consentMig),
+      "migración: consentRevokedAt es nullable (aditiva, segura sobre datos existentes)",
+    );
+  }
 }
 
 main()

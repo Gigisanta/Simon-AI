@@ -31,6 +31,7 @@ export type GuardianMinAggregateOutputType = {
   consentAt: Date | null
   consentIp: string | null
   consentUserAgent: string | null
+  consentRevokedAt: Date | null
   alertsEnabled: boolean | null
   createdAt: Date | null
 }
@@ -42,6 +43,7 @@ export type GuardianMaxAggregateOutputType = {
   consentAt: Date | null
   consentIp: string | null
   consentUserAgent: string | null
+  consentRevokedAt: Date | null
   alertsEnabled: boolean | null
   createdAt: Date | null
 }
@@ -53,6 +55,7 @@ export type GuardianCountAggregateOutputType = {
   consentAt: number
   consentIp: number
   consentUserAgent: number
+  consentRevokedAt: number
   alertsEnabled: number
   createdAt: number
   _all: number
@@ -66,6 +69,7 @@ export type GuardianMinAggregateInputType = {
   consentAt?: true
   consentIp?: true
   consentUserAgent?: true
+  consentRevokedAt?: true
   alertsEnabled?: true
   createdAt?: true
 }
@@ -77,6 +81,7 @@ export type GuardianMaxAggregateInputType = {
   consentAt?: true
   consentIp?: true
   consentUserAgent?: true
+  consentRevokedAt?: true
   alertsEnabled?: true
   createdAt?: true
 }
@@ -88,6 +93,7 @@ export type GuardianCountAggregateInputType = {
   consentAt?: true
   consentIp?: true
   consentUserAgent?: true
+  consentRevokedAt?: true
   alertsEnabled?: true
   createdAt?: true
   _all?: true
@@ -172,6 +178,7 @@ export type GuardianGroupByOutputType = {
   consentAt: Date | null
   consentIp: string | null
   consentUserAgent: string | null
+  consentRevokedAt: Date | null
   alertsEnabled: boolean
   createdAt: Date
   _count: GuardianCountAggregateOutputType | null
@@ -204,6 +211,7 @@ export type GuardianWhereInput = {
   consentAt?: Prisma.DateTimeNullableFilter<"Guardian"> | Date | string | null
   consentIp?: Prisma.StringNullableFilter<"Guardian"> | string | null
   consentUserAgent?: Prisma.StringNullableFilter<"Guardian"> | string | null
+  consentRevokedAt?: Prisma.DateTimeNullableFilter<"Guardian"> | Date | string | null
   alertsEnabled?: Prisma.BoolFilter<"Guardian"> | boolean
   createdAt?: Prisma.DateTimeFilter<"Guardian"> | Date | string
   guardianUser?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
@@ -217,6 +225,7 @@ export type GuardianOrderByWithRelationInput = {
   consentAt?: Prisma.SortOrderInput | Prisma.SortOrder
   consentIp?: Prisma.SortOrderInput | Prisma.SortOrder
   consentUserAgent?: Prisma.SortOrderInput | Prisma.SortOrder
+  consentRevokedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   alertsEnabled?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   guardianUser?: Prisma.UserOrderByWithRelationInput
@@ -233,6 +242,7 @@ export type GuardianWhereUniqueInput = Prisma.AtLeast<{
   consentAt?: Prisma.DateTimeNullableFilter<"Guardian"> | Date | string | null
   consentIp?: Prisma.StringNullableFilter<"Guardian"> | string | null
   consentUserAgent?: Prisma.StringNullableFilter<"Guardian"> | string | null
+  consentRevokedAt?: Prisma.DateTimeNullableFilter<"Guardian"> | Date | string | null
   alertsEnabled?: Prisma.BoolFilter<"Guardian"> | boolean
   createdAt?: Prisma.DateTimeFilter<"Guardian"> | Date | string
   guardianUser?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
@@ -246,6 +256,7 @@ export type GuardianOrderByWithAggregationInput = {
   consentAt?: Prisma.SortOrderInput | Prisma.SortOrder
   consentIp?: Prisma.SortOrderInput | Prisma.SortOrder
   consentUserAgent?: Prisma.SortOrderInput | Prisma.SortOrder
+  consentRevokedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   alertsEnabled?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   _count?: Prisma.GuardianCountOrderByAggregateInput
@@ -263,6 +274,7 @@ export type GuardianScalarWhereWithAggregatesInput = {
   consentAt?: Prisma.DateTimeNullableWithAggregatesFilter<"Guardian"> | Date | string | null
   consentIp?: Prisma.StringNullableWithAggregatesFilter<"Guardian"> | string | null
   consentUserAgent?: Prisma.StringNullableWithAggregatesFilter<"Guardian"> | string | null
+  consentRevokedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"Guardian"> | Date | string | null
   alertsEnabled?: Prisma.BoolWithAggregatesFilter<"Guardian"> | boolean
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"Guardian"> | Date | string
 }
@@ -272,6 +284,7 @@ export type GuardianCreateInput = {
   consentAt?: Date | string | null
   consentIp?: string | null
   consentUserAgent?: string | null
+  consentRevokedAt?: Date | string | null
   alertsEnabled?: boolean
   createdAt?: Date | string
   guardianUser: Prisma.UserCreateNestedOneWithoutGuardianOfInput
@@ -285,6 +298,7 @@ export type GuardianUncheckedCreateInput = {
   consentAt?: Date | string | null
   consentIp?: string | null
   consentUserAgent?: string | null
+  consentRevokedAt?: Date | string | null
   alertsEnabled?: boolean
   createdAt?: Date | string
 }
@@ -294,6 +308,7 @@ export type GuardianUpdateInput = {
   consentAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   consentIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   consentUserAgent?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  consentRevokedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   alertsEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   guardianUser?: Prisma.UserUpdateOneRequiredWithoutGuardianOfNestedInput
@@ -307,6 +322,7 @@ export type GuardianUncheckedUpdateInput = {
   consentAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   consentIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   consentUserAgent?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  consentRevokedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   alertsEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -318,6 +334,7 @@ export type GuardianCreateManyInput = {
   consentAt?: Date | string | null
   consentIp?: string | null
   consentUserAgent?: string | null
+  consentRevokedAt?: Date | string | null
   alertsEnabled?: boolean
   createdAt?: Date | string
 }
@@ -327,6 +344,7 @@ export type GuardianUpdateManyMutationInput = {
   consentAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   consentIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   consentUserAgent?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  consentRevokedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   alertsEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -338,6 +356,7 @@ export type GuardianUncheckedUpdateManyInput = {
   consentAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   consentIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   consentUserAgent?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  consentRevokedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   alertsEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -364,6 +383,7 @@ export type GuardianCountOrderByAggregateInput = {
   consentAt?: Prisma.SortOrder
   consentIp?: Prisma.SortOrder
   consentUserAgent?: Prisma.SortOrder
+  consentRevokedAt?: Prisma.SortOrder
   alertsEnabled?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
 }
@@ -375,6 +395,7 @@ export type GuardianMaxOrderByAggregateInput = {
   consentAt?: Prisma.SortOrder
   consentIp?: Prisma.SortOrder
   consentUserAgent?: Prisma.SortOrder
+  consentRevokedAt?: Prisma.SortOrder
   alertsEnabled?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
 }
@@ -386,6 +407,7 @@ export type GuardianMinOrderByAggregateInput = {
   consentAt?: Prisma.SortOrder
   consentIp?: Prisma.SortOrder
   consentUserAgent?: Prisma.SortOrder
+  consentRevokedAt?: Prisma.SortOrder
   alertsEnabled?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
 }
@@ -473,6 +495,7 @@ export type GuardianCreateWithoutGuardianUserInput = {
   consentAt?: Date | string | null
   consentIp?: string | null
   consentUserAgent?: string | null
+  consentRevokedAt?: Date | string | null
   alertsEnabled?: boolean
   createdAt?: Date | string
   childUser: Prisma.UserCreateNestedOneWithoutGuardedByInput
@@ -484,6 +507,7 @@ export type GuardianUncheckedCreateWithoutGuardianUserInput = {
   consentAt?: Date | string | null
   consentIp?: string | null
   consentUserAgent?: string | null
+  consentRevokedAt?: Date | string | null
   alertsEnabled?: boolean
   createdAt?: Date | string
 }
@@ -503,6 +527,7 @@ export type GuardianCreateWithoutChildUserInput = {
   consentAt?: Date | string | null
   consentIp?: string | null
   consentUserAgent?: string | null
+  consentRevokedAt?: Date | string | null
   alertsEnabled?: boolean
   createdAt?: Date | string
   guardianUser: Prisma.UserCreateNestedOneWithoutGuardianOfInput
@@ -514,6 +539,7 @@ export type GuardianUncheckedCreateWithoutChildUserInput = {
   consentAt?: Date | string | null
   consentIp?: string | null
   consentUserAgent?: string | null
+  consentRevokedAt?: Date | string | null
   alertsEnabled?: boolean
   createdAt?: Date | string
 }
@@ -549,6 +575,7 @@ export type GuardianScalarWhereInput = {
   consentAt?: Prisma.DateTimeNullableFilter<"Guardian"> | Date | string | null
   consentIp?: Prisma.StringNullableFilter<"Guardian"> | string | null
   consentUserAgent?: Prisma.StringNullableFilter<"Guardian"> | string | null
+  consentRevokedAt?: Prisma.DateTimeNullableFilter<"Guardian"> | Date | string | null
   alertsEnabled?: Prisma.BoolFilter<"Guardian"> | boolean
   createdAt?: Prisma.DateTimeFilter<"Guardian"> | Date | string
 }
@@ -569,6 +596,7 @@ export type GuardianUpdateWithoutChildUserInput = {
   consentAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   consentIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   consentUserAgent?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  consentRevokedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   alertsEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   guardianUser?: Prisma.UserUpdateOneRequiredWithoutGuardianOfNestedInput
@@ -580,6 +608,7 @@ export type GuardianUncheckedUpdateWithoutChildUserInput = {
   consentAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   consentIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   consentUserAgent?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  consentRevokedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   alertsEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -590,6 +619,7 @@ export type GuardianCreateManyGuardianUserInput = {
   consentAt?: Date | string | null
   consentIp?: string | null
   consentUserAgent?: string | null
+  consentRevokedAt?: Date | string | null
   alertsEnabled?: boolean
   createdAt?: Date | string
 }
@@ -599,6 +629,7 @@ export type GuardianUpdateWithoutGuardianUserInput = {
   consentAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   consentIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   consentUserAgent?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  consentRevokedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   alertsEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   childUser?: Prisma.UserUpdateOneRequiredWithoutGuardedByNestedInput
@@ -610,6 +641,7 @@ export type GuardianUncheckedUpdateWithoutGuardianUserInput = {
   consentAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   consentIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   consentUserAgent?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  consentRevokedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   alertsEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -620,6 +652,7 @@ export type GuardianUncheckedUpdateManyWithoutGuardianUserInput = {
   consentAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   consentIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   consentUserAgent?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  consentRevokedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   alertsEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -633,6 +666,7 @@ export type GuardianSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs
   consentAt?: boolean
   consentIp?: boolean
   consentUserAgent?: boolean
+  consentRevokedAt?: boolean
   alertsEnabled?: boolean
   createdAt?: boolean
   guardianUser?: boolean | Prisma.UserDefaultArgs<ExtArgs>
@@ -646,6 +680,7 @@ export type GuardianSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Exte
   consentAt?: boolean
   consentIp?: boolean
   consentUserAgent?: boolean
+  consentRevokedAt?: boolean
   alertsEnabled?: boolean
   createdAt?: boolean
   guardianUser?: boolean | Prisma.UserDefaultArgs<ExtArgs>
@@ -659,6 +694,7 @@ export type GuardianSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Exte
   consentAt?: boolean
   consentIp?: boolean
   consentUserAgent?: boolean
+  consentRevokedAt?: boolean
   alertsEnabled?: boolean
   createdAt?: boolean
   guardianUser?: boolean | Prisma.UserDefaultArgs<ExtArgs>
@@ -672,11 +708,12 @@ export type GuardianSelectScalar = {
   consentAt?: boolean
   consentIp?: boolean
   consentUserAgent?: boolean
+  consentRevokedAt?: boolean
   alertsEnabled?: boolean
   createdAt?: boolean
 }
 
-export type GuardianOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "guardianUserId" | "childUserId" | "consentAt" | "consentIp" | "consentUserAgent" | "alertsEnabled" | "createdAt", ExtArgs["result"]["guardian"]>
+export type GuardianOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "guardianUserId" | "childUserId" | "consentAt" | "consentIp" | "consentUserAgent" | "consentRevokedAt" | "alertsEnabled" | "createdAt", ExtArgs["result"]["guardian"]>
 export type GuardianInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   guardianUser?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   childUser?: boolean | Prisma.UserDefaultArgs<ExtArgs>
@@ -703,6 +740,7 @@ export type $GuardianPayload<ExtArgs extends runtime.Types.Extensions.InternalAr
     consentAt: Date | null
     consentIp: string | null
     consentUserAgent: string | null
+    consentRevokedAt: Date | null
     alertsEnabled: boolean
     createdAt: Date
   }, ExtArgs["result"]["guardian"]>
@@ -1136,6 +1174,7 @@ export interface GuardianFieldRefs {
   readonly consentAt: Prisma.FieldRef<"Guardian", 'DateTime'>
   readonly consentIp: Prisma.FieldRef<"Guardian", 'String'>
   readonly consentUserAgent: Prisma.FieldRef<"Guardian", 'String'>
+  readonly consentRevokedAt: Prisma.FieldRef<"Guardian", 'DateTime'>
   readonly alertsEnabled: Prisma.FieldRef<"Guardian", 'Boolean'>
   readonly createdAt: Prisma.FieldRef<"Guardian", 'DateTime'>
 }
