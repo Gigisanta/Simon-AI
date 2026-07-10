@@ -7,7 +7,7 @@ import { sameOriginOk } from "@/lib/env-check";
  * Una conversación del usuario (B1): leer sus mensajes o borrarla.
  *
  * GET    → 200 { id, title, updatedAt, messages: [{ id, role, content }] }
- *          (solo roles user/assistant, orden cronológico, máximo 200).
+ *          (solo roles user/assistant, los 200 MÁS RECIENTES en orden cronológico).
  * DELETE → 200 { ok: true }. Cascade borra los mensajes (schema).
  *
  * OWNERSHIP (invariante de seguridad): TODA query filtra por el userId de la
@@ -64,7 +64,11 @@ export async function GET(
       updatedAt: true,
       messages: {
         where: { role: { in: ["user", "assistant"] } },
-        orderBy: { createdAt: "asc" },
+        // Los 200 mensajes MÁS RECIENTES (desc + take), no los 200 más viejos:
+        // en una charla larga interesa el final. Se revierten a orden cronológico
+        // (asc) abajo — mismo patrón que chat/resume/route.ts — porque el cliente
+        // (conversation-list → chat) espera el array viejo → nuevo.
+        orderBy: { createdAt: "desc" },
         take: 200,
         select: { id: true, role: true, content: true },
       },
@@ -77,7 +81,7 @@ export async function GET(
       id: conversation.id,
       title: conversation.title,
       updatedAt: conversation.updatedAt,
-      messages: conversation.messages,
+      messages: [...conversation.messages].reverse(),
     },
     { headers: NO_STORE },
   );
