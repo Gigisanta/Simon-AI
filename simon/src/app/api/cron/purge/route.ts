@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { memoryTtlCutoff } from "@/lib/ai/memory";
-import { interactionLogTtlCutoff, isAuthorizedCron } from "@/lib/retention";
+import { isAuthorizedCron, purgeExpiredData } from "@/lib/retention";
 
 /**
  * Purga TTL por cron — INDEPENDIENTE del tráfico (#9 + #12).
@@ -12,7 +11,12 @@ import { interactionLogTtlCutoff, isAuthorizedCron } from "@/lib/retention";
  *   - UserMemory vencida (updatedAt < corte 90d — mismo helper que el path lazy).
  *   - InteractionLog vencido (createdAt < corte 180d — mismo helper compartido).
  *   - Session vencida (expiresAt < now) → borra ipAddress/userAgent colgados.
- * Cero duplicación de constantes: reusa memoryTtlCutoff / interactionLogTtlCutoff.
+ *   - Menores HUÉRFANOS pasado el período de gracia: filas User role "child" sin
+ *     vínculo de tutela (el cascade de Guardian dejó al menor sin ruta de borrado
+ *     al eliminarse la cuenta del tutor/a). Cascade de User arrastra toda su data
+ *     (Conversation/Message/UserMemory/SafetyEvent/InteractionLog). Ley 25.326.
+ * La orquestación (incluido el orden anti-deadlock) vive en retention.ts
+ * (purgeExpiredData); acá solo va la auth + el manejo de respuesta/errores.
  *
  * SEGURIDAD: protegido con CRON_SECRET (header Authorization: Bearer, comparación
  * timing-safe). Sin CRON_SECRET en runtime → 503 (fail-closed, NUNCA abierto).
@@ -24,7 +28,8 @@ import { interactionLogTtlCutoff, isAuthorizedCron } from "@/lib/retention";
  * se puede acotar con `deleteMany` en lotes por `id`, pero hoy es YAGNI.
  */
 export const dynamic = "force-dynamic";
-// Holgura para tres deleteMany en secuencia sobre tablas potencialmente grandes.
+// Holgura para el batch TTL + el barrido de huérfanos (con cascade) sobre tablas
+// potencialmente grandes.
 export const maxDuration = 60;
 
 const NO_STORE = { "cache-control": "no-store" };
@@ -50,24 +55,7 @@ async function handlePurge(req: Request): Promise<Response> {
 
   const now = new Date();
   try {
-    // Independientes entre sí → en paralelo. Cada uno es un solo DELETE por rango.
-    const [userMemory, interactionLog, sessions] = await Promise.all([
-      prisma.userMemory.deleteMany({
-        where: { updatedAt: { lt: memoryTtlCutoff(now) } },
-      }),
-      prisma.interactionLog.deleteMany({
-        where: { createdAt: { lt: interactionLogTtlCutoff(now) } },
-      }),
-      prisma.session.deleteMany({
-        where: { expiresAt: { lt: now } },
-      }),
-    ]);
-
-    const deleted = {
-      userMemory: userMemory.count,
-      interactionLog: interactionLog.count,
-      sessions: sessions.count,
-    };
+    const deleted = await purgeExpiredData(prisma, now);
     console.log("[cron/purge] purga TTL OK", deleted);
     return Response.json(
       { ok: true, deleted, purgedAt: now.toISOString() },

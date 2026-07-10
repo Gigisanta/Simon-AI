@@ -150,11 +150,18 @@ model Message {
   createdAt      DateTime     @default(now())
 
   @@index([conversationId, createdAt])
-  // M-S7: la ventana de sesión (sessionWindowQuery) filtra mensajes de TODAS las
-  // conversaciones del usuario por `createdAt >= now-75min`. Message no tiene
-  // columna userId (el userId vive en Conversation), así que el predicado a nivel
-  // de esta tabla es el rango de createdAt: este índice lo cubre con un range scan
-  // en vez de un seq scan del historial completo.
+  // M-S7: la ventana de sesión (sessionWindowQuery) es un JOIN Message→Conversation
+  // filtrando `Conversation.userId = ?` AND `Message.createdAt >= now-75min`.
+  // Message NO tiene columna userId (vive en Conversation), así que no hay un
+  // índice compuesto [userId, createdAt] posible sin DENORMALIZAR userId a Message
+  // — algo que se evita a propósito (una fuente de verdad para el dueño del hilo).
+  // Dado eso, el planner tiene dos caminos: (a) range-scan de este índice por la
+  // franja de 75min y luego semi-join contra las conversaciones del usuario, o
+  // (b) resolver primero las conversaciones del usuario y usar [conversationId,
+  // createdAt]. La franja temporal es chica (75min de tráfico), así que ambos son
+  // baratos; este índice acota el lado de Message por tiempo y evita el seq scan
+  // del historial completo. Sin denormalización, no hay un índice estrictamente
+  // mejor, por eso se deja como está.
   @@index([createdAt])
 }
 
@@ -177,7 +184,14 @@ model SafetyEvent {
   // Se completa cuando se avisó a un tutor (alertas — fase posterior).
   notifiedAt     DateTime?
 
+  // Ruta del tutor/a (guardian/children/[childId]/safety-events): pagina por
+  // { userId } ordenando por createdAt desc — cubierto por este índice.
   @@index([userId, createdAt])
+  // Alertas de patrón (lib/alerts.ts): count/findFirst por { userId, category,
+  // createdAt >= ventana }. Con solo [userId, createdAt] el filtro por category
+  // se resolvía como scan+filter sobre la franja del usuario; este índice
+  // compuesto lo cubre entero (equality userId+category, range createdAt).
+  @@index([userId, category, createdAt])
 }
 
 // ---------- Base de conocimiento (RAG liviano) ----------

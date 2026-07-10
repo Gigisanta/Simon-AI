@@ -12,6 +12,8 @@
  * el de InteractionLog (telemetría, 180d). El cron importa ambos.
  */
 import { createHash, timingSafeEqual } from "node:crypto";
+import type { Prisma, PrismaClient } from "@/generated/prisma/client";
+import { memoryTtlCutoff } from "@/lib/ai/memory";
 
 /**
  * Retención de InteractionLog (telemetría): 180 días. Minimización — la
@@ -25,6 +27,103 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 /** Corte temporal para InteractionLog: filas con createdAt < corte están vencidas. */
 export function interactionLogTtlCutoff(now: Date): Date {
   return new Date(now.getTime() - INTERACTION_LOG_TTL_DAYS * DAY_MS);
+}
+
+/**
+ * Menores huérfanos — período de gracia antes de purgarlos: 30 días.
+ *
+ * MOTIVO (privacidad — Ley 25.326, supresión de datos de menores): un menor es
+ * una fila `User` con role "child" cuya tutela vive en `Guardian`. Si se borra
+ * la cuenta del tutor/a, el cascade de Guardian (schema: onDelete Cascade en
+ * guardianUser) elimina el vínculo, pero la fila del menor y TODA su data
+ * (Conversation/Message/UserMemory/SafetyEvent/InteractionLog) quedaban
+ * huérfanas para siempre — sin ninguna ruta de borrado. Este barrido las purga.
+ */
+export const ORPHAN_CHILD_GRACE_DAYS = 30;
+
+/**
+ * Corte temporal del período de gracia para menores huérfanos.
+ *
+ * ANCLA = `User.updatedAt`. No existe un timestamp del MOMENTO de orfandad: el
+ * cascade borra la fila Guardian sin tocar la fila del menor, así que no hay un
+ * "orphanedAt" que consultar, y agregarlo exigiría denormalizar/backfillear una
+ * columna nueva (fuera de alcance, y contra la minimización). Entre los campos
+ * existentes, `updatedAt` (@updatedAt) es la mejor señal de "última vez tocado":
+ * es CONSERVADOR — un menor cuya fila se modificó hace poco queda a salvo, y solo
+ * se purga la data que ya lleva ≥30d sin cambios. Erramos hacia NO borrar.
+ */
+export function orphanChildCutoff(now: Date): Date {
+  return new Date(now.getTime() - ORPHAN_CHILD_GRACE_DAYS * DAY_MS);
+}
+
+/**
+ * Criterio (puro) del barrido de menores huérfanos, como `where` de Prisma:
+ * filas `User` con role "child", SIN vínculo de tutela (`guardedBy` null) y con
+ * `updatedAt` anterior al corte de gracia. El borrado se hace con
+ * `user.deleteMany`, y el cascade de las relaciones de User (verificado en
+ * schema: Conversation/Message/UserMemory/SafetyEvent/InteractionLog/Session/
+ * Account/Guardian, todas onDelete Cascade) arrastra el resto de la data.
+ */
+export function orphanChildWhere(now: Date): Prisma.UserWhereInput {
+  return {
+    role: "child",
+    guardedBy: { is: null },
+    updatedAt: { lt: orphanChildCutoff(now) },
+  };
+}
+
+/** Subconjunto de PrismaClient que necesita la purga — inyectable para testear. */
+export type RetentionPurgeClient = Pick<
+  PrismaClient,
+  "userMemory" | "interactionLog" | "session" | "user"
+>;
+
+export interface PurgeCounts {
+  userMemory: number;
+  interactionLog: number;
+  sessions: number;
+  orphanChildren: number;
+}
+
+/**
+ * Purga TTL + barrido de menores huérfanos. Función con el cliente INYECTADO
+ * (route pasa `prisma`; los tests pasan un fake) para que la orquestación tenga
+ * cobertura determinística sin DB.
+ *
+ * ORDEN (evita deadlocks): las tres purgas por TTL tocan tablas DISJUNTAS
+ * (UserMemory / InteractionLog / Session) → seguras en paralelo. El borrado de
+ * menores huérfanos, en cambio, hace CASCADE sobre esas MISMAS tablas
+ * (UserMemory/InteractionLog/Session del menor), así que correrlo concurrente
+ * con el batch anterior podría competir por locks de fila. Se corre DESPUÉS, en
+ * secuencia. El resultado es idempotente en cualquier orden; la secuencia solo
+ * evita contención de locks.
+ */
+export async function purgeExpiredData(
+  client: RetentionPurgeClient,
+  now: Date,
+): Promise<PurgeCounts> {
+  const [userMemory, interactionLog, sessions] = await Promise.all([
+    client.userMemory.deleteMany({
+      where: { updatedAt: { lt: memoryTtlCutoff(now) } },
+    }),
+    client.interactionLog.deleteMany({
+      where: { createdAt: { lt: interactionLogTtlCutoff(now) } },
+    }),
+    client.session.deleteMany({
+      where: { expiresAt: { lt: now } },
+    }),
+  ]);
+
+  const orphanChildren = await client.user.deleteMany({
+    where: orphanChildWhere(now),
+  });
+
+  return {
+    userMemory: userMemory.count,
+    interactionLog: interactionLog.count,
+    sessions: sessions.count,
+    orphanChildren: orphanChildren.count,
+  };
 }
 
 /**

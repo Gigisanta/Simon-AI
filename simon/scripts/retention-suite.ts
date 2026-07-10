@@ -16,6 +16,9 @@ import {
   INTERACTION_LOG_TTL_DAYS,
   interactionLogTtlCutoff,
   isAuthorizedCron,
+  ORPHAN_CHILD_GRACE_DAYS,
+  orphanChildCutoff,
+  orphanChildWhere,
 } from "../src/lib/retention";
 import { MEMORY_TTL_DAYS, memoryTtlCutoff } from "../src/lib/ai/memory";
 
@@ -111,6 +114,41 @@ const DAY_MS = 24 * 60 * 60 * 1000;
     threw = true;
   }
   check(!threw, "isAuthorizedCron nunca lanza por diferencia de largo");
+}
+
+// ---------- 3. Menores huérfanos: corte de gracia + criterio (where) ----------
+{
+  check(ORPHAN_CHILD_GRACE_DAYS === 30, "gracia de menores huérfanos = 30 días");
+
+  const now = new Date("2026-07-10T12:00:00.000Z");
+  check(
+    orphanChildCutoff(now).getTime() === now.getTime() - 30 * DAY_MS,
+    "orphanChildCutoff = now - 30d exacto",
+  );
+  check(orphanChildCutoff(now).getTime() < now.getTime(), "el corte de gracia es anterior a now");
+
+  // El `where` debe filtrar EXACTAMENTE los tres criterios: role child, sin
+  // tutela (guardedBy null), y updatedAt anterior al corte. Un fallo acá borra
+  // menores CON tutor/a o antes de tiempo (o no purga ninguno).
+  const where = orphanChildWhere(now);
+  check(where.role === "child", "where: role = 'child' (nunca toca guardians)");
+  check(
+    JSON.stringify(where.guardedBy) === JSON.stringify({ is: null }),
+    "where: guardedBy { is: null } (solo menores SIN vínculo de tutela)",
+  );
+  const updatedAt = where.updatedAt as { lt?: Date } | undefined;
+  check(
+    updatedAt?.lt instanceof Date &&
+      updatedAt.lt.getTime() === orphanChildCutoff(now).getTime(),
+    "where: updatedAt.lt = corte de gracia (respeta el período de gracia)",
+  );
+
+  // El corte de gracia (30d) es MÁS NUEVO que los TTL de datos (90d/180d): la
+  // orfandad se evalúa sobre actividad reciente del menor, no sobre la data.
+  check(
+    orphanChildCutoff(now).getTime() > memoryTtlCutoff(now).getTime(),
+    "el corte de gracia (30d) es más nuevo que el TTL de UserMemory (90d)",
+  );
 }
 
 const total = passed + failures.length;

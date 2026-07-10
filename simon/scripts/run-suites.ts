@@ -31,6 +31,7 @@ const SUITES = [
   "training-export",
   "safety-docs",
   "retention",
+  "purge",
   "retry",
   "chat-precedence",
 ] as const;
