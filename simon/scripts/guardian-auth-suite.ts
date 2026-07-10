@@ -215,11 +215,15 @@ async function testExportSelectVariant() {
 // ---------- Rate limit de las rutas de lectura nuevas ----------
 async function testReadPathRateLimits() {
   const LIMIT = 60; // igual al tope de los tres handlers de lectura.
+  // Smoke por endpoint de lectura: cada handler impone su propio tope de 60/min.
+  // Listado y detalle usan claves DISTINTAS (`conversations:list:` /
+  // `conversations:detail:`, separadas desde d1b6b9f); que NO se compartan lo
+  // verifica en detalle rate-limit-suite.ts (#22-2). Acá solo chequeamos que cada
+  // clave real corte en su propio cap.
   const cases: Array<{ label: string; key: string }> = [
     { label: "GET /guardian/children", key: `guardian:children:read:u_${Math.random()}` },
-    { label: "GET /conversations", key: `conversations:read:u_${Math.random()}` },
-    // GET /conversations/[id] usa la MISMA clave que el listado (mismo usuario).
-    { label: "GET /conversations/[id]", key: `conversations:read:u_${Math.random()}` },
+    { label: "GET /conversations", key: `conversations:list:u_${Math.random()}` },
+    { label: "GET /conversations/[id]", key: `conversations:detail:u_${Math.random()}` },
   ];
 
   for (const { label, key } of cases) {
