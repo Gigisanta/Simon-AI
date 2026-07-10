@@ -63,3 +63,46 @@ export function decideResponsePath(i: PrecedenceInputs): ResponsePath {
   if (i.outputUnavailableReplace) return "moderation-unavailable";
   return "normal";
 }
+
+/**
+ * Sub-decisión POST-generación (paths 5–8 de decideResponsePath) como función
+ * PURA propia, para que el handler la use como fuente única del orden de las
+ * ramas que antes vivían inline entrelazadas con la moderación de salida.
+ *
+ * INVARIANTE DE SEGURIDAD (por qué este orden y no otro):
+ *   1. un error de generación se resuelve ANTES de moderar — no se puede (ni se
+ *      debe) moderar un texto que no existe; el fallback amable gana.
+ *   2. la moderación de SALIDA se evalúa ANTES de responder: si la API está
+ *      disponible y flaggeó, se SUSTITUYE el output del LLM (nunca se muestra).
+ *   3. si la API de salida está caída, la política fail-closed (resolveUnmoderated
+ *      Output) puede forzar una sustitución igual.
+ *   4. solo si nada de lo anterior corta, se muestra la salida validada.
+ *
+ * `generationOk:false` ⇒ "fallback-error" sin importar el resto (short-circuit):
+ * en el handler esta rama corta ANTES de llamar a moderate(), por eso los
+ * campos de moderación de salida van en su valor neutro cuando se consulta el
+ * resto. Determinística y sin efectos.
+ */
+export type PostGenPath =
+  | "fallback-error"
+  | "moderation-replaced-output"
+  | "moderation-unavailable"
+  | "normal";
+
+export interface PostGenInputs {
+  /** generateReply devolvió ok:true. */
+  generationOk: boolean;
+  /** La moderación de salida pudo evaluar (API disponible). */
+  outputModAvailable: boolean;
+  /** Disponible Y flaggeada → sustituir output. */
+  outputModFlagged: boolean;
+  /** No disponible Y resolveUnmoderatedOutput(...).action !== "show". */
+  unmoderatedReplace: boolean;
+}
+
+export function decidePostGenPath(i: PostGenInputs): PostGenPath {
+  if (!i.generationOk) return "fallback-error";
+  if (i.outputModAvailable && i.outputModFlagged) return "moderation-replaced-output";
+  if (!i.outputModAvailable && i.unmoderatedReplace) return "moderation-unavailable";
+  return "normal";
+}

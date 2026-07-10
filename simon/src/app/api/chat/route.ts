@@ -50,7 +50,7 @@ import {
 import { moderate, type ModerationResult } from "@/lib/moderation";
 import { interactionLogTtlCutoff } from "@/lib/retention";
 import { withTransientRetry } from "@/lib/ai/retry";
-import { decideResponsePath } from "@/lib/chat-precedence";
+import { decideResponsePath, decidePostGenPath } from "@/lib/chat-precedence";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { sameOriginOk } from "@/lib/env-check";
 import { canUserChat } from "@/lib/consent";
@@ -702,10 +702,9 @@ export async function POST(req: Request) {
   // los campos post-generación van en su valor "continuar" para que la función
   // devuelva el corte temprano o "normal" = seguir al flujo de generación. Los
   // efectos (persistencia, alertas, logging) NO se movieron: cada rama conserva
-  // su bloque. Las ramas POST-generación (fallback-error, moderación de salida)
-  // siguen el MISMO orden inline más abajo — cubierto por la suite (gap
-  // documentado: no ruteado por la función en el handler para no reestructurar
-  // el entrelazado de moderación de salida).
+  // su bloque. Las ramas POST-generación (fallback-error → moderación de salida
+  // → normal) ahora también se rutean por una función pura hermana,
+  // decidePostGenPath (ver más abajo), fuente única de su orden y testeada.
   const preGenPath = decideResponsePath({
     regexCrisis: false,
     moderationInputCrisis:
@@ -791,6 +790,9 @@ export async function POST(req: Request) {
   }
 
   // 5) Error de generación → fallback (después de crisis/sesión: nunca enmascara).
+  //    Corta ANTES de moderar (no se puede moderar un texto que no existe): es
+  //    la rama "fallback-error" de decidePostGenPath, evaluada acá por la
+  //    dependencia de datos (moderate() necesita generated.text).
   if (!generated.ok) {
     const reply = "Uy, tuve un problema para responderte recién. ¿Probamos de nuevo?";
     const assistantMessageId = await saveAssistant(reply, null);
@@ -807,7 +809,22 @@ export async function POST(req: Request) {
 
   // --- Capa de seguridad 2 (moderación de la SALIDA) ---
   const outputMod = await moderate(outputText);
-  if (outputMod.available && outputMod.flagged) {
+  // Decisión fail-closed cuando la API de salida está caída: se calcula acá
+  // (pura, sin efectos) para que decidePostGenPath rutee las ramas post-gen con
+  // el MISMO orden que la suite fija. Solo relevante si !outputMod.available.
+  const unmoderated = !outputMod.available
+    ? resolveUnmoderatedOutput(outputText, inputMod.available)
+    : null;
+  // #32 (post-gen): las ramas moderación-de-salida / normal las rutea la función
+  // pura decidePostGenPath (fuente única del orden 6→7→8), no más condiciones
+  // inline sueltas. Los efectos de cada rama NO se movieron.
+  const postGenPath = decidePostGenPath({
+    generationOk: true,
+    outputModAvailable: outputMod.available,
+    outputModFlagged: outputMod.flagged,
+    unmoderatedReplace: unmoderated !== null && unmoderated.action !== "show",
+  });
+  if (postGenPath === "moderation-replaced-output") {
     const eventId = await recordSafetyEvent(
       outputMod.topCategory ?? outputMod.mappedFlag ?? "flagged",
       `moderation-output:${outputMod.source}`,
@@ -844,9 +861,12 @@ export async function POST(req: Request) {
   //   3. Si ambas capas de API estuvieron caídas → mensaje seguro fijo
   //      (MODERATION_UNAVAILABLE_MESSAGE) e invitación a buscar a un adulto.
   // En toda degradación se registra SafetyEvent layer "moderation-unavailable".
-  // Lógica pura en resolveUnmoderatedOutput (lib/safety.ts, testeada en suite).
-  if (!outputMod.available) {
-    const decision = resolveUnmoderatedOutput(outputText, inputMod.available);
+  // Lógica pura en resolveUnmoderatedOutput (lib/safety.ts, testeada en suite);
+  // la decisión ya se calculó arriba (`unmoderated`) y decidePostGenPath la
+  // enrutó como "moderation-unavailable".
+  if (postGenPath === "moderation-unavailable") {
+    const decision = unmoderated!;
+    // Garantizado por postGenPath (action !== "show"); el if re-estrecha el tipo.
     if (decision.action !== "show") {
       const eventId = await recordSafetyEvent(
         decision.action === "replace" ? decision.flag : "unavailable",

@@ -13,7 +13,9 @@
  */
 import {
   decideResponsePath,
+  decidePostGenPath,
   type PrecedenceInputs,
+  type PostGenInputs,
   type ResponsePath,
 } from "../src/lib/chat-precedence";
 
@@ -132,6 +134,58 @@ check(
 check(decide({ sessionOver: true }) === "session-limit", "pre-gen: corte por sesión");
 check(decide({ aiReady: false }) === "no-ai", "pre-gen: corte por no-ai");
 check(decide({}) === "normal", "pre-gen: sin corte → normal (seguir a generación)");
+
+// ========== decidePostGenPath: sub-decisión POST-generación (Lote 3) ==========
+// Orden fijo: fallback-error > moderation-replaced-output > moderation-unavailable
+// > normal. Encoda "moderación antes de responder": una salida flaggeada (o una
+// degradación fail-closed) SIEMPRE se resuelve antes de mostrar el output.
+const PG_CONT: PostGenInputs = {
+  generationOk: true,
+  outputModAvailable: true,
+  outputModFlagged: false,
+  unmoderatedReplace: false,
+};
+function pg(over: Partial<PostGenInputs>): ReturnType<typeof decidePostGenPath> {
+  return decidePostGenPath({ ...PG_CONT, ...over });
+}
+
+// Cada rama alcanzable.
+check(pg({ generationOk: false }) === "fallback-error", "post-gen: generación falló → fallback-error");
+check(
+  pg({ outputModFlagged: true }) === "moderation-replaced-output",
+  "post-gen: salida flaggeada (API ok) → moderation-replaced-output",
+);
+check(
+  pg({ outputModAvailable: false, unmoderatedReplace: true }) === "moderation-unavailable",
+  "post-gen: API de salida caída + fail-closed replace → moderation-unavailable",
+);
+check(pg({}) === "normal", "post-gen: sin corte → normal (mostrar salida validada)");
+
+// DOMINANCIA del orden.
+// fallback-error gana sobre cualquier estado de moderación de salida.
+check(
+  pg({ generationOk: false, outputModFlagged: true }) === "fallback-error",
+  "post-gen: error de generación domina la moderación de salida (no se moderó texto inexistente)",
+);
+check(
+  pg({ generationOk: false, outputModAvailable: false, unmoderatedReplace: true }) === "fallback-error",
+  "post-gen: error de generación domina la degradación fail-closed",
+);
+// moderation-replaced (API disponible + flag) gana sobre la rama de no-disponible.
+check(
+  pg({ outputModFlagged: true, unmoderatedReplace: true }) === "moderation-replaced-output",
+  "post-gen: flag con API disponible domina (unavailable solo aplica si !available)",
+);
+// Si la salida NO está disponible, outputModFlagged es irrelevante (no se pudo evaluar).
+check(
+  pg({ outputModAvailable: false, outputModFlagged: true, unmoderatedReplace: false }) === "normal",
+  "post-gen: API caída sin replace fail-closed → normal (flag ignorado: no hubo evaluación real)",
+);
+// API caída con replace fail-closed → sustituye aunque flagged sea false.
+check(
+  pg({ outputModAvailable: false, outputModFlagged: false, unmoderatedReplace: true }) === "moderation-unavailable",
+  "post-gen: API caída + fail-closed → sustituye sin depender de flagged",
+);
 
 const total = passed + failures.length;
 console.log(`\nChat-precedence suite: ${passed}/${total} casos OK`);
