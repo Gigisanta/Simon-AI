@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && prisma migrate deploy && next build",
+    "build": "prisma generate && tsx scripts/migrate-if-production.ts && next build",
     "start": "next start",
     "lint": "eslint",
     "test": "tsx scripts/run-suites.ts",
@@ -24,6 +24,7 @@
     "retry-suite": "tsx scripts/retry-suite.ts",
     "chat-precedence-suite": "tsx scripts/chat-precedence-suite.ts",
     "csp-suite": "tsx scripts/csp-suite.ts",
+    "migrate-suite": "tsx scripts/migrate-suite.ts",
     "export-training": "tsx scripts/export-training.ts",
     "db:seed": "tsx prisma/seed.ts"
   },

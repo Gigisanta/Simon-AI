@@ -75,6 +75,9 @@ model Session {
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  // Purga TTL (retention.purgeExpiredData): deleteMany por `expiresAt < now`.
+  // Sin este índice el barrido es un full-table-scan de sesiones.
+  @@index([expiresAt])
   @@map("session")
 }
 
@@ -222,6 +225,9 @@ model UserMemory {
   updatedAt DateTime @updatedAt
 
   @@index([userId])
+  // Purga TTL (retention.purgeExpiredData): deleteMany por `updatedAt < corte 90d`.
+  // Sin este índice el barrido es un full-table-scan de UserMemory.
+  @@index([updatedAt])
 }
 
 // ---------- Telemetría de interacción (dataset de entrenamiento) ----------
@@ -281,4 +287,7 @@ model InteractionLog {
   @@index([userId, createdAt])
   @@index([conversationId])
   @@index([responsePath])
+  // Purga TTL (retention.purgeExpiredData): deleteMany por `createdAt < corte 180d`.
+  // Sin este índice el barrido es un full-table-scan de InteractionLog.
+  @@index([createdAt])
 }

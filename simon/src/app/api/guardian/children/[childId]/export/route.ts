@@ -33,6 +33,7 @@ import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { requireGuardian, findOwnedChild } from "@/lib/guardian-auth";
 import { usernameFromEmail } from "@/lib/guardian";
+import { buildExportedConversations } from "@/lib/export-conversations";
 
 // Export = varias queries a la DB de datos de un menor. Límite bajo contra abuso
 // y contra scripting de exports en ráfaga.
@@ -121,15 +122,12 @@ export async function GET(
     orderBy: { createdAt: "asc" },
   });
 
-  const conversationsWithMessages = [];
-  for (const conv of conversations) {
-    conversationsWithMessages.push({
-      title: conv.title,
-      createdAt: conv.createdAt,
-      updatedAt: conv.updatedAt,
-      messages: await collectMessages(conv.id),
-    });
-  }
+  // Mensajes por conversación EN PARALELO, preservando el orden (Promise.all +
+  // Array.map). El endpoint está rate-limited (5/min), así que N es acotado.
+  const conversationsWithMessages = await buildExportedConversations(
+    conversations,
+    collectMessages,
+  );
 
   // UserMemory y SafetyEvents (metadata) — bajo volumen (TTL/minimización).
   const [memories, safetyEvents] = await Promise.all([

@@ -35,6 +35,7 @@ const SUITES = [
   "retry",
   "chat-precedence",
   "csp",
+  "migrate",
 ] as const;
 
 const here = dirname(fileURLToPath(import.meta.url));
