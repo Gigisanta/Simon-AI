@@ -17,6 +17,8 @@
  * siendo la fuente de verdad y un miss de Redis cae a la DB.
  */
 
+import { withTransientRetry } from "@/lib/ai/retry";
+
 const UPSTASH_TIMEOUT_MS = 2_000;
 // Prefijo propio: no colisiona con "simon:rl:" (rate limit de la app).
 const KEY_PREFIX = "simon:ba:";
@@ -148,33 +150,99 @@ export type AuthSecondaryStorage = {
  * Replica EXACTAMENTE el esquema de claves del internal-adapter de better-auth:
  *   - `active-sessions-<userId>` → JSON `[{ token, expiresAt }]` (lista índice).
  *   - `<token>`                  → copia de la sesión.
- * Borra cada token de la lista y después la lista. Best-effort: las operaciones
- * del storage degradan a in-memory ante un fallo de Redis y NUNCA lanzan (un
- * incidente de Redis no debe romper el borrado/suspensión; además, sin la copia
- * en Redis, `findSession` cae a la DB, que ya está limpia → falla cerrado).
+ * Borra cada token de la lista y después la lista.
  *
- * Sin env de Upstash → no hay secondaryStorage: las sesiones viven solo en DB y
- * el cascade/deleteMany ya las cubre; el helper es un no-op.
+ * FAIL-CLOSED (L3, ciclo 15). ESTE camino es CRÍTICO: al SUSPENDER el
+ * consentimiento de un menor, si el DELETE contra Redis no corre, la copia
+ * cacheada de la sesión sigue autenticándolo (better-auth confía en la copia de
+ * Redis si existe) y el menor seguiría chateando pese a la revocación. Por eso
+ * acá NO se usa el fallback silencioso a in-memory del secondaryStorage (que
+ * escribiría en un Map inútil sin tocar el Redis real): se habla con Upstash
+ * DIRECTO, con un reintento corto (patrón lib/ai/retry.ts), y si aun así falla se
+ * devuelve la señal de fallo (`false`) + un log nivel error accionable. El caller
+ * de consent-revoked propaga esa señal (sessionsRevoked: false) para visibilidad.
+ *
+ * Devuelve `true` si la revocación en Redis se completó (o si no hay Upstash
+ * configurado → no-op: las sesiones viven solo en DB y el cascade/deleteMany ya
+ * las cubre). Devuelve `false` SOLO si Upstash quedó inalcanzable tras el
+ * reintento (la copia cacheada podría seguir válida hasta su TTL).
  */
-export async function revokeUserSessions(userId: string): Promise<void> {
-  const storage = upstashSecondaryStorage();
-  if (!storage) return;
+export async function revokeUserSessions(userId: string): Promise<boolean> {
+  const restUrl = process.env.UPSTASH_REDIS_REST_URL;
+  const restToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+  // Sin env de Upstash → no-op: no hay copias en Redis, la DB es la única fuente.
+  if (!restUrl || !restToken) return true;
 
-  const listRaw = await storage.get(`active-sessions-${userId}`);
-  if (listRaw) {
-    let sessions: Array<{ token?: string }> = [];
+  const indexKey = `active-sessions-${userId}`;
+
+  // 1) Leer la lista índice (con reintento corto). Un null tras el reintento = no
+  //    se pudo confirmar contra Redis → fail-closed (no se degrada a memoria).
+  const listRes = await pipelineWithRetry(restUrl, restToken, [
+    ["GET", KEY_PREFIX + indexKey],
+  ]);
+  if (listRes === null) {
+    console.error(
+      `[auth-storage] revokeUserSessions: Upstash inalcanzable al leer la lista de sesiones de ${userId}; ` +
+        "la copia cacheada podría seguir autenticando al menor hasta su TTL. Revocación NO confirmada.",
+    );
+    return false;
+  }
+
+  let sessions: Array<{ token?: string }> = [];
+  const raw = listRes[0]?.result;
+  if (typeof raw === "string") {
     try {
-      const parsed = JSON.parse(listRaw);
+      const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) sessions = parsed;
     } catch {
       // Lista corrupta: igual se borra la clave índice abajo.
       sessions = [];
     }
-    for (const s of sessions) {
-      if (s?.token) await storage.delete(s.token);
-    }
   }
-  await storage.delete(`active-sessions-${userId}`);
+
+  // 2) Borrar cada token + la clave índice en UN pipeline (con reintento). Los
+  //    tokens ANTES que la clave índice (mismo orden que el internal-adapter).
+  const dels: string[][] = sessions
+    .filter((s) => s?.token)
+    .map((s) => ["DEL", KEY_PREFIX + s.token!]);
+  dels.push(["DEL", KEY_PREFIX + indexKey]);
+
+  const delRes = await pipelineWithRetry(restUrl, restToken, dels);
+  if (delRes === null) {
+    console.error(
+      `[auth-storage] revokeUserSessions: Upstash inalcanzable al borrar las sesiones de ${userId}; ` +
+        "la copia cacheada podría seguir autenticando al menor hasta su TTL. Revocación NO confirmada.",
+    );
+    return false;
+  }
+  return true;
+}
+
+/**
+ * `pipeline` con reintento corto y acotado (L3). `pipeline` NO lanza: devuelve
+ * null ante cualquier fallo de Redis (timeout, no-200, JSON malformado). Para
+ * reintentar reusamos la mecánica de lib/ai/retry.ts (backoff+jitter, tope de
+ * intentos): el factory relanza el null como excepción y el clasificador es
+ * `() => true` (cualquier fallo de Redis en un camino crítico amerita reintentar,
+ * acotado). Si el reintento se agota, se devuelve null (el caller falla cerrado).
+ */
+async function pipelineWithRetry(
+  restUrl: string,
+  restToken: string,
+  commands: string[][],
+): Promise<PipelineResult | null> {
+  try {
+    return await withTransientRetry(
+      async () => {
+        const r = await pipeline(restUrl, restToken, commands);
+        if (r === null) throw new Error("upstash-unreachable");
+        return r;
+      },
+      { retries: 2, isTransient: () => true },
+    );
+  } catch {
+    return null;
+  }
 }
 
 /**

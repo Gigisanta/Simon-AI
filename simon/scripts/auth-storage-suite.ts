@@ -254,9 +254,14 @@ async function testRevokeUserSessions() {
     return { ok: true, status: 200, json: async () => [{ result: 1 }] } as unknown as Response;
   }) as typeof fetch;
 
-  await revokeUserSessions("u1");
+  const okReturn = await revokeUserSessions("u1");
   globalThis.fetch = prev;
 
+  check(okReturn === true, "revoke: éxito contra Redis → devuelve true (revocación confirmada)");
+  check(
+    !__testing.memStore.has(`active-sessions-u1`) && !__testing.memStore.has("tok_a"),
+    "revoke: éxito NO usa el fallback in-memory (habla con Redis directo)",
+  );
   const dels = commands.filter((c) => c[0] === "DEL").map((c) => c[1]);
   check(
     commands.some((c) => c[0] === "GET" && c[1] === `${KEY_PREFIX}active-sessions-u1`),
@@ -289,13 +294,14 @@ async function testRevokeEdgeCases() {
     for (const c of batch) commands.push(c);
     return { ok: true, status: 200, json: async () => [{ result: null }] } as unknown as Response;
   }) as typeof fetch;
-  await revokeUserSessions("sin_sesiones");
+  const okNoSessions = await revokeUserSessions("sin_sesiones");
   globalThis.fetch = prev;
   const dels = commands.filter((c) => c[0] === "DEL").map((c) => c[1]);
   check(
     dels.length === 1 && dels[0] === `${KEY_PREFIX}active-sessions-sin_sesiones`,
     "revoke: sin lista índice → solo borra la clave índice (sin tokens)",
   );
+  check(okNoSessions === true, "revoke: sin lista índice pero Redis OK → devuelve true");
 
   // Sin env de Upstash → no-op: no toca fetch (las sesiones viven solo en DB).
   clearUpstashEnv();
@@ -305,9 +311,50 @@ async function testRevokeEdgeCases() {
     touched = true;
     return { ok: true, status: 200, json: async () => [] } as unknown as Response;
   }) as typeof fetch;
-  await revokeUserSessions("cualquiera");
+  const okNoEnv = await revokeUserSessions("cualquiera");
   globalThis.fetch = prev2;
   check(!touched, "revoke: sin env de Upstash → no-op (no toca Redis)");
+  check(okNoEnv === true, "revoke: sin env de Upstash → devuelve true (no-op, DB es la fuente)");
+}
+
+// ---------- 10. revokeUserSessions FAIL-CLOSED: Redis caído → false (L3) ----------
+async function testRevokeFailClosed() {
+  // Con Upstash configurado pero caído (todas las respuestas 500), la revocación
+  // NO puede confirmarse: tras el reintento corto devuelve false (señal de fallo)
+  // y NUNCA degrada silenciosamente a in-memory (el bug de fail-open que arregla
+  // L3: la copia cacheada de la sesión del menor seguiría válida).
+  __testing.reset();
+  withUpstashEnv();
+
+  const prev = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = (async () => {
+    calls += 1;
+    return { ok: false, status: 500, json: async () => ({}) } as unknown as Response;
+  }) as typeof fetch;
+  const ok = await revokeUserSessions("menor_x");
+  globalThis.fetch = prev;
+
+  check(ok === false, "revoke fail-closed: Upstash 500 tras reintento → devuelve false");
+  check(calls >= 2, "revoke fail-closed: reintentó al menos una vez (patrón retry) antes de rendirse");
+  check(
+    __testing.memStore.size === 0,
+    "revoke fail-closed: NO escribe en el fallback in-memory (no degrada silencioso)",
+  );
+
+  // Timeout/abort persistente también → false (mismo criterio fail-closed).
+  __testing.reset();
+  withUpstashEnv();
+  const prev2 = globalThis.fetch;
+  globalThis.fetch = (async () => {
+    const err = new Error("aborted");
+    err.name = "AbortError";
+    throw err;
+  }) as typeof fetch;
+  const okAbort = await revokeUserSessions("menor_y");
+  globalThis.fetch = prev2;
+  check(okAbort === false, "revoke fail-closed: timeout/abort persistente → devuelve false");
+  clearUpstashEnv();
 }
 
 async function main() {
@@ -319,6 +366,7 @@ async function main() {
   await testKeyPrefix();
   await testRevokeUserSessions();
   await testRevokeEdgeCases();
+  await testRevokeFailClosed();
 
   // Restaura fetch y limpia env para no contaminar otros procesos.
   globalThis.fetch = originalFetch;

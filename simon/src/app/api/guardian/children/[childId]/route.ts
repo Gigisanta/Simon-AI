@@ -216,14 +216,27 @@ export async function PATCH(
   // se borra), así que se borran en DB (deleteMany) Y en Redis secondaryStorage
   // (revokeUserSessions) — si solo se borra en DB, la copia en Redis seguiría
   // autenticando al menor hasta su TTL.
+  // L3 (ciclo 15): revokeUserSessions es fail-closed y devuelve una señal. Si
+  // Redis quedó inalcanzable tras el reintento, la copia cacheada podría seguir
+  // válida: se loguea (nivel error, ruta crítica) y se propaga sessionsRevoked:
+  // false en el body para visibilidad, SIN romper la respuesta al tutor/a (la
+  // revocación en DB ya se aplicó: consentRevokedAt + session.deleteMany).
+  let sessionsRevoked: boolean | undefined;
   if (consentRevoked === true) {
     await prisma.session.deleteMany({ where: { userId: childId } });
-    await revokeUserSessions(childId);
+    sessionsRevoked = await revokeUserSessions(childId);
+    if (!sessionsRevoked) {
+      console.error(
+        `[guardian] consent-revoked ${childId}: no se pudieron invalidar las copias de sesión en Redis ` +
+          "(Upstash inalcanzable tras el reintento). La sesión cacheada del menor podría seguir válida hasta su TTL.",
+      );
+    }
   }
 
   return Response.json({
     ok: true,
     ...(alertsEnabled !== undefined ? { alertsEnabled } : {}),
     ...(consentRevoked !== undefined ? { consentRevoked } : {}),
+    ...(sessionsRevoked !== undefined ? { sessionsRevoked } : {}),
   });
 }
