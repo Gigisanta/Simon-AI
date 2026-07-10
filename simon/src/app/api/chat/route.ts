@@ -732,6 +732,7 @@ export async function POST(req: Request) {
       role,
       firstOfSession,
       age: childAge,
+      hasDiagnosis: session.user.hasDiagnosis ?? null,
     });
     const riesgoAddendum = `\n\n---\n\n${crisisSystemAddendum("riesgo")}`;
     const systemForParallel =
