@@ -23,6 +23,7 @@
     "purge-suite": "tsx scripts/purge-suite.ts",
     "retry-suite": "tsx scripts/retry-suite.ts",
     "chat-precedence-suite": "tsx scripts/chat-precedence-suite.ts",
+    "csp-suite": "tsx scripts/csp-suite.ts",
     "export-training": "tsx scripts/export-training.ts",
     "db:seed": "tsx prisma/seed.ts"
   },

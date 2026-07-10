@@ -15,26 +15,12 @@ const securityHeaders = [
     key: "Strict-Transport-Security",
     value: "max-age=63072000; includeSubDomains; preload",
   },
-  // CSP pragmática, sin nonce (el App Router usa inline scripts y hoy no
-  // montamos middleware de nonce): todo self, sin orígenes externos. Fonts
-  // self-hosted por next/font y SVGs/gradientes inline quedan cubiertos.
-  // 'unsafe-eval' SOLO en dev: React lo usa para debugging en development
-  // ("React will never use eval() in production mode"); en prod no va.
-  {
-    key: "Content-Security-Policy",
-    value: [
-      "default-src 'self'",
-      `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : ""}`,
-      "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob:",
-      "font-src 'self'",
-      "connect-src 'self'",
-      "frame-ancestors 'none'",
-      "base-uri 'self'",
-      "form-action 'self'",
-      "object-src 'none'",
-    ].join("; "),
-  },
+  // NOTA: la Content-Security-Policy YA NO se emite acá. Pasó a ser por-request
+  // con nonce en `src/proxy.ts` (helper puro en `src/lib/csp.ts`), para eliminar
+  // `'unsafe-inline'` de `script-src` en producción. Debe existir una sola
+  // cabecera CSP: emitir también una estática acá crearía dos CSP en conflicto
+  // (el navegador aplicaría la intersección). `frame-ancestors 'none'` vive
+  // ahora dentro de esa CSP; `X-Frame-Options: DENY` de arriba lo respalda.
 ];
 
 const nextConfig: NextConfig = {

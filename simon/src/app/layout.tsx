@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Nunito } from "next/font/google";
+import { headers } from "next/headers";
 import "./globals.css";
 
 const nunito = Nunito({
@@ -22,11 +23,16 @@ export const viewport: Viewport = {
   interactiveWidget: "resizes-content",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Nonce por request que inyecta el Proxy (src/proxy.ts) vía header x-nonce.
+  // Leer headers() vuelve el render dinámico — condición necesaria del enfoque
+  // de nonce (las páginas estáticas no tienen request donde inyectarlo).
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
+
   return (
     <html
       lang="es-AR"
@@ -36,6 +42,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         {/* Aplica modo calma antes del primer paint (evita flash de animaciones) */}
         <script
+          nonce={nonce}
           dangerouslySetInnerHTML={{
             __html: `try{if(localStorage.getItem("simon-calm")==="1")document.documentElement.setAttribute("data-calm","")}catch(e){}`,
           }}
