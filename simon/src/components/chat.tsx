@@ -313,6 +313,21 @@ export function Chat() {
       m.parts.some((p) => p.type === "text" && p.text.includes(WARN_MARKER)),
   );
 
+  // Anuncio para lectores de pantalla, derivado (no vía estado/efecto). El
+  // stream NO se anuncia token a token: la lista es aria-live="off" + aria-busy
+  // mientras Simón escribe. Esta live-region sr-only queda vacía durante el
+  // stream y recién al pasar a "ready" toma el texto COMPLETO del último mensaje
+  // → el lector lo anuncia una sola vez. El error tiene prioridad.
+  const lastMessage = messages[messages.length - 1];
+  const announcement = error
+    ? "Hubo un problema al enviar tu mensaje. No se perdió lo que escribiste."
+    : status === "ready" && lastMessage?.role === "assistant"
+      ? lastMessage.parts
+          .map((p) => (p.type === "text" ? p.text : ""))
+          .join("")
+          .trim()
+      : "";
+
   function send(text: string) {
     if (!text || busy) return;
     setLastText(text);
@@ -391,9 +406,15 @@ export function Chat() {
           </div>
         </div>
 
+        {/* Live-region dedicada: anuncia el mensaje completo (no los tokens
+            parciales) y los errores, una sola vez. Ver `announcement`. */}
+        <p role="status" aria-live="polite" className="sr-only">
+          {announcement}
+        </p>
         <div
           role="log"
-          aria-live="polite"
+          aria-live="off"
+          aria-busy={busy}
           aria-label="Conversación con Simón"
           className="flex flex-1 flex-col gap-4 overflow-y-auto px-4 py-4 [scrollbar-width:thin] [scrollbar-color:var(--color-line)_transparent]"
         >
