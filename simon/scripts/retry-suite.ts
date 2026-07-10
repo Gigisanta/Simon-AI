@@ -8,13 +8,20 @@
  *      Node (APICallError con statusCode, errores de red con code, cadena cause).
  *   2. withTransientRetry: éxito directo, transitorio→retry→éxito,
  *      transitorio→retry→falla→lanza, no-transitorio→sin retry, abort→sin retry.
+ *   3. Anti-drift del presupuesto de latencia: el literal `maxDuration` inline de
+ *      src/app/api/chat/route.ts (leído por regex, sin importar la ruta) coincide
+ *      con CHAT_ROUTE_MAX_DURATION_S (lib/ai/limits.ts, fuente única).
  *
  * Camino crítico (no perder una respuesta al menor por un hipo de red, sin
  * reintentar lo que no corresponde ni reventar el presupuesto de latencia). Sale
  * con código 1 si algún caso falla (gate de CI).
  */
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 import { createChecker } from "./suite-helpers";
 import { isTransientError, withTransientRetry } from "../src/lib/ai/retry";
+import { CHAT_ROUTE_MAX_DURATION_S } from "../src/lib/ai/limits";
 
 const { check, done } = createChecker("Retry suite");
 
@@ -203,8 +210,37 @@ async function testRetry() {
   }
 }
 
+// ---------- 3. Anti-drift: maxDuration de la ruta vs CHAT_ROUTE_MAX_DURATION_S ----------
+// La ruta declara `export const maxDuration` inline (Next exige literal estático,
+// no una referencia importada) y valida en import que coincida con la fuente única
+// (lib/ai/limits.ts) — pero ese throw SOLO corre al importar la ruta EN PRODUCCIÓN,
+// y ningún test importa route.ts (arrastra Prisma/env). Una desincronización recién
+// explotaría como 500 total en /api/chat. Acá lo verificamos leyendo el texto de la
+// ruta con regex (sin importarla) y comparándolo con la constante importada.
+function testMaxDurationSync() {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const routePath = join(here, "..", "src", "app", "api", "chat", "route.ts");
+  const src = readFileSync(routePath, "utf8");
+  // Tolera anotación de tipo opcional (: number) y espaciado variable alrededor
+  // del `=`, los dos puntos y el punto y coma.
+  const match = src.match(
+    /export\s+const\s+maxDuration\s*(?::\s*[A-Za-z0-9_]+\s*)?=\s*(\d+)\s*;/,
+  );
+  check(
+    match !== null,
+    "route.ts: se encuentra el literal `export const maxDuration`",
+  );
+  if (match === null) return;
+  const literal = Number(match[1]);
+  check(
+    literal === CHAT_ROUTE_MAX_DURATION_S,
+    `route.ts: maxDuration (${literal}) coincide con CHAT_ROUTE_MAX_DURATION_S (${CHAT_ROUTE_MAX_DURATION_S}) — si falla, sincronizá el literal inline de la ruta con lib/ai/limits.ts`,
+  );
+}
+
 async function main() {
   await testRetry();
+  testMaxDurationSync();
   done();
 }
 
