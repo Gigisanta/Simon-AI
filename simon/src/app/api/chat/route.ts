@@ -40,7 +40,10 @@ import {
   updateRollingSummary,
 } from "@/lib/ai/memory";
 import {
+  isFirstOfSession,
+  SESSION_GAP_MS,
   SESSION_LIMIT_REPLY,
+  SESSION_OVER_MS,
   SESSION_WARN_APPENDIX,
   sessionLimitApplies,
   sessionState,
@@ -50,6 +53,8 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { sameOriginOk } from "@/lib/env-check";
 import { canUserChat } from "@/lib/consent";
 import { maybeAlertGuardian, type AlertCategory } from "@/lib/alerts";
+import { MAX_CHILD_AGE, MIN_CHILD_AGE } from "@/lib/guardian";
+import type { KnowledgeCard } from "@/generated/prisma/client";
 
 // Holgura para: generateText completo (respuesta corta ≤1000 tokens) + hasta
 // dos llamadas a la Moderation API (entrada y salida, timeout 3s c/u). Entra
@@ -68,6 +73,33 @@ const MAX_HISTORY_MESSAGES = 24;
 const INTERACTION_LOG_TTL_DAYS = 180;
 const RATE_LIMIT_PER_MINUTE = 15;
 const RATE_LIMIT_PER_DAY = 400;
+
+// Parámetros de generación por rol (B3). Los tutores/as pueden elaborar más
+// (hasta ~5 párrafos) y con un tono algo más determinístico; los menores
+// reciben respuestas cortas por diseño y una pizca más de calidez/variación.
+const MAX_OUTPUT_TOKENS_GUARDIAN = 1_400;
+const MAX_OUTPUT_TOKENS_CHILD = 700;
+const TEMPERATURE_GUARDIAN = 0.5;
+const TEMPERATURE_CHILD = 0.6;
+
+// --- Cache in-process de la base de conocimiento (perf) ---
+// KnowledgeCard.findMany() traía el corpus ENTERO en cada request. El corpus es
+// chico (< ~200 fichas) y de baja frecuencia de cambio (curación manual), así
+// que se cachea en memoria del proceso con TTL corto.
+// TRADEOFF MULTI-INSTANCIA: cada instancia serverless tiene su propio cache, por
+// lo que una edición de fichas puede tardar hasta KNOWLEDGE_CACHE_TTL_MS en
+// reflejarse en TODAS las instancias. Aceptable: no hay lecturas críticas de
+// fichas (a diferencia de seguridad/consentimiento, que nunca se cachean).
+const KNOWLEDGE_CACHE_TTL_MS = 5 * 60_000;
+let knowledgeCache: { cards: KnowledgeCard[]; expiresAt: number } | null = null;
+
+async function loadKnowledgeCards(): Promise<KnowledgeCard[]> {
+  const nowMs = Date.now();
+  if (knowledgeCache && knowledgeCache.expiresAt > nowMs) return knowledgeCache.cards;
+  const cards = await prisma.knowledgeCard.findMany();
+  knowledgeCache = { cards, expiresAt: nowMs + KNOWLEDGE_CACHE_TTL_MS };
+  return cards;
+}
 
 /** Extrae el texto plano de un UIMessage (partes tipo "text"). */
 function messageText(message: UIMessage): string {
@@ -130,8 +162,12 @@ export async function POST(req: Request) {
   }
 
   // --- Rate limiting por usuario (ráfaga + tope diario) ---
-  const minute = await checkRateLimit(`chat:m:${userId}`, RATE_LIMIT_PER_MINUTE, 60_000);
-  const day = await checkRateLimit(`chat:d:${userId}`, RATE_LIMIT_PER_DAY, 24 * 60 * 60 * 1000);
+  // Ambos chequeos son independientes (claves y ventanas distintas): se corren
+  // en paralelo. La precedencia del error se mantiene (minuto antes que día).
+  const [minute, day] = await Promise.all([
+    checkRateLimit(`chat:m:${userId}`, RATE_LIMIT_PER_MINUTE, 60_000),
+    checkRateLimit(`chat:d:${userId}`, RATE_LIMIT_PER_DAY, 24 * 60 * 60 * 1000),
+  ]);
   const limited = !minute.ok ? minute : !day.ok ? day : null;
   if (limited && !limited.ok) {
     return Response.json(
@@ -175,13 +211,6 @@ export async function POST(req: Request) {
     typeof body.conversationId === "string" && body.conversationId.length <= 64
       ? body.conversationId
       : null;
-  if (conversationId) {
-    const owned = await prisma.conversation.findFirst({
-      where: { id: conversationId, userId },
-      select: { id: true },
-    });
-    if (!owned) conversationId = null; // nunca escribir en conversaciones ajenas
-  }
   // --- F1: el contexto conversacional es del SERVIDOR ---
   // Si la conversación ya existía (y es del usuario), el historial se carga
   // desde la DB — mensajes reales que este mismo servidor persistió — ANTES de
@@ -191,15 +220,27 @@ export async function POST(req: Request) {
   // Historial crudo (cronológico) para el recorte por presupuesto (B2). El
   // recorte por CANTIDAD lo hace la query (take); el recorte fino por TAMAÑO lo
   // hace assembleContext más abajo.
+  // La verificación de ownership y la carga del historial se fusionan en UN
+  // findFirst anidado (una sola ida a la DB): el `where` filtra por userId (no
+  // se leen conversaciones ajenas) y los `messages` vienen incluidos.
   let historyRows: { role: string; content: string }[] = [];
   if (conversationId) {
-    const rows = await prisma.message.findMany({
-      where: { conversationId },
-      orderBy: { createdAt: "desc" }, // los últimos N...
-      take: MAX_HISTORY_MESSAGES,
-      select: { role: true, content: true },
+    const owned = await prisma.conversation.findFirst({
+      where: { id: conversationId, userId },
+      select: {
+        id: true,
+        messages: {
+          orderBy: { createdAt: "desc" }, // los últimos N...
+          take: MAX_HISTORY_MESSAGES,
+          select: { role: true, content: true },
+        },
+      },
     });
-    historyRows = rows.reverse(); // ...en orden cronológico.
+    if (!owned) {
+      conversationId = null; // nunca leer/escribir en conversaciones ajenas
+    } else {
+      historyRows = owned.messages.reverse(); // ...en orden cronológico.
+    }
   }
   if (!conversationId) {
     const created = await prisma.conversation.create({
@@ -254,14 +295,18 @@ export async function POST(req: Request) {
     safetyFlag: string | null,
   ): Promise<string | null> {
     try {
-      const created = await prisma.message.create({
-        data: { conversationId: conversationId!, role: "assistant", content, safetyFlag },
-        select: { id: true },
-      });
-      await prisma.conversation.update({
-        where: { id: conversationId! },
-        data: { updatedAt: new Date() },
-      });
+      // Dos escrituras (crear el mensaje + bumpear updatedAt) en UNA transacción:
+      // una sola ida a la DB y consistencia atómica del par.
+      const [created] = await prisma.$transaction([
+        prisma.message.create({
+          data: { conversationId: conversationId!, role: "assistant", content, safetyFlag },
+          select: { id: true },
+        }),
+        prisma.conversation.update({
+          where: { id: conversationId! },
+          data: { updatedAt: new Date() },
+        }),
+      ]);
       return created.id;
     } catch (err) {
       console.error("[chat] error guardando la respuesta del asistente (se devuelve igual):", err);
@@ -350,8 +395,13 @@ export async function POST(req: Request) {
 
   // Alerta de crisis al tutor/a (M-P2). UMBRAL: solo crisis/abuso — "riesgo" y
   // "alimentario" NO alertan por ahora, para no sobre-alertar (ver lib/alerts).
-  // Se espera (await) pero NUNCA bloquea el flujo: un fallo de email se loguea
-  // y la respuesta al menor sale igual.
+  //
+  // PERF: el envío del email (Resend, red) NO puede sumar latencia a la respuesta
+  // al menor. Los callers invocan esto vía `after()` (next/server): corre DESPUÉS
+  // de enviada la respuesta. El SafetyEvent (registro de la señal) ya se persistió
+  // sincrónicamente antes; solo la NOTIFICACIÓN (email + marca notifiedAt del
+  // dedupe) queda diferida. NUNCA lanza: cualquier fallo se loguea acá adentro,
+  // así el error no se pierde aunque corra fuera del ciclo de la request.
   async function alertGuardianSafely(
     safetyEventId: string | null,
     category: AlertCategory,
@@ -377,7 +427,7 @@ export async function POST(req: Request) {
     const reply = crisisReply(regexFlag);
     const assistantMessageId = await saveAssistant(reply, "derivacion");
     if (regexFlag !== "alimentario") {
-      await alertGuardianSafely(regexEventId, regexFlag);
+      after(() => alertGuardianSafely(regexEventId, regexFlag));
     }
     logInteraction("crisis-template", {
       safetyFlagFinal: "derivacion",
@@ -414,37 +464,46 @@ export async function POST(req: Request) {
 
   let effectiveFlag: SafetyFlag = regexFlag; // null | "riesgo"
 
-  // --- TTL de memorias (M-D): purga lazy en el query-path, sin cron ---
-  // Antes de leer UserMemory se borran los registros más viejos que
-  // MEMORY_TTL_DAYS (90 días): la retención de datos de menores es acotada
-  // por diseño (docs/research-architecture.md §4.2).
   const now = new Date();
-  await prisma.userMemory.deleteMany({
-    where: { userId, updatedAt: { lt: memoryTtlCutoff(now) } },
-  });
-  // TTL de telemetría (B4): purga lazy de InteractionLog > 180 días. Mismo
-  // criterio de minimización que UserMemory; sin cron.
-  await prisma.interactionLog.deleteMany({
-    where: {
-      userId,
-      createdAt: {
-        lt: new Date(now.getTime() - INTERACTION_LOG_TTL_DAYS * 24 * 60 * 60 * 1000),
-      },
-    },
+  // --- TTL (M-D / B4): purgas lazy DIFERIDAS a after() ---
+  // La minimización de datos (UserMemory 90d, InteractionLog 180d) no tiene que
+  // bloquear la respuesta al menor: se ejecuta tras responder, vía after(). Para
+  // que un dato vencido no se USE aunque la purga quede pendiente, la lectura de
+  // UserMemory (más abajo) filtra por el mismo corte temporal.
+  after(async () => {
+    try {
+      await prisma.userMemory.deleteMany({
+        where: { userId, updatedAt: { lt: memoryTtlCutoff(now) } },
+      });
+      await prisma.interactionLog.deleteMany({
+        where: {
+          userId,
+          createdAt: {
+            lt: new Date(now.getTime() - INTERACTION_LOG_TTL_DAYS * 24 * 60 * 60 * 1000),
+          },
+        },
+      });
+    } catch (err) {
+      console.error("[chat] error en purga TTL diferida (no bloquea):", err);
+    }
   });
 
   // --- Contexto (fichas + memoria + resumen) + ventana de sesión, en paralelo ---
   // Todo lo que necesita la generación, más los mensajes recientes para el
   // límite de sesión (M-S7). La sesión se mide sobre TODAS las conversaciones
-  // del usuario (el límite es por uso, no por hilo): ventana de 2 horas.
+  // del usuario (el límite es por uso, no por hilo).
   // Rol del interlocutor (B3): condiciona la persona y el límite de sesión.
   const role = userRole;
 
   const [cards, memories, pastSummariesRows, activeConv, recentMessages] =
     await Promise.all([
-      prisma.knowledgeCard.findMany(),
+      // Fichas: cache in-process con TTL corto (perf) en vez de traer el corpus
+      // entero por request.
+      loadKnowledgeCards(),
       prisma.userMemory.findMany({
-        where: { userId },
+        // Filtro TTL: no usar memorias vencidas aunque la purga (after) esté
+        // pendiente — mismo corte que el deleteMany diferido.
+        where: { userId, updatedAt: { gte: memoryTtlCutoff(now) } },
         orderBy: { updatedAt: "desc" },
         take: 20,
       }),
@@ -455,21 +514,31 @@ export async function POST(req: Request) {
         take: 3,
         select: { summary: true },
       }),
-      // Rolling summary de ESTA conversación (B2.4). Conversación nueva → null.
+      // Rolling summary de ESTA conversación (B2.4) + conteo de mensajes del
+      // asistente ya guardados (M-F3: recordatorio de IA cada 10 turnos). El
+      // _count filtrado evita una query extra al final. Conversación nueva → 0.
       prisma.conversation.findUnique({
         where: { id: conversationId },
-        select: { rollingSummary: true },
+        select: {
+          rollingSummary: true,
+          _count: { select: { messages: { where: { role: "assistant" } } } },
+        },
       }),
-      // Ventana de sesión (M-S7): SOLO para menores (B3.2). Guardians: sin
-      // cálculo (no hay warn/over), se evita la query.
+      // Ventana de sesión (M-S7 / M-F1): SOLO para menores (B3.2). Guardians:
+      // sin cálculo (no hay warn/over/primer-mensaje), se evita la query.
+      // Ventana temporal = SESSION_OVER_MS + SESSION_GAP_MS (75 min): cota que
+      // garantiza traer TODOS los mensajes necesarios para detectar "over" (una
+      // racha ≥45 min cuyo mensaje de cruce cae, como mucho, un gap <30 min
+      // antes del umbral). SIN `take`: la cota temporal ya acota el resultado —
+      // el take:60 anterior truncaba a >~1.33 msg/min y dejaba pasar sesiones
+      // vencidas (bypass del límite de 45 min).
       sessionLimitApplies(role)
         ? prisma.message.findMany({
             where: {
               conversation: { userId },
-              createdAt: { gte: new Date(now.getTime() - 2 * 60 * 60 * 1000) },
+              createdAt: { gte: new Date(now.getTime() - (SESSION_OVER_MS + SESSION_GAP_MS)) },
             },
             orderBy: { createdAt: "desc" },
-            take: 60,
             select: { createdAt: true, role: true, safetyFlag: true },
           })
         : Promise.resolve(
@@ -491,6 +560,34 @@ export async function POST(req: Request) {
     !recentMessages.some(
       (m) => m.role === "assistant" && m.safetyFlag === "session-warn",
     );
+
+  // M-F1: ¿este mensaje abre una sesión nueva? Se deriva de la MISMA ventana de
+  // sesión (child-only): no hay respuesta del asistente dentro del último gap.
+  // Para guardians recentMessages viene vacío → sessionLimitApplies false → no
+  // se prepende la presentación (es una salvaguarda pensada para menores).
+  const firstOfSession =
+    sessionLimitApplies(role) &&
+    isFirstOfSession(
+      recentMessages.filter((m) => m.role === "assistant").map((m) => m.createdAt),
+      now,
+    );
+
+  // §7.1: edad para el registro etario del lenguaje. Solo del AÑO de nacimiento
+  // (minimización); si es null o cae fuera del rango razonable (guardian.ts,
+  // 4..19) se omite y la PERSONA usa su heurística. Aplica solo a menores: los
+  // tutores/as no tienen birthYear y su addendum ya fija tono adulto.
+  const birthYear = session.user.birthYear ?? null;
+  const derivedAge =
+    typeof birthYear === "number" && Number.isInteger(birthYear)
+      ? now.getFullYear() - birthYear
+      : null;
+  const childAge =
+    sessionLimitApplies(role) &&
+    derivedAge !== null &&
+    derivedAge >= MIN_CHILD_AGE &&
+    derivedAge <= MAX_CHILD_AGE
+      ? derivedAge
+      : undefined;
 
   // Recorte por presupuesto (B2.6): cada bucket a su tope de tokens estimados.
   // El mensaje actual del usuario nunca se recorta.
@@ -520,6 +617,8 @@ export async function POST(req: Request) {
     pastSummaries: context.pastSummaries,
     rollingSummary: context.rollingSummary,
     role,
+    firstOfSession,
+    age: childAge,
   });
   const riesgoAddendum = `\n\n---\n\n${crisisSystemAddendum("riesgo")}`;
   const systemForParallel =
@@ -532,6 +631,15 @@ export async function POST(req: Request) {
     ...dbHistory,
     { role: "user", content: userText },
   ];
+
+  // Parámetros de generación por rol (B3): los tutores/as pueden elaborar más
+  // (más tokens) y con un tono algo más determinístico; los menores reciben
+  // respuestas cortas y una pizca más de variación/calidez.
+  const isGuardian = role === "guardian";
+  const genMaxOutputTokens = isGuardian
+    ? MAX_OUTPUT_TOKENS_GUARDIAN
+    : MAX_OUTPUT_TOKENS_CHILD;
+  const genTemperature = isGuardian ? TEMPERATURE_GUARDIAN : TEMPERATURE_CHILD;
 
   // Genera la respuesta completa (no streaming) para poder moderar la salida
   // ANTES de mostrarla. Nunca lanza: envuelve el error en un sentinel para que
@@ -553,8 +661,8 @@ export async function POST(req: Request) {
         model: chatModel(),
         system: sys,
         messages: modelMessages,
-        temperature: 0.6,
-        maxOutputTokens: 1_000, // respuestas cortas por diseño + control de costo
+        temperature: genTemperature,
+        maxOutputTokens: genMaxOutputTokens, // por rol: corto para menores
         // M3: un modelo colgado no puede dejar al menor esperando hasta el
         // maxDuration de la ruta. Se aborta y el catch de acá abajo devuelve el
         // fallback amable. Cubre la generación paralela y la regeneración por
@@ -586,13 +694,16 @@ export async function POST(req: Request) {
   // 1) Crisis/abuso desde la moderación de entrada → plantilla fija. Gana sobre
   //    todo; la generación paralela se descarta (NO se persiste).
   if (inputMod.mappedFlag === "crisis" || inputMod.mappedFlag === "abuso") {
+    // Se captura el flag ya narrowed en una const: el after() difiere la llamada
+    // y TS no preserva el narrowing de una propiedad dentro del closure.
+    const alertCategory = inputMod.mappedFlag;
     const eventId = await recordSafetyEvent(
       inputMod.topCategory ?? inputMod.mappedFlag,
       `moderation-input:${inputMod.source}`,
     );
     const reply = crisisReply(inputMod.mappedFlag);
     const assistantMessageId = await saveAssistant(reply, "derivacion");
-    await alertGuardianSafely(eventId, inputMod.mappedFlag);
+    after(() => alertGuardianSafely(eventId, alertCategory));
     logInteraction("crisis-template", {
       moderationInput: inputMod,
       safetyFlagFinal: "derivacion",
@@ -672,7 +783,8 @@ export async function POST(req: Request) {
     const finalFlag = outputMod.mappedFlag ?? "moderation-output";
     const assistantMessageId = await saveAssistant(safe, finalFlag);
     if (outputMod.mappedFlag === "crisis" || outputMod.mappedFlag === "abuso") {
-      await alertGuardianSafely(eventId, outputMod.mappedFlag);
+      const alertCategory = outputMod.mappedFlag; // narrowing para el closure
+      after(() => alertGuardianSafely(eventId, alertCategory));
     }
     logInteraction("moderation-replaced-output", {
       model: chatModelId(),
@@ -713,7 +825,8 @@ export async function POST(req: Request) {
         decision.action === "replace" &&
         (decision.flag === "crisis" || decision.flag === "abuso")
       ) {
-        await alertGuardianSafely(eventId, decision.flag);
+        const alertCategory = decision.flag; // narrowing para el closure
+        after(() => alertGuardianSafely(eventId, alertCategory));
       }
       logInteraction("moderation-unavailable", {
         model: chatModelId(),
@@ -735,10 +848,11 @@ export async function POST(req: Request) {
   let finalText = outputText;
 
   // Recordatorio periódico de IA (M-F3): determinístico, cada 10 respuestas
-  // del asistente en esta conversación (la que sale ahora es count + 1).
-  const assistantCount = await prisma.message.count({
-    where: { conversationId, role: "assistant" },
-  });
+  // del asistente en esta conversación (la que sale ahora es count + 1). El
+  // conteo ya vino en el _count de activeConv (misma query del contexto): en el
+  // path normal no se persiste ninguna respuesta del asistente entre esa lectura
+  // y acá, así que el valor es el mismo que un count fresco, sin query extra.
+  const assistantCount = activeConv?._count.messages ?? 0;
   if (shouldAppendDisclosure(assistantCount)) {
     finalText += DISCLOSURE_TEXT;
   }

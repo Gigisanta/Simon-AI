@@ -66,9 +66,26 @@ export default function Home() {
   const { data: session, isPending } = useSession();
 
   if (isPending) {
+    // Shell estable (header + skeleton del chat) para no saltar el layout cuando
+    // resuelve la sesión: mismo esqueleto que la vista autenticada.
     return (
-      <div className="flex flex-1 items-center justify-center">
-        <p className="text-base text-ink-soft motion-safe:animate-pulse">Cargando…</p>
+      <div className="flex h-dvh flex-col">
+        <SiteHeader />
+        <main className="flex min-h-0 flex-1 flex-col">
+          <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col px-3 pb-3 sm:px-4 sm:pb-4">
+            <div
+              aria-hidden="true"
+              className="mt-3 h-9 rounded-2xl border border-accent/60 bg-peach/50 motion-safe:animate-pulse"
+            />
+            <div
+              aria-hidden="true"
+              className="mt-3 flex-1 rounded-card border border-line bg-card shadow-card motion-safe:animate-pulse"
+            />
+            <span className="sr-only" role="status">
+              Cargando…
+            </span>
+          </div>
+        </main>
       </div>
     );
   }
@@ -79,7 +96,7 @@ export default function Home() {
         <div className="flex max-w-xl flex-col items-center gap-5 text-center">
           <SimonAvatar className="size-16" />
           <HeroIllustration />
-          <h1 className="text-[32px] font-extrabold leading-[1.25] tracking-[-1px] text-ink sm:text-[40px]">
+          <h1 className="text-3xl font-extrabold leading-[1.25] tracking-[-1px] text-ink sm:text-4xl">
             Llegaste a un lugar que te entiende
           </h1>
           <p className="max-w-md text-base text-ink-soft">
@@ -105,7 +122,7 @@ export default function Home() {
     <div className="flex h-dvh flex-col">
       <SiteHeader />
       <main
-        className={`flex min-h-0 flex-1 flex-col ${hasBottomNav ? "pb-20 md:pb-0" : ""}`}
+        className={`flex min-h-0 flex-1 flex-col ${hasBottomNav ? "pb-24 md:pb-0" : ""}`}
       >
         <Chat />
       </main>

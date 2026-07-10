@@ -19,7 +19,7 @@ export function BottomNav() {
   return (
     <nav
       aria-label="Navegación principal"
-      className="fixed inset-x-0 bottom-3 z-40 mx-auto flex w-fit max-w-[calc(100%-1.5rem)] items-center gap-1 rounded-full border border-line/70 bg-card/85 px-2 py-1 shadow-[0_10px_30px_-12px_rgb(57_53_41/0.3)] backdrop-blur md:hidden"
+      className="fixed inset-x-0 bottom-3 z-40 mx-auto flex w-fit max-w-[calc(100%-1.5rem)] items-center gap-1 rounded-full border border-line/70 bg-card/85 px-2 py-1 shadow-card backdrop-blur md:hidden"
       style={{ paddingBottom: "max(0.25rem, env(safe-area-inset-bottom))" }}
     >
       {items.map((item) => {
@@ -39,7 +39,7 @@ export function BottomNav() {
               <item.Icon className="size-4" />
             </span>
             <span
-              className={`text-[11px] font-bold ${active ? "text-ink" : "text-ink-soft"}`}
+              className={`text-xs font-bold ${active ? "text-ink" : "text-ink-soft"}`}
             >
               {item.label}
             </span>

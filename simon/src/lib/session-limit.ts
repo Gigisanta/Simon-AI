@@ -22,6 +22,22 @@ export function sessionLimitApplies(role: string | null | undefined): boolean {
   return role === "child";
 }
 
+/**
+ * M-F1 (disclosure de IA en el primer mensaje de la sesión): ¿este mensaje abre
+ * una sesión nueva? Lo es cuando NO hubo respuesta del asistente dentro de la
+ * última ventana de gap (SESSION_GAP_MS): un silencio ≥30 min abre una sesión
+ * nueva, con el mismo criterio de corte de racha que `sessionState`.
+ * `assistantTimestamps` son los createdAt de los mensajes assistant recientes
+ * del usuario. Función pura — testeada en scripts/memory-suite.ts.
+ */
+export function isFirstOfSession(assistantTimestamps: Date[], now: Date): boolean {
+  const nowMs = now.getTime();
+  return !assistantTimestamps.some((t) => {
+    const ms = t.getTime();
+    return Number.isFinite(ms) && ms <= nowMs && nowMs - ms < SESSION_GAP_MS;
+  });
+}
+
 export function sessionState(
   messageTimestamps: Date[],
   now: Date,

@@ -21,7 +21,7 @@ Estilo:
 - Español rioplatense (vos/tenés), simple y directo. Frases cortas. Nada de jerga clínica sin explicar.
 - Cálido pero no infantilizante. Sin emojis en exceso (máximo uno por respuesta).
 - Adaptá la complejidad a la edad de la persona: si es chica/o (te dice su edad o se nota por cómo escribe), usá frases muy cortas y concretas, una idea por vez y preguntas simples y directas; con adolescentes podés elaborar un poco más. Ajustar el lenguaje NO es hablarle como a un bebé.
-- Respuestas breves: 2 a 4 párrafos como máximo. Preferís preguntar antes que suponer.
+- Respuestas breves: 2 a 4 párrafos como máximo (este tope puede extenderse cuando el ajuste para tutores/as adultos lo indica). Preferís preguntar antes que suponer.
 - Cuando citás un derecho o trámite argentino, mencionás la fuente (ley u organismo) si la tenés en el contexto.
 
 Sobre el contexto:
@@ -107,10 +107,53 @@ export function selectRelevantCards(
   return scored.slice(0, max).map((s) => s.card);
 }
 
+/**
+ * M-F1: instrucción para que el PRIMER mensaje de una sesión nueva se presente
+ * como IA en una sola frase. Se antepone (server-side) solo cuando la ruta
+ * detecta que abre sesión. Texto acotado a una frase de presentación.
+ */
+export const FIRST_OF_SESSION_INSTRUCTION = `PRIMER MENSAJE DE ESTA SESIÓN (M-F1): es el comienzo de una charla nueva. En tu PRIMERA respuesta, presentate en UNA sola frase, con naturalidad y calidez, dejando claro que sos una inteligencia artificial (no una persona) — por ejemplo: "Hola, soy Simón, una inteligencia artificial que te acompaña para charlar". Después seguí normal con lo que la persona traiga. NO repitas esta presentación en los mensajes siguientes de la sesión.`;
+
+/**
+ * Registro del lenguaje según la franja etaria (research §7.1): límites
+ * numéricos concretos de longitud de oración, cantidad de ideas y nivel de
+ * vocabulario. Solo se aplica cuando hay una edad válida (la ruta la deriva del
+ * año de nacimiento y la valida en rango); si no, la PERSONA usa su heurística.
+ * Función pura — testeada en scripts/memory-suite.ts.
+ */
+export function ageRegisterInstruction(age: number): string {
+  let limite: string;
+  if (age <= 9) {
+    // 6–9 (y menores 4–5 por holgura): A1, oraciones muy cortas, sin condicionales.
+    limite =
+      "Máximo 8 palabras por oración y 1 o 2 oraciones por respuesta. Vocabulario muy simple (nivel A1). NO uses oraciones condicionales (nada de \"si... entonces...\"). Hacé una sola pregunta por respuesta.";
+  } else if (age <= 13) {
+    // 10–13: A2.
+    limite =
+      "Máximo 12 palabras por oración. Vocabulario simple (nivel A2). Hacé una sola pregunta por respuesta.";
+  } else {
+    // 14–18 (y 19 por holgura): B1.
+    limite =
+      "Máximo 15 palabras por oración. Vocabulario cotidiano claro (nivel B1).";
+  }
+  return `REGISTRO SEGÚN LA EDAD (la persona tiene ${age} años): ${limite} Ajustar el lenguaje NO es hablarle como a un bebé: seguí cálido y respetuoso.`;
+}
+
 export function buildSystemPrompt(opts: {
   cards: KnowledgeCard[];
   memories: UserMemory[];
   userName?: string;
+  /**
+   * M-F1: true cuando este mensaje abre una sesión nueva (la ruta lo deriva de
+   * la ventana de sesión). Antepone la instrucción de presentarse como IA.
+   */
+  firstOfSession?: boolean;
+  /**
+   * Edad (años) de la persona, ya validada en rango razonable por la ruta.
+   * Cuando está presente, inyecta el bloque de registro etario con límites
+   * numéricos concretos. `undefined` → sin bloque (la PERSONA usa su heurística).
+   */
+  age?: number;
   /**
    * Resúmenes de conversaciones pasadas ya cerradas (capa 2 de memoria).
    * Se inyectan hasta 3 (route.ts hace findMany take 3).
@@ -131,6 +174,16 @@ export function buildSystemPrompt(opts: {
   // PERSONA base no se toca; el addendum va inmediatamente después.
   if (opts.role === "guardian") {
     parts.push(GUARDIAN_PERSONA_ADDENDUM);
+  }
+
+  // §7.1: registro etario con límites numéricos (solo si hay edad válida).
+  if (typeof opts.age === "number") {
+    parts.push(ageRegisterInstruction(opts.age));
+  }
+
+  // M-F1: presentación como IA en el primer mensaje de la sesión.
+  if (opts.firstOfSession) {
+    parts.push(FIRST_OF_SESSION_INSTRUCTION);
   }
 
   if (opts.userName) {

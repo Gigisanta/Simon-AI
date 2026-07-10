@@ -24,17 +24,22 @@ export async function GET(req: Request) {
       id: true,
       updatedAt: true,
       messages: {
-        orderBy: { createdAt: "asc" },
+        // Los 40 mensajes MÁS RECIENTES (desc + take), no los 40 más viejos:
+        // en una charla larga se retoma el final, no el principio. Se revierten
+        // a orden cronológico (asc) más abajo, que es lo que espera el cliente
+        // (chat.tsx renderiza el array en orden, viejo → nuevo).
+        orderBy: { createdAt: "desc" },
         take: 40,
         select: { id: true, role: true, content: true },
       },
     },
   });
 
-  // Solo se retoman turnos de conversación reales ("user"/"assistant").
-  const messages = (conversation?.messages ?? []).filter(
-    (m) => m.role === "user" || m.role === "assistant",
-  );
+  // Solo se retoman turnos de conversación reales ("user"/"assistant"), en orden
+  // cronológico (se revierte el desc de la query).
+  const messages = (conversation?.messages ?? [])
+    .filter((m) => m.role === "user" || m.role === "assistant")
+    .reverse();
 
   // Sin conversación o demasiado corta para valer la pena retomarla.
   if (!conversation || messages.length < 2) {

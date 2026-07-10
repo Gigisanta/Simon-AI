@@ -40,11 +40,13 @@ const GROUP_ORDER = ["Hoy", "Ayer", "Anteriores"] as const;
  */
 export function ConversationList({
   open,
+  currentConversationId,
   onClose,
   onOpenConversation,
   onNewConversation,
 }: {
   open: boolean;
+  currentConversationId: string | null;
   onClose: () => void;
   onOpenConversation: (detail: ConversationDetail) => void;
   onNewConversation: () => void;
@@ -56,6 +58,7 @@ export function ConversationList({
   // Confirmación inline de borrado (NO window.confirm: bloquea el hilo).
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [openingId, setOpeningId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -103,14 +106,21 @@ export function ConversationList({
   }
 
   async function handleDelete(id: string) {
+    // Previene doble-submit mientras el fetch está en vuelo.
+    if (deletingId) return;
+    setDeletingId(id);
     try {
       const res = await fetch(`/api/conversations/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error(String(res.status));
       setItems((prev) => prev?.filter((c) => c.id !== id) ?? null);
+      // Si se borró la conversación abierta, reseteamos el chat para que el ref
+      // no apunte a un id inexistente (evita reanudar sobre datos borrados).
+      if (id === currentConversationId) onNewConversation();
     } catch {
       setError(true);
     } finally {
       setConfirmId(null);
+      setDeletingId(null);
     }
   }
 
@@ -164,7 +174,7 @@ export function ConversationList({
             )}
 
             {!loading && error && (
-              <div className="flex flex-col items-center gap-4 py-10 text-center">
+              <div role="alert" className="flex flex-col items-center gap-4 py-10 text-center">
                 <p className="max-w-sm text-base text-ink">
                   No pudimos cargar tus conversaciones. Puede ser un problema de
                   conexión.
@@ -207,10 +217,15 @@ export function ConversationList({
                         {group}
                       </h3>
                       <ul className="flex flex-col gap-2">
-                        {groupItems.map((c) => (
+                        {groupItems.map((c) => {
+                          const isCurrent = c.id === currentConversationId;
+                          return (
                           <li
                             key={c.id}
-                            className="flex items-stretch gap-1 rounded-card border border-line bg-card shadow-[0_10px_30px_-12px_rgb(57_53_41/0.12)]"
+                            aria-current={isCurrent ? "true" : undefined}
+                            className={`flex items-stretch gap-1 rounded-card border bg-card shadow-card ${
+                              isCurrent ? "border-brand" : "border-line"
+                            }`}
                           >
                             <button
                               type="button"
@@ -221,10 +236,16 @@ export function ConversationList({
                               <span className="line-clamp-1 text-base font-bold text-ink">
                                 {c.title}
                               </span>
-                              <span className="text-xs text-ink-soft">
+                              <span
+                                className={`text-xs ${
+                                  isCurrent ? "font-bold text-brand-strong" : "text-ink-soft"
+                                }`}
+                              >
                                 {openingId === c.id
                                   ? "Abriendo…"
-                                  : relativeTime(c.updatedAt)}
+                                  : isCurrent
+                                    ? "Conversación actual"
+                                    : relativeTime(c.updatedAt)}
                               </span>
                             </button>
 
@@ -233,14 +254,16 @@ export function ConversationList({
                                 <button
                                   type="button"
                                   onClick={() => void handleDelete(c.id)}
-                                  className="min-h-11 rounded-full px-3 text-sm font-bold text-danger transition-colors hover:bg-sand"
+                                  disabled={deletingId === c.id}
+                                  className="min-h-11 rounded-full px-3 text-sm font-bold text-danger transition-colors hover:bg-sand disabled:opacity-50"
                                 >
-                                  Borrar
+                                  {deletingId === c.id ? "Borrando…" : "Borrar"}
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => setConfirmId(null)}
-                                  className="min-h-11 rounded-full px-3 text-sm font-bold text-ink-soft transition-colors hover:bg-sand"
+                                  disabled={deletingId === c.id}
+                                  className="min-h-11 rounded-full px-3 text-sm font-bold text-ink-soft transition-colors hover:bg-sand disabled:opacity-50"
                                 >
                                   No
                                 </button>
@@ -261,7 +284,8 @@ export function ConversationList({
                               </button>
                             )}
                           </li>
-                        ))}
+                          );
+                        })}
                       </ul>
                     </section>
                   );

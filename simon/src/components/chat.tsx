@@ -53,8 +53,8 @@ const CHILD_QUICK_STARTS: QuickStart[] = [
   {
     label: "CÓMO ME SIENTO",
     message: "Quiero contarte cómo me siento hoy",
-    circle: "bg-peach-tint text-terra",
-    kicker: "text-terra",
+    circle: "bg-brand-soft text-brand-strong",
+    kicker: "text-brand-strong",
     icon: (
       <svg {...quickStartIconProps}>
         <path d="M20.8 8.6c0 4.4-8.8 10-8.8 10s-8.8-5.6-8.8-10a4.6 4.6 0 0 1 8.8-1.9A4.6 4.6 0 0 1 20.8 8.6z" />
@@ -64,8 +64,8 @@ const CHILD_QUICK_STARTS: QuickStart[] = [
   {
     label: "ALGO ME PREOCUPA",
     message: "Hay algo que me preocupa y quiero hablarlo",
-    circle: "bg-sky-tint text-tramites",
-    kicker: "text-tramites",
+    circle: "bg-brand-soft text-brand-strong",
+    kicker: "text-brand-strong",
     icon: (
       <svg {...quickStartIconProps}>
         <path d="M12 9v4M12 17h.01" />
@@ -76,8 +76,8 @@ const CHILD_QUICK_STARTS: QuickStart[] = [
   {
     label: "APRENDER",
     message: "Quiero entender mejor lo que me pasa",
-    circle: "bg-green-tint text-intel",
-    kicker: "text-intel",
+    circle: "bg-brand-soft text-brand-strong",
+    kicker: "text-brand-strong",
     icon: (
       <svg {...quickStartIconProps}>
         <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
@@ -92,8 +92,8 @@ const GUARDIAN_QUICK_STARTS: QuickStart[] = [
   {
     label: "TRÁMITES",
     message: "¿Cómo tramito el CUD?",
-    circle: "bg-sky-tint text-tramites",
-    kicker: "text-tramites",
+    circle: "bg-brand-soft text-brand-strong",
+    kicker: "text-brand-strong",
     icon: (
       <svg {...quickStartIconProps}>
         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -105,8 +105,8 @@ const GUARDIAN_QUICK_STARTS: QuickStart[] = [
   {
     label: "DERECHOS",
     message: "Derechos y prestaciones",
-    circle: "bg-green-tint text-intel",
-    kicker: "text-intel",
+    circle: "bg-brand-soft text-brand-strong",
+    kicker: "text-brand-strong",
     icon: (
       <svg {...quickStartIconProps}>
         <path d="M12 3 4 6v6c0 4.4 3.4 7.6 8 9 4.6-1.4 8-4.6 8-9V6z" />
@@ -117,8 +117,8 @@ const GUARDIAN_QUICK_STARTS: QuickStart[] = [
   {
     label: "ACOMPAÑAR",
     message: "Cómo acompañar a mi hijo/a",
-    circle: "bg-peach-tint text-terra",
-    kicker: "text-terra",
+    circle: "bg-brand-soft text-brand-strong",
+    kicker: "text-brand-strong",
     icon: (
       <svg {...quickStartIconProps}>
         <path d="M20.8 8.6c0 4.4-8.8 10-8.8 10s-8.8-5.6-8.8-10a4.6 4.6 0 0 1 8.8-1.9A4.6 4.6 0 0 1 20.8 8.6z" />
@@ -145,7 +145,13 @@ export function Chat() {
 
   const [input, setInput] = useState("");
   const [listOpen, setListOpen] = useState(false);
+  // Último texto enviado: sobrevive al vaciado del input para poder reintentar
+  // si el envío falla (el input se limpia de forma optimista al enviar).
+  const [lastText, setLastText] = useState("");
   const conversationIdRef = useRef<string | null>(null);
+  // Espejo en state del id de conversación (el ref no dispara render): se
+  // deriva al abrir la lista para marcar la fila actual y resetear si se borra.
+  const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   // Lazy init: se crea una sola vez y es estable entre renders. El ref
@@ -255,6 +261,7 @@ export function Chat() {
 
   function send(text: string) {
     if (!text || busy) return;
+    setLastText(text);
     void sendMessage({ text });
   }
 
@@ -287,7 +294,7 @@ export function Chat() {
       )}
 
       {/* Tarjeta principal del chat (estilo simon-mocha) */}
-      <div className="mt-3 flex flex-1 flex-col overflow-hidden rounded-card border border-line bg-card shadow-[0_10px_30px_-12px_rgb(57_53_41/0.15)]">
+      <div className="mt-3 flex flex-1 flex-col overflow-hidden rounded-card border border-line bg-card shadow-card">
         {/* Header del chat */}
         <div className="flex items-center justify-between gap-2 border-b border-line px-3 py-2.5 sm:px-4 sm:py-3">
           {/* Identidad: duplica el SiteHeader → solo en md+ (F1.3) */}
@@ -313,7 +320,11 @@ export function Chat() {
             </button>
             <button
               type="button"
-              onClick={() => setListOpen(true)}
+              onClick={() => {
+                // Captura el id vigente (ref) para marcar la fila actual.
+                setCurrentConversationId(conversationIdRef.current);
+                setListOpen(true);
+              }}
               aria-label="Ver conversaciones"
               className="flex size-11 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-sand hover:text-ink"
             >
@@ -335,7 +346,7 @@ export function Chat() {
           {messages.length === 0 && (
             <div className="my-auto flex flex-col items-center gap-7 py-8">
               {resumable && (
-                <div className="w-full max-w-sm rounded-card bg-card p-4 text-center shadow-[0_10px_30px_-12px_rgb(57_53_41/0.15)]">
+                <div className="w-full max-w-sm rounded-card bg-card p-4 text-center shadow-card">
                   <p className="text-base font-bold text-ink">
                     ¿Seguimos donde quedamos?
                   </p>
@@ -398,7 +409,7 @@ export function Chat() {
                       key={item.label}
                       type="button"
                       onClick={() => send(item.message)}
-                      className="flex min-h-11 flex-col items-start gap-2 rounded-card bg-card p-4 text-left shadow-[0_10px_30px_-12px_rgb(57_53_41/0.15)] transition-[transform,box-shadow] motion-safe:hover:-translate-y-0.5 motion-safe:hover:shadow-[0_16px_36px_-14px_rgb(57_53_41/0.22)]"
+                      className="flex min-h-11 flex-col items-start gap-2 rounded-card bg-card p-4 text-left shadow-card transition-[transform,box-shadow] motion-safe:hover:-translate-y-0.5 motion-safe:hover:shadow-card-hover"
                     >
                       <span
                         className={`flex size-10 items-center justify-center rounded-full ${item.circle}`}
@@ -406,7 +417,7 @@ export function Chat() {
                         {item.icon}
                       </span>
                       <span
-                        className={`text-[11px] font-extrabold uppercase tracking-wide ${item.kicker}`}
+                        className={`text-xs font-extrabold uppercase tracking-wide ${item.kicker}`}
                       >
                         {item.label}
                       </span>
@@ -478,9 +489,20 @@ export function Chat() {
             </div>
           )}
           {error && (
-            <p className="self-center text-base font-semibold text-danger">
-              Hubo un problema. Probá enviar tu mensaje de nuevo.
-            </p>
+            <div className="self-center flex flex-col items-center gap-2 text-center">
+              <p className="text-base font-semibold text-danger">
+                Hubo un problema al enviar tu mensaje. No se perdió lo que escribiste.
+              </p>
+              {lastText && (
+                <button
+                  type="button"
+                  onClick={() => send(lastText)}
+                  className="min-h-11 rounded-full bg-brand px-5 text-sm font-bold text-brand-fg transition-colors hover:bg-brand-strong"
+                >
+                  Reintentar
+                </button>
+              )}
+            </div>
           )}
           <div ref={bottomRef} />
         </div>
@@ -488,7 +510,7 @@ export function Chat() {
         <div className="border-t border-line bg-card px-3 pb-3 pt-3 sm:px-4">
           <form onSubmit={handleSubmit} className="flex items-center gap-2">
             <input
-              className="min-h-11 flex-1 rounded-full border border-line bg-white px-5 text-base text-ink outline-none placeholder:text-ink-soft focus:border-brand"
+              className="min-h-11 flex-1 rounded-full border border-line bg-card px-5 text-base text-ink outline-none placeholder:text-ink-soft focus:border-brand"
               placeholder="Contale a Simón lo que estás viviendo…"
               aria-label="Tu mensaje para Simón"
               value={input}
@@ -526,6 +548,7 @@ export function Chat() {
 
       <ConversationList
         open={listOpen}
+        currentConversationId={currentConversationId}
         onClose={() => setListOpen(false)}
         onOpenConversation={handleOpenConversation}
         onNewConversation={handleNewConversation}

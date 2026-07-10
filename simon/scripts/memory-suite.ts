@@ -16,6 +16,9 @@
  */
 import { DISCLOSURE_TEXT, shouldAppendDisclosure } from "../src/lib/safety";
 import {
+  isFirstOfSession,
+  SESSION_GAP_MS,
+  SESSION_OVER_MS,
   SESSION_LIMIT_REPLY,
   SESSION_WARN_APPENDIX,
   sessionState,
@@ -97,6 +100,37 @@ check(sessionState(messy, now) === "warn", "session: timestamps desordenados/fut
 
 check(SESSION_LIMIT_REPLY.length > 0 && SESSION_WARN_APPENDIX.startsWith("\n\n"),
   "session: textos de cierre/aviso definidos");
+
+// Bypass M-S7 (regresión): una ráfaga de mensajes de alta frecuencia (>60 en la
+// ventana) NO debe eludir el corte a los 45 min. Con la ventana temporal de la
+// ruta (SESSION_OVER_MS + SESSION_GAP_MS) y SIN take, la función pura ve TODA la
+// racha y devuelve "over". 68 mensajes en 46 min (~1.5 msg/min): el take:60
+// anterior habría truncado a los ~40 min y devuelto "warn" — el bug.
+const burstMs = SESSION_OVER_MS + 60_000; // 46 min de racha continua
+const burst = Array.from({ length: 68 }, (_, i) =>
+  new Date(now.getTime() - Math.round((burstMs * i) / 67)),
+);
+check(sessionState(burst, now) === "over",
+  "session: ráfaga de 68 mensajes en 46 min → over (no se elude el límite)");
+// La cota temporal de 75 min alcanza para ver el cruce del umbral de 45 min.
+check(SESSION_OVER_MS + SESSION_GAP_MS === 75 * 60_000,
+  "session: ventana de consulta = 75 min (over + gap)");
+
+// isFirstOfSession (M-F1): ¿el mensaje abre una sesión nueva?
+check(isFirstOfSession([], now) === true,
+  "first-of-session: sin respuestas del asistente → primer mensaje");
+check(isFirstOfSession([min(5)], now) === false,
+  "first-of-session: respuesta hace 5 min → NO es el primero");
+check(isFirstOfSession([min(29)], now) === false,
+  "first-of-session: respuesta hace 29 min (< gap) → NO es el primero");
+check(isFirstOfSession([min(30)], now) === true,
+  "first-of-session: respuesta hace 30 min exactos (= gap) → sesión nueva");
+check(isFirstOfSession([min(31)], now) === true,
+  "first-of-session: respuesta hace 31 min (> gap) → sesión nueva");
+check(
+  isFirstOfSession([new Date(now.getTime() + 60_000), min(50)], now) === true,
+  "first-of-session: futuros espurios ignorados, última real hace 50 min → nueva",
+);
 
 // ---------- 3. Sanitización del resumen en el system prompt ----------
 

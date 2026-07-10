@@ -81,6 +81,15 @@ export async function POST(req: Request) {
   // Username duplicado → 409. (signUpEmail oculta duplicados por protección de
   // enumeración cuando requireEmailVerification está activo, así que chequeamos
   // acá explícitamente para dar un mensaje claro.)
+  //
+  // ENUMERACIÓN (SEC, residual aceptado): este 409 revela que un username de
+  // menor ya existe. Es un chequeo de DISPONIBILIDAD de usuario, imprescindible
+  // para el onboarding (el tutor/a necesita saber que debe elegir otro); no se
+  // puede "normalizar" sin romper esa UX. El leak es mínimo (solo existencia de
+  // un handle de login, sin nombre ni dueño) y está acotado: endpoint
+  // autenticado como guardian (requireGuardian), rate-limit por tutor/a
+  // (CREATE_RATE_LIMIT_PER_MINUTE) y body que debe pasar zod completo. El login
+  // y el signup público NO son oráculos: better-auth normaliza sus errores.
   const existing = await prisma.user.findUnique({
     where: { email },
     select: { id: true },

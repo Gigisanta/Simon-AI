@@ -34,8 +34,13 @@
   --color-blush: #f2c4a7;
   --color-sky: #c2e0f2;
   --color-sky-strong: #5b8caf;
-  --color-danger: #d9544b;
+  --color-danger: #c23f36;
+  --color-danger-strong: #a5322b;
   --radius-card: 1.25rem;
+
+  /* Sombra de tarjeta canónica (una sola fuente de verdad, design system) */
+  --shadow-card: 0 10px 30px -12px rgb(57 53 41 / 0.15);
+  --shadow-card-hover: 0 16px 36px -14px rgb(57 53 41 / 0.22);
 
   /* Tints de feature cards (36px, sin borde) */
   --color-peach-tint: #fbe9dc;
@@ -57,14 +62,13 @@
   --font-sans: var(--font-nunito);
 }
 
-/* Fallback detrás del gradiente fixed (iOS Safari lo ignora en scroll largo) */
+/* Fondo crema plano (objetivo del proyecto: blanco + contraste oscuro, sin gradientes) */
 html {
   background: var(--color-cream);
 }
 
 body {
-  /* Wash vertical de fondo (design system): cálido -> verde suave -> cálido */
-  background: linear-gradient(180deg, #f7f2e5 0%, #eef0dd 45%, #f6efe2 100%) fixed;
+  background: var(--color-cream);
   color: var(--foreground);
   font-family: var(--font-nunito), ui-sans-serif, system-ui, sans-serif;
 }

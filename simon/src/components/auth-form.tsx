@@ -25,7 +25,7 @@ type Audience = "adult" | "child";
 type Mode = "signin" | "signup";
 
 const inputClass =
-  "min-h-11 rounded-2xl border border-line bg-white px-4 text-base text-ink outline-none placeholder:text-ink-soft focus:border-brand";
+  "min-h-11 rounded-2xl border border-line bg-card px-4 text-base text-ink outline-none placeholder:text-ink-soft focus:border-brand";
 
 export function AuthForm() {
   const [audience, setAudience] = useState<Audience>("adult");
@@ -86,11 +86,13 @@ export function AuthForm() {
     }`;
 
   return (
-    <div className="w-full max-w-sm mx-auto rounded-card border border-line bg-card p-6 shadow-[0_10px_30px_-12px_rgb(57_53_41/0.15)]">
+    <div className="w-full max-w-sm mx-auto rounded-card border border-line bg-card p-6 shadow-card">
       {/* --- Tabs de audiencia --- */}
-      <div className="mb-5 flex gap-1 rounded-full bg-sand p-1">
+      <div role="tablist" aria-label="Tipo de cuenta" className="mb-5 flex gap-1 rounded-full bg-sand p-1">
         <button
           type="button"
+          role="tab"
+          aria-selected={audience === "adult"}
           onClick={() => switchAudience("adult")}
           className={tabClass(audience === "adult")}
         >
@@ -98,6 +100,8 @@ export function AuthForm() {
         </button>
         <button
           type="button"
+          role="tab"
+          aria-selected={audience === "child"}
           onClick={() => switchAudience("child")}
           className={tabClass(audience === "child")}
         >
@@ -175,7 +179,7 @@ export function AuthForm() {
           }
         />
 
-        {error && <p className="text-sm font-semibold text-danger">{error}</p>}
+        {error && <p role="alert" className="text-sm font-semibold text-danger">{error}</p>}
 
         <button
           type="submit"

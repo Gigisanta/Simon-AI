@@ -25,7 +25,14 @@ export function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
 }
 
-/** Presupuesto por bucket, en tokens estimados. */
+/**
+ * Presupuesto por bucket, en tokens estimados.
+ *
+ * INVARIANTE CROSS-FILE: `rollingSummary` * 4 (≈ chars) debe ser ≥
+ * MAX_ROLLING_SUMMARY_CHARS (memory.ts, hoy 1200). Con 500 → 2000 ≥ 1200: el
+ * rolling summary generado entra siempre en su presupuesto y trimRollingSummary
+ * no lo recorta en el camino normal (solo actúa ante entradas anómalas).
+ */
 export const CONTEXT_BUDGETS = {
   pastSummaries: 600,
   memories: 400,
@@ -102,7 +109,18 @@ export function trimRollingSummary(
 ): string | undefined {
   if (!summary || !summary.trim()) return undefined;
   if (estimateTokens(summary) <= budget) return summary;
-  return summary.slice(0, budget * 4);
+  const hardCut = summary.slice(0, budget * 4);
+  // Preferimos cortar en el último final de oración dentro del tope, para no
+  // partir una palabra ni una idea a la mitad. Si el texto no tiene ningún
+  // límite de oración (sin puntuación), se cae al corte crudo por caracteres.
+  const boundary = Math.max(
+    hardCut.lastIndexOf(". "),
+    hardCut.lastIndexOf(".\n"),
+    hardCut.lastIndexOf("! "),
+    hardCut.lastIndexOf("? "),
+    hardCut.lastIndexOf("… "),
+  );
+  return boundary > 0 ? hardCut.slice(0, boundary + 1) : hardCut;
 }
 
 /**

@@ -19,7 +19,7 @@ const maxYear = currentYear - MIN_CHILD_AGE;
 
 // Tokens compartidos con auth-form/chat (design system simon-mocha, touch ≥44px).
 const inputClass =
-  "min-h-11 rounded-2xl border border-line bg-white px-4 text-base text-ink outline-none placeholder:text-ink-soft focus:border-brand";
+  "min-h-11 rounded-2xl border border-line bg-card px-4 text-base text-ink outline-none placeholder:text-ink-soft focus:border-brand";
 
 /** Mensaje de error de una respuesta de API (o un fallback). */
 async function apiError(res: Response, fallback: string): Promise<string> {
@@ -135,7 +135,7 @@ function ChildCard({ child, onChanged }: { child: ChildRow; onChanged(): void })
       </div>
 
       {confirming && (
-        <div className="mt-2 rounded-2xl border border-danger/40 bg-red-50 p-4 text-red-900">
+        <div className="mt-2 rounded-2xl border border-danger/40 bg-danger/10 p-4 text-ink">
           <p>
             Se borra la cuenta de <strong>{child.name}</strong> y{" "}
             <strong>todos sus datos</strong> (conversaciones, memorias y eventos
@@ -146,7 +146,7 @@ function ChildCard({ child, onChanged }: { child: ChildRow; onChanged(): void })
               type="button"
               onClick={deleteChild}
               disabled={pending}
-              className="min-h-11 rounded-full bg-danger px-4 py-1.5 font-bold text-white hover:bg-red-700 disabled:opacity-50"
+              className="min-h-11 rounded-full bg-danger px-4 py-1.5 font-bold text-white hover:bg-danger-strong disabled:opacity-50"
             >
               {pending ? "Eliminando…" : "Sí, eliminar definitivamente"}
             </button>
@@ -162,7 +162,7 @@ function ChildCard({ child, onChanged }: { child: ChildRow; onChanged(): void })
         </div>
       )}
 
-      {error && <p className="mt-2 font-semibold text-danger">{error}</p>}
+      {error && <p role="alert" className="mt-2 font-semibold text-danger">{error}</p>}
     </li>
   );
 }
@@ -262,7 +262,7 @@ export function TutorPanel({
       </section>
 
       {/* --- Alta de menor + consentimiento --- */}
-      <section className="mt-8 rounded-card border border-line bg-card p-6 shadow-[0_10px_30px_-12px_rgb(57_53_41/0.15)]">
+      <section className="mt-8 rounded-card border border-line bg-card p-6 shadow-card">
         <h2 className="text-lg font-extrabold text-ink">Dar de alta a un menor</h2>
 
         <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-3">
@@ -345,7 +345,7 @@ export function TutorPanel({
               <li>Podés pedir la baja de la cuenta y de los datos cuando quieras.</li>
             </ul>
 
-            <label className="mt-3 flex items-start gap-2">
+            <label className="mt-3 flex min-h-11 items-start gap-2">
               <input
                 type="checkbox"
                 checked={consent}
@@ -359,8 +359,8 @@ export function TutorPanel({
             </label>
           </div>
 
-          {error && <p className="text-sm font-semibold text-danger">{error}</p>}
-          {ok && <p className="text-sm font-semibold text-brand-strong">{ok}</p>}
+          {error && <p role="alert" className="text-sm font-semibold text-danger">{error}</p>}
+          {ok && <p role="status" className="text-sm font-semibold text-brand-strong">{ok}</p>}
 
           <button
             type="submit"

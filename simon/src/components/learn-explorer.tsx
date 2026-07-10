@@ -101,7 +101,7 @@ export function LearnExplorer({ cards }: { cards: KnowledgeCardRow[] }) {
       </p>
 
       {/* --- Búsqueda --- */}
-      <div className="mt-6 flex items-center gap-2 rounded-full border border-line bg-white px-4 py-1 shadow-sm">
+      <div className="mt-6 flex items-center gap-2 rounded-full border border-line bg-card px-4 py-1 shadow-sm">
         <svg
           viewBox="0 0 24 24"
           fill="none"
@@ -169,7 +169,7 @@ export function LearnExplorer({ cards }: { cards: KnowledgeCardRow[] }) {
                 key={card.id}
                 type="button"
                 onClick={() => openCard(card)}
-                className={`rounded-card rounded-l-[26px] border-l-[6px] bg-card p-5 text-left shadow-[0_10px_30px_-12px_rgb(57_53_41/0.15)] transition-[transform,box-shadow] motion-safe:hover:-translate-y-0.5 motion-safe:hover:shadow-[0_16px_36px_-14px_rgb(57_53_41/0.22)] ${style.arc}`}
+                className={`rounded-card rounded-l-[26px] border-l-[6px] bg-card p-5 text-left shadow-card transition-[transform,box-shadow] motion-safe:hover:-translate-y-0.5 motion-safe:hover:shadow-card-hover ${style.arc}`}
               >
                 <span
                   className={`text-xs font-extrabold uppercase tracking-wide ${style.kicker}`}
@@ -200,7 +200,7 @@ export function LearnExplorer({ cards }: { cards: KnowledgeCardRow[] }) {
               {selected.title}
             </h2>
             {!selected.reviewed && (
-              <span className="mt-2 inline-flex rounded-full bg-sand px-2.5 py-0.5 text-[11px] font-bold text-ink-soft">
+              <span className="mt-2 inline-flex rounded-full bg-sand px-2.5 py-0.5 text-xs font-bold text-ink-soft">
                 Contenido en revisión profesional
               </span>
             )}
