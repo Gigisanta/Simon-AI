@@ -97,6 +97,11 @@ const ChildCard = memo(function ChildCard({
   const [events, setEvents] = useState<SafetyEventRow[] | null>(null);
   const [eventsLoading, setEventsLoading] = useState(false);
   const [eventsError, setEventsError] = useState<string | null>(null);
+  // Paginación por cursor: `null` = no hay más páginas (oculta "ver más").
+  const [eventsCursor, setEventsCursor] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  // Error de "ver más" APARTE: un fallo al paginar no debe borrar lo ya cargado.
+  const [moreError, setMoreError] = useState<string | null>(null);
 
   // --- Descarga de datos (export) ---
   const [confirmingExport, setConfirmingExport] = useState(false);
@@ -108,27 +113,46 @@ const ChildCard = memo(function ChildCard({
   const eventsAbortRef = useRef<AbortController | null>(null);
   useEffect(() => () => eventsAbortRef.current?.abort(), []);
 
-  async function loadEvents() {
+  // Carga una página. Sin `cursor` = primera página (reemplaza); con `cursor` =
+  // "ver más" (anexa). El backend devuelve `{ events, nextCursor }` (cursor
+  // pagination de lib/safety-events.ts); `nextCursor === null` ⇒ no hay más.
+  async function loadEvents(cursor?: string) {
     eventsAbortRef.current?.abort();
     const controller = new AbortController();
     eventsAbortRef.current = controller;
-    setEventsError(null);
-    setEventsLoading(true);
+    if (cursor) {
+      setMoreError(null);
+      setLoadingMore(true);
+    } else {
+      setEventsError(null);
+      setEventsLoading(true);
+    }
     try {
-      const res = await fetch(`/api/guardian/children/${child.id}/safety-events`, {
-        signal: controller.signal,
-      });
+      const url = cursor
+        ? `/api/guardian/children/${child.id}/safety-events?cursor=${encodeURIComponent(cursor)}`
+        : `/api/guardian/children/${child.id}/safety-events`;
+      const res = await fetch(url, { signal: controller.signal });
       if (!res.ok) {
-        setEventsError(await apiError(res, "No se pudo cargar la actividad."));
+        const msg = await apiError(res, "No se pudo cargar la actividad.");
+        if (cursor) setMoreError(msg);
+        else setEventsError(msg);
         return;
       }
-      const data = (await res.json()) as { events: SafetyEventRow[] };
-      setEvents(data.events);
+      const data = (await res.json()) as {
+        events: SafetyEventRow[];
+        nextCursor: string | null;
+      };
+      setEvents((prev) => (cursor && prev ? [...prev, ...data.events] : data.events));
+      setEventsCursor(data.nextCursor);
     } catch (e) {
       if (e instanceof DOMException && e.name === "AbortError") return;
-      setEventsError("Error de conexión. Probá de nuevo.");
+      if (cursor) setMoreError("Error de conexión. Probá de nuevo.");
+      else setEventsError("Error de conexión. Probá de nuevo.");
     } finally {
-      if (!controller.signal.aborted) setEventsLoading(false);
+      if (!controller.signal.aborted) {
+        setEventsLoading(false);
+        setLoadingMore(false);
+      }
     }
   }
 
@@ -317,17 +341,34 @@ const ChildCard = memo(function ChildCard({
           ) : eventsError ? (
             <p role="alert" className="font-semibold text-danger">{eventsError}</p>
           ) : events && events.length > 0 ? (
-            <ul className="flex flex-col gap-2">
-              {events.map((e, i) => (
-                <li
-                  key={`${e.createdAt}-${i}`}
-                  className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5"
+            <>
+              <ul className="flex flex-col gap-2">
+                {events.map((e, i) => (
+                  <li
+                    key={`${e.createdAt}-${i}`}
+                    className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5"
+                  >
+                    <span className="font-semibold text-ink">{readableCategory(e.category)}</span>
+                    <span className="text-xs text-ink-soft">{formatDate(e.createdAt)}</span>
+                  </li>
+                ))}
+              </ul>
+              {eventsCursor && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!loadingMore) void loadEvents(eventsCursor);
+                  }}
+                  disabled={loadingMore}
+                  className="mt-2 inline-flex min-h-11 items-center font-semibold text-brand-strong underline-offset-2 hover:underline disabled:opacity-50"
                 >
-                  <span className="font-semibold text-ink">{readableCategory(e.category)}</span>
-                  <span className="text-xs text-ink-soft">{formatDate(e.createdAt)}</span>
-                </li>
-              ))}
-            </ul>
+                  {loadingMore ? "Cargando…" : "Ver más"}
+                </button>
+              )}
+              {moreError && (
+                <p role="alert" className="mt-1 font-semibold text-danger">{moreError}</p>
+              )}
+            </>
           ) : (
             <p className="text-ink-soft">
               No hay actividad de seguridad registrada. Es una buena señal.
