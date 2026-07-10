@@ -12,6 +12,7 @@
  * Camino crítico (retención de datos de menores + endpoint protegido): sale con
  * código 1 si algún caso falla (gate de CI).
  */
+import { createChecker } from "./suite-helpers";
 import {
   INTERACTION_LOG_TTL_DAYS,
   interactionLogTtlCutoff,
@@ -22,12 +23,7 @@ import {
 } from "../src/lib/retention";
 import { MEMORY_TTL_DAYS, memoryTtlCutoff } from "../src/lib/ai/memory";
 
-let passed = 0;
-const failures: string[] = [];
-function check(cond: boolean, note: string) {
-  if (cond) passed += 1;
-  else failures.push(`  ✗ ${note}`);
-}
+const { check, done } = createChecker("Retention suite");
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -151,10 +147,4 @@ const DAY_MS = 24 * 60 * 60 * 1000;
   );
 }
 
-const total = passed + failures.length;
-console.log(`\nRetention suite: ${passed}/${total} casos OK`);
-if (failures.length > 0) {
-  console.error(`\n${failures.length} FALLO(S):\n${failures.join("\n")}\n`);
-  process.exit(1);
-}
-console.log("Todos los casos pasaron.\n");
+done();

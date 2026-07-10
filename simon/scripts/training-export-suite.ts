@@ -10,6 +10,7 @@
  * PII o material de crisis al dataset. Se cubre cada rama. Sale con código 1 si
  * algún caso falla (gate en CI).
  */
+import { createChecker } from "./suite-helpers";
 import {
   buildTrainingExample,
   countPairs,
@@ -27,13 +28,7 @@ import {
   type ExportMessage,
 } from "../src/lib/training-export";
 
-let passed = 0;
-const failures: string[] = [];
-
-function check(cond: boolean, note: string) {
-  if (cond) passed += 1;
-  else failures.push(`  ✗ ${note}`);
-}
+const { check, done } = createChecker("Training export suite");
 
 const u = (content: string, flag: string | null = null): ExportMessage => ({
   role: "user",
@@ -189,10 +184,4 @@ const a = (content: string, flag: string | null = null): ExportMessage => ({
   check(metaSidecarPath("x") === "x.meta.jsonl", "meta: sin extensión → +.meta.jsonl");
 }
 
-const total = passed + failures.length;
-console.log(`\nTraining export suite: ${passed}/${total} casos OK`);
-if (failures.length > 0) {
-  console.error(`\n${failures.length} FALLO(S):\n${failures.join("\n")}\n`);
-  process.exit(1);
-}
-console.log("Todos los casos pasaron.\n");
+done();

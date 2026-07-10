@@ -17,15 +17,10 @@
 delete process.env.UPSTASH_REDIS_REST_URL;
 delete process.env.UPSTASH_REDIS_REST_TOKEN;
 
+import { createChecker } from "./suite-helpers";
 import { checkRateLimit, sweepBuckets, type Bucket } from "../src/lib/rate-limit";
 
-let passed = 0;
-const failures: string[] = [];
-
-function check(cond: boolean, note: string) {
-  if (cond) passed += 1;
-  else failures.push(`  ✗ ${note}`);
-}
+const { check, done } = createChecker("Rate-limit suite");
 
 const MINUTE = 60_000;
 const DAY = 24 * 60 * 60 * 1000;
@@ -93,7 +88,7 @@ async function testEnforcement() {
       "checkRateLimit: retry-after del rechazo está dentro de la ventana",
     );
   } else {
-    failures.push("  ✗ checkRateLimit: la 4ª llamada debió rechazarse");
+    check(false, "checkRateLimit: la 4ª llamada debió rechazarse");
   }
 }
 
@@ -151,13 +146,7 @@ async function main() {
   await testIndependentWindows();
   await testProdRequiresUpstash();
 
-  const total = passed + failures.length;
-  console.log(`\nRate-limit suite: ${passed}/${total} casos OK`);
-  if (failures.length > 0) {
-    console.error(`\n${failures.length} FALLO(S):\n${failures.join("\n")}\n`);
-    process.exit(1);
-  }
-  console.log("Todos los casos pasaron.\n");
+  done();
 }
 
 main();

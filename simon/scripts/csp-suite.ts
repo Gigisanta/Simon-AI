@@ -13,15 +13,10 @@
  *
  * Sale con código 1 si algún caso falla (sirve como gate en CI).
  */
+import { createChecker } from "./suite-helpers";
 import { buildCsp } from "../src/lib/csp";
 
-let passed = 0;
-const failures: string[] = [];
-
-function check(cond: boolean, note: string) {
-  if (cond) passed += 1;
-  else failures.push(`  ✗ ${note}`);
-}
+const { check, done } = createChecker("CSP suite");
 
 /** Extrae la directiva `name` completa de una cadena CSP. */
 function directive(csp: string, name: string): string | undefined {
@@ -92,10 +87,4 @@ const NONCE = "abc123==";
   check(!/\s{2,}/.test(csp), "formato: sin dobles espacios");
 }
 
-const total = passed + failures.length;
-console.log(`\nCSP suite: ${passed}/${total} casos OK`);
-if (failures.length > 0) {
-  console.error(`\n${failures.length} FALLO(S):\n${failures.join("\n")}\n`);
-  process.exit(1);
-}
-console.log("Todos los casos pasaron.\n");
+done();

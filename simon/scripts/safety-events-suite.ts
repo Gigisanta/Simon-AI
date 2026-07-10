@@ -17,6 +17,7 @@
  *
  * Sale con código 1 si algún caso falla (gate de CI).
  */
+import { createChecker } from "./suite-helpers";
 import {
   safetyEventsQuery,
   buildSafetyEventsPage,
@@ -26,13 +27,7 @@ import {
   type SafetyEventRow,
 } from "../src/lib/safety-events";
 
-let passed = 0;
-const failures: string[] = [];
-
-function check(cond: boolean, note: string) {
-  if (cond) passed += 1;
-  else failures.push(`  ✗ ${note}`);
-}
+const { check, done } = createChecker("Safety-events suite");
 
 // Campos de metadata permitidos en el select (todo lo demás está prohibido).
 const ALLOWED_SELECT_KEYS = new Set([
@@ -207,13 +202,7 @@ async function main() {
   await testNotFound();
   await testOwnedChild();
 
-  const total = passed + failures.length;
-  console.log(`\nSafety-events suite: ${passed}/${total} casos OK`);
-  if (failures.length > 0) {
-    console.error(`\n${failures.length} FALLO(S):\n${failures.join("\n")}\n`);
-    process.exit(1);
-  }
-  console.log("Todos los casos pasaron.\n");
+  done();
 }
 
 main();

@@ -11,6 +11,7 @@
  *
  * Sale con código 1 si algún caso falla (gate de CI).
  */
+import { createChecker } from "./suite-helpers";
 import {
   decideResponsePath,
   decidePostGenPath,
@@ -19,12 +20,7 @@ import {
   type ResponsePath,
 } from "../src/lib/chat-precedence";
 
-let passed = 0;
-const failures: string[] = [];
-function check(cond: boolean, note: string) {
-  if (cond) passed += 1;
-  else failures.push(`  ✗ ${note}`);
-}
+const { check, done } = createChecker("Chat-precedence suite");
 
 // Base "todo continúa": sin ningún corte → "normal".
 const CONT: PrecedenceInputs = {
@@ -187,10 +183,4 @@ check(
   "post-gen: API caída + fail-closed → sustituye sin depender de flagged",
 );
 
-const total = passed + failures.length;
-console.log(`\nChat-precedence suite: ${passed}/${total} casos OK`);
-if (failures.length > 0) {
-  console.error(`\n${failures.length} FALLO(S):\n${failures.join("\n")}\n`);
-  process.exit(1);
-}
-console.log("Todos los casos pasaron.\n");
+done();

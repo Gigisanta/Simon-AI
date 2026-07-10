@@ -17,6 +17,7 @@
  * Camino crítico (supresión de datos de menores, Ley 25.326): sale con código 1
  * si algún caso falla.
  */
+import { createChecker } from "./suite-helpers";
 import {
   purgeExpiredData,
   interactionLogTtlCutoff,
@@ -25,12 +26,7 @@ import {
 } from "../src/lib/retention";
 import { memoryTtlCutoff } from "../src/lib/ai/memory";
 
-let passed = 0;
-const failures: string[] = [];
-function check(cond: boolean, note: string) {
-  if (cond) passed += 1;
-  else failures.push(`  ✗ ${note}`);
-}
+const { check, done } = createChecker("Purge suite");
 
 type Call = { model: string; where: Record<string, unknown> };
 
@@ -136,13 +132,7 @@ async function main() {
 
 main()
   .then(() => {
-    const total = passed + failures.length;
-    console.log(`\nPurge suite: ${passed}/${total} casos OK`);
-    if (failures.length > 0) {
-      console.error(`\n${failures.length} FALLO(S):\n${failures.join("\n")}\n`);
-      process.exit(1);
-    }
-    console.log("Todos los casos pasaron.\n");
+    done();
   })
   .catch((err) => {
     console.error("\nPurge suite: error inesperado:", err);

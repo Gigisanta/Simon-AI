@@ -15,6 +15,7 @@
  * Solo lógica pura + parseo de archivos (sin red, sin DB). Sale con código 1 si
  * algún caso falla (gate de CI).
  */
+import { createChecker } from "./suite-helpers";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -25,12 +26,7 @@ import {
   type ExportedMessage,
 } from "../src/lib/export-conversations";
 
-let passed = 0;
-const failures: string[] = [];
-function check(cond: boolean, note: string) {
-  if (cond) passed += 1;
-  else failures.push(`  ✗ ${note}`);
-}
+const { check, done } = createChecker("Migrate suite");
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -165,13 +161,7 @@ async function main() {
 
 main()
   .then(() => {
-    const total = passed + failures.length;
-    console.log(`\nMigrate suite: ${passed}/${total} casos OK`);
-    if (failures.length > 0) {
-      console.error(`\n${failures.length} FALLO(S):\n${failures.join("\n")}\n`);
-      process.exit(1);
-    }
-    console.log("Todos los casos pasaron.\n");
+    done();
   })
   .catch((err) => {
     console.error("\nMigrate suite: error inesperado:", err);

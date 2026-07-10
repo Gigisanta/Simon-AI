@@ -13,14 +13,10 @@
  * reintentar lo que no corresponde ni reventar el presupuesto de latencia). Sale
  * con código 1 si algún caso falla (gate de CI).
  */
+import { createChecker } from "./suite-helpers";
 import { isTransientError, withTransientRetry } from "../src/lib/ai/retry";
 
-let passed = 0;
-const failures: string[] = [];
-function check(cond: boolean, note: string) {
-  if (cond) passed += 1;
-  else failures.push(`  ✗ ${note}`);
-}
+const { check, done } = createChecker("Retry suite");
 
 // Simula el shape de APICallError del SDK `ai` (statusCode + name).
 function apiError(statusCode: number, message = "API error"): Error {
@@ -209,13 +205,7 @@ async function testRetry() {
 
 async function main() {
   await testRetry();
-  const total = passed + failures.length;
-  console.log(`\nRetry suite: ${passed}/${total} casos OK`);
-  if (failures.length > 0) {
-    console.error(`\n${failures.length} FALLO(S):\n${failures.join("\n")}\n`);
-    process.exit(1);
-  }
-  console.log("Todos los casos pasaron.\n");
+  done();
 }
 
 main();

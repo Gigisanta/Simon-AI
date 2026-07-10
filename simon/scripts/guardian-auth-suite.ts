@@ -28,19 +28,14 @@
 delete process.env.UPSTASH_REDIS_REST_URL;
 delete process.env.UPSTASH_REDIS_REST_TOKEN;
 
+import { createChecker } from "./suite-helpers";
 import {
   findOwnedChild,
   type GuardianOwnershipClient,
 } from "../src/lib/guardian-auth";
 import { checkRateLimit } from "../src/lib/rate-limit";
 
-let passed = 0;
-const failures: string[] = [];
-
-function check(cond: boolean, note: string) {
-  if (cond) passed += 1;
-  else failures.push(`  ✗ ${note}`);
-}
+const { check, done } = createChecker("Guardian-auth suite");
 
 const MINUTE = 60_000;
 
@@ -250,13 +245,7 @@ async function main() {
   await testExportSelectVariant();
   await testReadPathRateLimits();
 
-  const total = passed + failures.length;
-  console.log(`\nGuardian-auth suite: ${passed}/${total} casos OK`);
-  if (failures.length > 0) {
-    console.error(`\n${failures.length} FALLO(S):\n${failures.join("\n")}\n`);
-    process.exit(1);
-  }
-  console.log("Todos los casos pasaron.\n");
+  done();
 }
 
 main();

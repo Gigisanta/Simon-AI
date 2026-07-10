@@ -12,6 +12,7 @@
  * Camino crítico: un error acá manda alertas de crisis al tutor equivocado,
  * las duplica, o las silencia. Sale con código 1 si algún caso falla.
  */
+import { createChecker } from "./suite-helpers";
 import {
   ALERT_CATEGORIES,
   ALERT_DEDUPE_WINDOW_MS,
@@ -24,13 +25,7 @@ import {
   shouldPatternAlert,
 } from "../src/lib/alerts";
 
-let passed = 0;
-const failures: string[] = [];
-
-function check(cond: boolean, note: string) {
-  if (cond) passed += 1;
-  else failures.push(`  ✗ ${note}`);
-}
+const { check, done } = createChecker("Alerts suite");
 
 const now = new Date("2026-07-08T12:00:00Z");
 const consented = { consentAt: new Date("2026-07-01T00:00:00Z"), alertsEnabled: true };
@@ -311,10 +306,4 @@ const consented = { consentAt: new Date("2026-07-01T00:00:00Z"), alertsEnabled: 
   );
 }
 
-const total = passed + failures.length;
-console.log(`\nAlerts suite: ${passed}/${total} casos OK`);
-if (failures.length > 0) {
-  console.error(`\n${failures.length} FALLO(S):\n${failures.join("\n")}\n`);
-  process.exit(1);
-}
-console.log("Todos los casos pasaron.\n");
+done();

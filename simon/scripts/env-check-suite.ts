@@ -13,15 +13,10 @@
  *
  * Sale con código 1 si algún caso falla (sirve como gate en CI).
  */
+import { createChecker } from "./suite-helpers";
 import { evaluateProdEnv, type ProdEnvSnapshot } from "../src/lib/env-check";
 
-let passed = 0;
-const failures: string[] = [];
-
-function check(cond: boolean, note: string) {
-  if (cond) passed += 1;
-  else failures.push(`  ✗ ${note}`);
-}
+const { check, done } = createChecker("Env-check suite");
 
 // Snapshot "todo configurado": ninguna rama disparada.
 const full: ProdEnvSnapshot = {
@@ -89,10 +84,4 @@ function has(list: string[], needle: string): boolean {
   check(has(r.warnings, "Upstash"), "combo: warn Upstash presente");
 }
 
-const total = passed + failures.length;
-console.log(`\nEnv-check suite: ${passed}/${total} casos OK`);
-if (failures.length > 0) {
-  console.error(`\n${failures.length} FALLO(S):\n${failures.join("\n")}\n`);
-  process.exit(1);
-}
-console.log("Todos los casos pasaron.\n");
+done();
