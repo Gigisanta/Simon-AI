@@ -20,6 +20,7 @@
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { requireGuardian, findOwnedChild } from "@/lib/guardian-auth";
+import { isRecordNotFoundError } from "@/lib/guardian-children";
 import { sameOriginOk } from "@/lib/env-check";
 import { revokeUserSessions } from "@/lib/auth-secondary-storage";
 import type { Prisma } from "@/generated/prisma/client";
@@ -117,6 +118,12 @@ export async function DELETE(
     // Session y Account del menor.
     await prisma.user.delete({ where: { id: childId } });
   } catch (err) {
+    // Doble-submit concurrente: dos requests pasan findOwnedChild casi a la vez,
+    // el primero borra y el segundo choca con P2025 (registro inexistente). El
+    // efecto deseado ya se cumplió → éxito IDEMPOTENTE, no un 500 espurio.
+    if (isRecordNotFoundError(err)) {
+      return Response.json({ ok: true, alreadyDeleted: true });
+    }
     console.error("[guardian] error borrando la cuenta del menor:", err);
     return Response.json(
       { error: "No se pudo eliminar la cuenta. Probá de nuevo." },

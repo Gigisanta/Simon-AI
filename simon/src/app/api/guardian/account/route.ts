@@ -30,6 +30,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { requireGuardian } from "@/lib/guardian-auth";
+import { isRecordNotFoundError } from "@/lib/guardian-children";
 import { sameOriginOk } from "@/lib/env-check";
 import { revokeUserSessions } from "@/lib/auth-secondary-storage";
 import { z } from "zod";
@@ -120,6 +121,13 @@ export async function DELETE(req: Request) {
       prisma.user.delete({ where: { id: guardianUserId } }),
     ]);
   } catch (err) {
+    // Doble-submit concurrente: otra request ya borró al tutor/a (y a sus menores)
+    // casi a la vez → el `user.delete` del tutor/a choca con P2025. El efecto
+    // deseado ya se cumplió (la cuenta no existe) → éxito IDEMPOTENTE, no un 500.
+    // La primera request ya revocó las sesiones; no hace falta repetirlo.
+    if (isRecordNotFoundError(err)) {
+      return Response.json({ ok: true, alreadyDeleted: true });
+    }
     console.error("[guardian] error borrando la cuenta del tutor/a y sus menores:", err);
     return Response.json(
       { error: "No se pudo eliminar la cuenta. Probá de nuevo." },

@@ -77,3 +77,17 @@ export function classifyChildTxError(
 ): "tx-duplicate-guardian" | "tx-failed" {
   return isGuardianDuplicateError(err) ? "tx-duplicate-guardian" : "tx-failed";
 }
+
+/**
+ * ¿El error es "el registro a borrar/actualizar ya no existe" (Prisma P2025)?
+ * Es la carrera de DOBLE-SUBMIT del borrado de una cuenta: dos requests pasan la
+ * verificación de propiedad casi a la vez, el primero borra y el segundo choca con
+ * un registro inexistente. En un DELETE eso NO es un error del cliente: el efecto
+ * deseado (la cuenta no existe) ya se cumplió → se responde éxito IDEMPOTENTE en
+ * vez de un 500 espurio. Función pura y testeable.
+ */
+export function isRecordNotFoundError(err: unknown): boolean {
+  return (
+    err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2025"
+  );
+}

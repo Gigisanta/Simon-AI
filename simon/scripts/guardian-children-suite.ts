@@ -26,6 +26,7 @@ import {
   childSignupResponse,
   classifyChildTxError,
   isGuardianDuplicateError,
+  isRecordNotFoundError,
   USERNAME_TAKEN_MESSAGE,
   CHILD_CREATE_FAILED_MESSAGE,
   type ChildSignupOutcome,
@@ -122,6 +123,43 @@ check(
     JSON.stringify(childSignupResponse(classifyChildTxError(p2002))) ===
       JSON.stringify(childSignupResponse("duplicate-precheck")),
     "P2002 en la transacción produce el MISMO 409 que el pre-check de duplicado",
+  );
+}
+
+// ---------- (4b) isRecordNotFoundError: doble-submit idempotente del DELETE ----------
+// Dos requests de borrado pasan la verificación de propiedad casi a la vez: el
+// primero borra, el segundo choca con P2025 (registro inexistente). En un DELETE
+// eso NO es error: el efecto deseado (la cuenta no existe) ya se cumplió → éxito
+// idempotente. Otros códigos / errores comunes NO deben tratarse como idempotentes.
+{
+  const p2025 = new Prisma.PrismaClientKnownRequestError("record not found", {
+    code: "P2025",
+    clientVersion: "test",
+  });
+  check(isRecordNotFoundError(p2025) === true, "P2025 → isRecordNotFoundError true (idempotente)");
+
+  const p2003 = new Prisma.PrismaClientKnownRequestError("fk", {
+    code: "P2003",
+    clientVersion: "test",
+  });
+  check(
+    isRecordNotFoundError(p2003) === false,
+    "P2003 (FK) → false (no es 'ya borrado', no se enmascara como éxito)",
+  );
+
+  const p2002 = new Prisma.PrismaClientKnownRequestError("unique", {
+    code: "P2002",
+    clientVersion: "test",
+  });
+  check(isRecordNotFoundError(p2002) === false, "P2002 → false");
+  check(
+    isRecordNotFoundError(new Error("boom")) === false,
+    "Error común → false (un fallo real sigue siendo 500, no éxito espurio)",
+  );
+  check(isRecordNotFoundError(null) === false, "null → false (no crashea)");
+  check(
+    isRecordNotFoundError({ code: "P2025" }) === false,
+    "objeto duck-typed con code P2025 pero no-instanceof → false (no se confunde)",
   );
 }
 
