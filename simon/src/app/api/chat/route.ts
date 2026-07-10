@@ -81,6 +81,18 @@ const MAX_MESSAGE_CHARS = 4_000; // el cliente corta en 2000; el servidor manda
 // rolling summary cubriendo lo más viejo, alcanza una ventana reciente más chica
 // (menos tokens, menos costo). El recorte fino por tamaño lo hace assembleContext.
 const MAX_HISTORY_MESSAGES = 24;
+// Cap defensivo del array `messages` del cliente (costo + abuso). La ruta NO usa
+// el historial del cliente (F1: el contexto conversacional se reconstruye desde
+// la DB); del body se toma SOLO el último mensaje con role "user". useChat
+// (@ai-sdk/react) retiene TODA la conversación en memoria y la manda entera en
+// cada request, así que un chat largo LEGÍTIMO puede traer cientos de entradas:
+// rechazar con 400 por longitud rompería esa sesión. Por eso, en vez de
+// rechazar, se TRUNCA al sufijo relevante antes de iterar — lastClientUserMessage
+// escanea desde el final, así el último "user" (que el cliente siempre appendea
+// al enviar) queda incluido y se acota el costo de recorrer un array inflado.
+// El valor es holgado (varias veces la ventana de resume, take:40) para no tocar
+// jamás un cliente real; el recorte real de contexto lo hace MAX_HISTORY_MESSAGES.
+const MAX_CLIENT_MESSAGES = 100;
 // Retención de InteractionLog (telemetría, 180d) y su corte temporal viven en
 // lib/retention.ts — MISMA fuente que usa el cron de purga (#9): cero duplicación.
 const RATE_LIMIT_PER_MINUTE = 15;
@@ -228,12 +240,16 @@ export async function POST(req: Request) {
     if (!Array.isArray(body.messages)) {
       return Response.json({ error: "messages debe ser una lista" }, { status: 400 });
     }
+    // Cap defensivo (ver MAX_CLIENT_MESSAGES): se trunca al sufijo relevante en
+    // vez de rechazar, porque solo interesa el último "user" y un chat largo
+    // legítimo trae el historial entero.
+    const clientMessages = (body.messages as UIMessage[]).slice(-MAX_CLIENT_MESSAGES);
     // Anti-injection / anti-priming (H2 → F1): del body del cliente se toma SOLO
     // el ÚLTIMO mensaje con role "user". Todo lo demás (turnos assistant
     // fabricables para primear al modelo, users previos que la moderación de
     // entrada nunca vería, roles system/tool inyectados) se IGNORA: el contexto
     // conversacional lo reconstruye el servidor desde la DB más abajo.
-    const lastUser = lastClientUserMessage(body.messages as UIMessage[]);
+    const lastUser = lastClientUserMessage(clientMessages);
     const userText = lastUser ? messageText(lastUser) : "";
     if (!userText.trim()) {
       return Response.json({ error: "Mensaje vacío" }, { status: 400 });
