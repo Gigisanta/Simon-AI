@@ -73,9 +73,16 @@ import type { KnowledgeCard } from "@/generated/prisma/client";
 // sin cambiar el timeout interno de cada llamada (ver lib/ai/retry.ts).
 // No streameamos: generamos completo, moderamos y mostramos
 // (decisión de diseño — ver docs/research-ux.md §2).
-// El valor vive en lib/ai/limits.ts (fuente única compartida con los comentarios
-// de retry.ts/provider.ts, para que no se desincronicen — Lote 4).
-export const maxDuration = CHAT_ROUTE_MAX_DURATION_S;
+// Next exige que los segment config exports sean literales estáticamente
+// analizables (no referencias importadas), así que el valor va inline.
+// Debe coincidir con CHAT_ROUTE_MAX_DURATION_S (lib/ai/limits.ts, fuente única
+// para retry.ts/provider.ts); el assert de abajo los mantiene sincronizados.
+export const maxDuration: number = 90;
+if (maxDuration !== CHAT_ROUTE_MAX_DURATION_S) {
+  throw new Error(
+    "maxDuration desincronizado de CHAT_ROUTE_MAX_DURATION_S (lib/ai/limits.ts)",
+  );
+}
 
 // Límites defensivos (costo + abuso). Ver docs/security-review.md.
 const MAX_MESSAGE_CHARS = 4_000; // el cliente corta en 2000; el servidor manda
