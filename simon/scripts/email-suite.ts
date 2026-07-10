@@ -23,6 +23,7 @@ import { createChecker } from "./suite-helpers";
 import {
   deliverResetPasswordEmail,
   deliverVerificationEmail,
+  deliverExistingAccountEmail,
   deliverCrisisAlert,
   isResendErrorTransient,
 } from "../src/lib/email";
@@ -106,6 +107,60 @@ async function testTemplateDistinctFromVerification() {
     !/Confirmá tu email/i.test(resetBody),
     "las plantillas no se cruzan (reset no usa el texto de verificación)",
   );
+}
+
+// ---------- 3b. deliverExistingAccountEmail: aviso anti-enumeración (M-S7) ----------
+async function testExistingAccountEmail() {
+  const prevEnv = process.env.NODE_ENV;
+  const prevUrl = process.env.BETTER_AUTH_URL;
+  (process.env as Record<string, string>).NODE_ENV = "development";
+  process.env.BETTER_AUTH_URL = "https://simon.example.com";
+
+  const dev = await withCapturedConsole(() =>
+    deliverExistingAccountEmail("tutora@gmail.com"),
+  );
+  const reset = await withCapturedConsole(() =>
+    deliverResetPasswordEmail("tutora@gmail.com", "https://x/reset"),
+  );
+  const verify = await withCapturedConsole(() =>
+    deliverVerificationEmail("tutora@gmail.com", "https://x/verify"),
+  );
+
+  const body = dev.logs.join("\n");
+  check(dev.result === true, "existing-account dev: sin proveedor devuelve true (fallback de dev)");
+  check(body.includes("tutora@gmail.com"), "existing-account dev: loguea el destinatario");
+  check(
+    /ya ten[eé]s (una )?cuenta/i.test(body),
+    "existing-account: el cuerpo avisa que ya existe una cuenta",
+  );
+  check(
+    /inici[aá] sesi[oó]n/i.test(body) && /restablec/i.test(body),
+    "existing-account: ofrece iniciar sesión y restablecer contraseña",
+  );
+  check(
+    body.includes("https://simon.example.com"),
+    "existing-account: incluye la URL de login cuando BETTER_AUTH_URL está seteada",
+  );
+  // No cruza plantillas: no es la de verificación ni el asunto de reseteo.
+  check(
+    !/Confirmá tu email/i.test(body),
+    "existing-account: no usa el texto de verificación de email",
+  );
+  check(
+    !body.includes("Restablecé tu contraseña — Simón"),
+    "existing-account: no usa el asunto de reseteo de contraseña",
+  );
+  // Distinto asunto que reset y verificación (plantillas separadas).
+  check(
+    dev.logs.join("").includes("Ya tenés una cuenta en Simón") &&
+      !reset.logs.join("").includes("Ya tenés una cuenta en Simón") &&
+      !verify.logs.join("").includes("Ya tenés una cuenta en Simón"),
+    "existing-account: asunto propio, no compartido con reset ni verificación",
+  );
+
+  (process.env as Record<string, string | undefined>).NODE_ENV = prevEnv;
+  if (prevUrl === undefined) delete process.env.BETTER_AUTH_URL;
+  else process.env.BETTER_AUTH_URL = prevUrl;
 }
 
 // ---------- 4. isResendErrorTransient: qué se reintenta (ciclo 15 L2a) ----------
@@ -211,6 +266,7 @@ async function main() {
   await testDevLogsBody();
   await testProdNeverLeaksToken();
   await testTemplateDistinctFromVerification();
+  await testExistingAccountEmail();
   testResendTransientClassifier();
   await testResendRetryIntegration();
   done();

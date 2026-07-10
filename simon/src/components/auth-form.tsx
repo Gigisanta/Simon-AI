@@ -40,22 +40,6 @@ export function translateAuthError(
   return message || "No se pudo completar. Probá de nuevo.";
 }
 
-/**
- * ¿El error de signup indica que el email ya está registrado? better-auth
- * responde con code USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL (HTTP 422). Matcheamos
- * por code (estable) y por mensaje como respaldo. El llamador lo usa para NO
- * revelar la existencia de la cuenta y mostrar el mismo aviso que un alta nueva.
- */
-function isExistingUserError(error: {
-  code?: string;
-  message?: string;
-}): boolean {
-  const code = (error.code ?? "").toUpperCase();
-  if (code.includes("ALREADY_EXISTS")) return true;
-  const m = (error.message ?? "").toLowerCase();
-  return m.includes("already exists") || m.includes("already registered");
-}
-
 type Mode = "signin" | "signup";
 
 const inputClass =
@@ -95,12 +79,15 @@ export function AuthForm() {
         res = await authClient.signUp.email({ email, password, name });
       }
       const isAdultSignup = audience === "adult" && mode === "signup";
-      // Alta con verificación de email: el registro no inicia sesión. Un email
-      // ya registrado (better-auth: USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL, 422)
-      // debe caer en el MISMO aviso neutro que el alta exitosa, para no permitir
-      // enumeración de cuentas registradas. Ambos caminos son indistinguibles
-      // para un atacante, pero claros para quien se registra de buena fe.
-      if (isAdultSignup && (!res.error || isExistingUserError(res.error))) {
+      // Alta con verificación de email: el registro no inicia sesión. El
+      // enmascaramiento anti-enumeración es SERVER-SIDE (M-S7): con
+      // `requireEmailVerification` activo, better-auth responde a un email ya
+      // registrado con un éxito sintético indistinguible de un alta real (mismo
+      // status/body/timing, ver lib/auth.ts) y le avisa por email al dueño real
+      // ("ya tenés cuenta, iniciá sesión / restablecé la contraseña"). El cliente
+      // ya no necesita adivinar el caso duplicado: siempre llega como éxito y se
+      // muestra el mismo aviso neutro.
+      if (isAdultSignup && !res.error) {
         setError(null);
         setMode("signin");
         setPassword("");

@@ -2,7 +2,11 @@ import { betterAuth } from "better-auth";
 import { APIError } from "better-auth/api";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { prisma } from "@/lib/prisma";
-import { deliverResetPasswordEmail, deliverVerificationEmail } from "@/lib/email";
+import {
+  deliverExistingAccountEmail,
+  deliverResetPasswordEmail,
+  deliverVerificationEmail,
+} from "@/lib/email";
 import {
   consumeChildSignupAuthorization,
   isChildEmail,
@@ -81,7 +85,39 @@ export const auth = betterAuth({
     // NO bloquea a los menores: se crean con `emailVerified: true` server-side
     // (su email sintético `.invalid` jamás es verificable), así que pasan este
     // chequeo — better-auth solo mira `emailVerified` (ver sign-in).
+    //
+    // ENUMERACIÓN DE CUENTAS (M-S7 ciclo 18): con `requireEmailVerification`
+    // activo, better-auth 1.6 YA enmascara el alta de un email duplicado
+    // server-side (ver node_modules/.../routes/sign-up.mjs): en vez del 422
+    // `USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL`, devuelve un ÉXITO SINTÉTICO
+    // (HTTP 200 con un `user` fake y `token: null`) INDISTINGUIBLE de un alta
+    // real — mismo status, mismo shape de body (el builder aplica los defaults
+    // del schema: role="guardian", birthYear=null, emailVerified=false, id/fechas
+    // frescos, igual que un alta nueva), y hashea la contraseña en AMBOS caminos
+    // para achicar la diferencia de timing (el hash domina; el residual es solo
+    // los 2 INSERT que el alta nueva hace de más → el camino duplicado NO es más
+    // lento ni retorna en <10ms). El status/body/timing los cubre la librería;
+    // acá solo falta avisarle al dueño legítimo del email, vía el hook de abajo.
     requireEmailVerification: true,
+    // Aviso al dueño del email cuando alguien intenta registrarse con una
+    // dirección ya registrada (M-S7). Cierra el patrón anti-enumeración: el que
+    // intenta el alta ve un éxito sintético (no aprende nada); el dueño real
+    // recibe un "ya tenés cuenta, iniciá sesión / restablecé la contraseña".
+    // better-auth solo lo invoca cuando `requireEmailVerification: true` (o
+    // `autoSignIn: false`) — justo el modo en que enmascara el duplicado — y lo
+    // corre en background (no bloquea ni cambia el timing de la respuesta).
+    //
+    // Los menores usan email sintético `@ninos.simon.invalid` (no ruteable): si
+    // un duplicado de menor llegara al signup público, NO se intenta enviar nada
+    // (mismo guard que verificación/reseteo). El alta server-side del tutor/a no
+    // dispara este hook: hace un pre-check de duplicado y responde 409 ANTES de
+    // llamar a `signUpEmail`.
+    async onExistingUserSignUp({ user }) {
+      if (isChildEmail(user.email)) return;
+      // No propagamos errores: un fallo del proveedor no debe afectar la
+      // respuesta del signup (better-auth ya lo corre en background).
+      await deliverExistingAccountEmail(user.email);
+    },
     // Reseteo de contraseña — SOLO tutores/as. Los menores no tienen email real
     // (su `@ninos.simon.invalid` no es ruteable ni verificable), así que su
     // solicitud se rechaza en silencio: no se envía nada y no se filtra que la

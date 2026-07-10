@@ -144,6 +144,41 @@ export async function deliverResetPasswordEmail(
 }
 
 /**
+ * Aviso anti-enumeración al email que YA tiene cuenta (M-S7 ciclo 18).
+ *
+ * Se dispara desde el hook `onExistingUserSignUp` de better-auth cuando alguien
+ * intenta registrarse con un email ya registrado. better-auth responde al que
+ * intenta el alta con un ÉXITO sintético (mismo status/body que un alta nueva,
+ * ver lib/auth.ts), así que el atacante no puede distinguir si la cuenta existe.
+ * El dueño legítimo del email, en cambio, recibe ESTE aviso: "ya tenés cuenta,
+ * iniciá sesión o restablecé la contraseña" — patrón estándar que además le
+ * avisa de un intento de registro con su dirección.
+ *
+ * NO incluye tokens ni links con secretos (solo la home de login): no hay nada
+ * sensible que filtrar a los logs. Mismo transporte no-bloqueante que el resto:
+ * un fallo del proveedor no rompe el flujo de signup. Nunca lanza.
+ */
+export async function deliverExistingAccountEmail(to: string): Promise<boolean> {
+  const signInUrl = process.env.BETTER_AUTH_URL ?? null;
+  return deliverEmail(
+    to,
+    "Ya tenés una cuenta en Simón",
+    "Hola,\n\n" +
+      "Alguien (quizás vos) intentó crear una cuenta en Simón con este email, " +
+      "pero ya tenés una cuenta registrada con esta dirección.\n\n" +
+      "Si fuiste vos: no hace falta que te registres de nuevo. Iniciá sesión con " +
+      "tu email y contraseña" +
+      (signInUrl ? ` en ${signInUrl}` : "") +
+      ".\n" +
+      "Si olvidaste tu contraseña, usá la opción \"restablecer contraseña\" para " +
+      "elegir una nueva.\n\n" +
+      "Si no fuiste vos, podés ignorar este mensaje: tu cuenta sigue segura y no " +
+      "se creó ninguna cuenta nueva.\n\n" +
+      "— Simón",
+  );
+}
+
+/**
  * Alerta de crisis al tutor/a (M-P2). PRIVACIDAD DEL MENOR: se comparte la
  * señal detectada (`signal`, en lenguaje humano — ver humanCategory en
  * lib/alerts.ts), NUNCA el contenido de la conversación. Recursos verificados:
