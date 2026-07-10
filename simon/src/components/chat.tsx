@@ -2,7 +2,7 @@
 
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { ConversationList } from "@/components/conversation-list";
 import { MoodChips } from "@/components/mood-chips";
 import { relativeTime } from "@/components/relative-time";
@@ -137,6 +137,48 @@ const headerIconProps = {
   "aria-hidden": true,
   className: "size-5",
 } as const;
+
+/**
+ * Burbuja de un mensaje. Memoizada por identidad de `message`: los mensajes ya
+ * asentados conservan su referencia entre renders, así que solo la burbuja en
+ * streaming (cuya prop cambia) se vuelve a renderizar, no todo el historial.
+ */
+const MessageBubble = memo(function MessageBubble({
+  message: m,
+}: {
+  message: UIMessage;
+}) {
+  return (
+    <div
+      className={
+        m.role === "user"
+          ? "self-end flex max-w-[80%] flex-col items-end gap-1"
+          : "self-start flex max-w-[80%] flex-col items-start gap-1"
+      }
+    >
+      {/* Etiqueta de rol visible: no solo color/alineación (SH-U5) */}
+      <span className="flex items-center gap-1.5 px-1 text-xs font-bold text-ink-soft">
+        {m.role === "assistant" && <SimonAvatar className="size-5" />}
+        {m.role === "user" ? "Vos" : "Simón"}
+      </span>
+      <div
+        className={
+          m.role === "user"
+            ? "rounded-2xl rounded-br-sm bg-peach px-4 py-2.5 text-base leading-relaxed text-ink"
+            : "rounded-2xl rounded-bl-sm bg-brand-soft px-4 py-2.5 text-base leading-relaxed text-ink"
+        }
+      >
+        {m.parts.map((part, i) =>
+          part.type === "text" ? (
+            <span key={i} className="whitespace-pre-wrap">
+              {part.text}
+            </span>
+          ) : null,
+        )}
+      </div>
+    </div>
+  );
+});
 
 export function Chat() {
   const { data: session } = useSession();
@@ -451,35 +493,7 @@ export function Chat() {
             </div>
           )}
           {messages.map((m) => (
-            <div
-              key={m.id}
-              className={
-                m.role === "user"
-                  ? "self-end flex max-w-[80%] flex-col items-end gap-1"
-                  : "self-start flex max-w-[80%] flex-col items-start gap-1"
-              }
-            >
-              {/* Etiqueta de rol visible: no solo color/alineación (SH-U5) */}
-              <span className="flex items-center gap-1.5 px-1 text-xs font-bold text-ink-soft">
-                {m.role === "assistant" && <SimonAvatar className="size-5" />}
-                {m.role === "user" ? "Vos" : "Simón"}
-              </span>
-              <div
-                className={
-                  m.role === "user"
-                    ? "rounded-2xl rounded-br-sm bg-peach px-4 py-2.5 text-base leading-relaxed text-ink"
-                    : "rounded-2xl rounded-bl-sm bg-brand-soft px-4 py-2.5 text-base leading-relaxed text-ink"
-                }
-              >
-                {m.parts.map((part, i) =>
-                  part.type === "text" ? (
-                    <span key={i} className="whitespace-pre-wrap">
-                      {part.text}
-                    </span>
-                  ) : null,
-                )}
-              </div>
-            </div>
+            <MessageBubble key={m.id} message={m} />
           ))}
           {status === "submitted" && (
             <div className="self-start flex max-w-[80%] flex-col items-start gap-1">

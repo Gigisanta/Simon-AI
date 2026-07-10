@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MAX_CHILD_AGE, MIN_CHILD_AGE } from "@/lib/guardian";
 
@@ -70,7 +70,13 @@ function formatDate(iso: string): string {
  * con confirmación en dos pasos (advertencia explícita antes de confirmar,
  * porque el borrado es irreversible — Ley 25.326 art. 16).
  */
-function ChildCard({ child, onChanged }: { child: ChildRow; onChanged(): void }) {
+const ChildCard = memo(function ChildCard({
+  child,
+  onChanged,
+}: {
+  child: ChildRow;
+  onChanged(): void;
+}) {
   const [alertsEnabled, setAlertsEnabled] = useState(child.alertsEnabled);
   // L5: tras un router.refresh() el padre re-renderiza con datos frescos del
   // server; sin esto el checkbox quedaría clavado en el valor inicial (stale).
@@ -97,21 +103,32 @@ function ChildCard({ child, onChanged }: { child: ChildRow; onChanged(): void })
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
 
+  // Aborta un fetch de eventos en curso si la tarjeta se desmonta (evita
+  // setState sobre un componente desmontado).
+  const eventsAbortRef = useRef<AbortController | null>(null);
+  useEffect(() => () => eventsAbortRef.current?.abort(), []);
+
   async function loadEvents() {
+    eventsAbortRef.current?.abort();
+    const controller = new AbortController();
+    eventsAbortRef.current = controller;
     setEventsError(null);
     setEventsLoading(true);
     try {
-      const res = await fetch(`/api/guardian/children/${child.id}/safety-events`);
+      const res = await fetch(`/api/guardian/children/${child.id}/safety-events`, {
+        signal: controller.signal,
+      });
       if (!res.ok) {
         setEventsError(await apiError(res, "No se pudo cargar la actividad."));
         return;
       }
       const data = (await res.json()) as { events: SafetyEventRow[] };
       setEvents(data.events);
-    } catch {
+    } catch (e) {
+      if (e instanceof DOMException && e.name === "AbortError") return;
       setEventsError("Error de conexión. Probá de nuevo.");
     } finally {
-      setEventsLoading(false);
+      if (!controller.signal.aborted) setEventsLoading(false);
     }
   }
 
@@ -354,7 +371,7 @@ function ChildCard({ child, onChanged }: { child: ChildRow; onChanged(): void })
       {error && <p role="alert" className="mt-2 font-semibold text-danger">{error}</p>}
     </li>
   );
-}
+});
 
 export function TutorPanel({
   initialChildren,
@@ -364,6 +381,9 @@ export function TutorPanel({
   emailVerified: boolean;
 }) {
   const router = useRouter();
+  // Referencia estable para no re-renderizar cada ChildCard (memo) al tipear
+  // en el form de alta, que comparte estado con este componente.
+  const handleChildChanged = useCallback(() => router.refresh(), [router]);
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
   const [birthYear, setBirthYear] = useState("");
@@ -452,7 +472,7 @@ export function TutorPanel({
         ) : (
           <ul className="mt-2 flex flex-col gap-2">
             {initialChildren.map((c) => (
-              <ChildCard key={c.id} child={c} onChanged={() => router.refresh()} />
+              <ChildCard key={c.id} child={c} onChanged={handleChildChanged} />
             ))}
           </ul>
         )}
