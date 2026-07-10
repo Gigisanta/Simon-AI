@@ -17,6 +17,11 @@ import {
   ALERT_DEDUPE_WINDOW_MS,
   humanCategory,
   shouldAlert,
+  PATTERN_ALERT_THRESHOLD,
+  PATTERN_CATEGORIES,
+  PATTERN_WINDOW_MS,
+  humanPatternCategory,
+  shouldPatternAlert,
 } from "../src/lib/alerts";
 
 let passed = 0;
@@ -151,6 +156,158 @@ const consented = { consentAt: new Date("2026-07-01T00:00:00Z"), alertsEnabled: 
     !(ALERT_CATEGORIES as readonly string[]).includes("riesgo") &&
       !(ALERT_CATEGORIES as readonly string[]).includes("alimentario"),
     "umbral: riesgo/alimentario NO alertan",
+  );
+}
+
+// ---------- 4. shouldPatternAlert (acumulación riesgo/alimentario) ----------
+{
+  // Cuenta events dentro de la ventana de 7 días (mismo criterio que la query).
+  const recentCount = (dates: Date[]) =>
+    dates.filter((d) => now.getTime() - d.getTime() < PATTERN_WINDOW_MS).length;
+
+  const days = (n: number) => new Date(now.getTime() - n * 24 * 60 * 60 * 1000);
+
+  // Umbral: 2 no dispara, 3 dispara.
+  check(
+    shouldPatternAlert({
+      role: "child",
+      guardian: consented,
+      recentCount: 2,
+      lastPatternNotifiedAt: null,
+      now,
+    }) === false,
+    "patrón: umbral 2 → false",
+  );
+  check(
+    shouldPatternAlert({
+      role: "child",
+      guardian: consented,
+      recentCount: PATTERN_ALERT_THRESHOLD,
+      lastPatternNotifiedAt: null,
+      now,
+    }) === true,
+    "patrón: umbral 3 → true",
+  );
+
+  // Ventana de 7 días: un evento viejo NO cuenta. 3 eventos pero 1 fuera de la
+  // ventana → recentCount 2 → no dispara. Los 3 dentro → dispara.
+  check(
+    recentCount([days(8), days(2), days(1)]) === 2 &&
+      shouldPatternAlert({
+        role: "child",
+        guardian: consented,
+        recentCount: recentCount([days(8), days(2), days(1)]),
+        lastPatternNotifiedAt: null,
+        now,
+      }) === false,
+    "patrón: ventana 7d excluye el evento viejo → count 2 → false",
+  );
+  check(
+    recentCount([days(6), days(2), days(1)]) === 3 &&
+      shouldPatternAlert({
+        role: "child",
+        guardian: consented,
+        recentCount: recentCount([days(6), days(2), days(1)]),
+        lastPatternNotifiedAt: null,
+        now,
+      }) === true,
+    "patrón: 3 eventos dentro de la ventana → true",
+  );
+
+  // Dedupe semanal: ya se avisó hace 3 días → false; hace 8 días → true.
+  check(
+    shouldPatternAlert({
+      role: "child",
+      guardian: consented,
+      recentCount: 5,
+      lastPatternNotifiedAt: days(3),
+      now,
+    }) === false,
+    "patrón: dedupe semanal (avisado hace 3d) → false",
+  );
+  check(
+    shouldPatternAlert({
+      role: "child",
+      guardian: consented,
+      recentCount: 5,
+      lastPatternNotifiedAt: days(8),
+      now,
+    }) === true,
+    "patrón: dedupe expiró (avisado hace 8d) → true",
+  );
+
+  // Tutor/a apagó las alertas → nunca envía, aunque haya acumulación.
+  check(
+    shouldPatternAlert({
+      role: "child",
+      guardian: { consentAt: consented.consentAt, alertsEnabled: false },
+      recentCount: 5,
+      lastPatternNotifiedAt: null,
+      now,
+    }) === false,
+    "patrón: alertsEnabled=false → false",
+  );
+
+  // Mismas puertas de autorización que shouldAlert.
+  check(
+    shouldPatternAlert({
+      role: "guardian",
+      guardian: consented,
+      recentCount: 5,
+      lastPatternNotifiedAt: null,
+      now,
+    }) === false,
+    "patrón: guardian adulto → false",
+  );
+  check(
+    shouldPatternAlert({
+      role: "child",
+      guardian: null,
+      recentCount: 5,
+      lastPatternNotifiedAt: null,
+      now,
+    }) === false,
+    "patrón: child sin Guardian → false",
+  );
+  check(
+    shouldPatternAlert({
+      role: "child",
+      guardian: { consentAt: null, alertsEnabled: true },
+      recentCount: 5,
+      lastPatternNotifiedAt: null,
+      now,
+    }) === false,
+    "patrón: child sin consentAt → false",
+  );
+
+  // crisis/abuso NO pasan por el camino de patrón: son categorías de alerta
+  // inmediata, jamás de acumulación.
+  check(
+    (PATTERN_CATEGORIES as readonly string[]).includes("riesgo") &&
+      (PATTERN_CATEGORIES as readonly string[]).includes("alimentario"),
+    'patrón: PATTERN_CATEGORIES es ["riesgo", "alimentario"]',
+  );
+  check(
+    !(PATTERN_CATEGORIES as readonly string[]).includes("crisis") &&
+      !(PATTERN_CATEGORIES as readonly string[]).includes("abuso"),
+    "patrón: crisis/abuso NO pasan por el camino de patrón",
+  );
+  // No hay solapamiento entre alerta inmediata y alerta de patrón.
+  check(
+    ALERT_CATEGORIES.every(
+      (c) => !(PATTERN_CATEGORIES as readonly string[]).includes(c),
+    ),
+    "patrón: ALERT_CATEGORIES y PATTERN_CATEGORIES son disjuntas",
+  );
+
+  // humanPatternCategory: lenguaje humano, no alarmista, sin contenido.
+  check(
+    humanPatternCategory("alimentario").includes("comida"),
+    "patrón: humanPatternCategory(alimentario) legible",
+  );
+  check(
+    humanPatternCategory("riesgo").length > 0,
+    "patrón: humanPatternCategory(riesgo) legible",
   );
 }
 

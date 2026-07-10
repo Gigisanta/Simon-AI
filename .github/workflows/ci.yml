@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+# Cancela runs viejos del mismo ref (branch/PR) cuando llega un push nuevo.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    # La app vive en simon/ (el repo tiene otros directorios en la raíz).
+    defaults:
+      run:
+        working-directory: simon
+    steps:
+      - uses: actions/checkout@v4
+
+      # No hay campo packageManager/engines en simon/package.json. Se fijan
+      # versiones explícitas: pnpm 10 (el lockfile es v9.0, escrito por pnpm 10)
+      # y Node 22 LTS (Next 16 requiere Node >= 20.9; 22 es la LTS estable).
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: simon/pnpm-lock.yaml
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Test (suites determinísticas)
+        run: pnpm test
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      # `next build` directo (NO `pnpm build`: ese script corre
+      # `prisma migrate deploy` contra la DB real, impropio de CI). El cliente
+      # Prisma generado está commiteado en src/generated/prisma, así que no hace
+      # falta `prisma generate`. El build no requiere env vars: prisma.ts crea el
+      # cliente de forma lazy (solo al primer uso runtime, no en build-time), y
+      # no hay validación de DATABASE_URL ni otras envs en tiempo de build.
+      - name: Build
+        run: npx next build

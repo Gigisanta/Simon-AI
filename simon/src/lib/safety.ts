@@ -85,11 +85,78 @@ const RISK_PATTERNS: RegExp[] = [
   /no puedo m[aá]s/i,
 ];
 
+/**
+ * Normalización anti-evasión (#3), aplicada SOLO para detección — el texto
+ * original es el que se guarda y se muestra. Un menor en crisis puede evadir
+ * los regex con leetspeak ("me c0rto"), acentos ausentes o espaciado raro; esta
+ * pasada acerca esas variantes a la forma canónica ANTES de correr los patrones.
+ *
+ * Los CRISIS/ABUSE/... _PATTERNS ya son tolerantes a acentos (`m[aá]s`,
+ * `da[ñn]o`, `[ñn]`), así que quitar diacríticos por NFD no rompe ningún match:
+ * "más"→"mas" sigue matcheando `m[aá]s`, "daño"→"dano" sigue matcheando
+ * `da[ñn]o`. Es una función pura — testeada en scripts/crisis-suite.ts.
+ *
+ * Sustituciones leetspeak: se mapea el dígito/símbolo a su letra más común. El
+ * "1" es ambiguo (i o l); se elige "i", que es el caso frecuente en las
+ * palabras de esta taxonomía (su1c1d→suicid, v1v1r→vivir, m1→mi). El colapso de
+ * secuencias de letras sueltas ("m a t a r m e") NO se hace acá: se aplica como
+ * segunda pasada en detectSafetyFlag (ver collapseLetterRuns) para poder correr
+ * los regex sobre AMBAS variantes y minimizar falsos positivos.
+ */
+export function normalizeForSafety(text: string): string {
+  return text
+    .toLowerCase()
+    // NFD + quita diacríticos (á→a, é→e, í→i, ó→o, ú→u, ñ→n, ü→u).
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    // Leetspeak común. "1"→"i" (ver nota de ambigüedad arriba).
+    .replace(/0/g, "o")
+    .replace(/1/g, "i")
+    .replace(/3/g, "e")
+    .replace(/4/g, "a")
+    .replace(/5/g, "s")
+    .replace(/7/g, "t")
+    .replace(/@/g, "a")
+    .replace(/\$/g, "s")
+    // Colapsa espacios/tabs/saltos repetidos a un único espacio.
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Segunda pasada: colapsa secuencias de LETRAS SUELTAS separadas por espacios,
+ * puntos o guiones ("m a t a r m e" → "matarme", "s.u.i.c.i.d.a" → "suicida").
+ *
+ * Umbral conservador: exige ≥4 letras sueltas encadenadas ({3,} unidades
+ * "letra+separador" + 1 letra final). El lenguaje natural casi nunca encadena
+ * 4+ tokens de una sola letra, así que el riesgo de falso positivo (colapsar
+ * "a e i o u" o iniciales) es bajo. Función pura.
+ */
+function collapseLetterRuns(s: string): string {
+  return s.replace(
+    /(?:\b\p{L}[ .\-]+){3,}\p{L}\b/gu,
+    (run) => run.replace(/[ .\-]+/g, ""),
+  );
+}
+
+/**
+ * Corre los patrones de seguridad sobre AMBAS variantes normalizadas (la normal
+ * y la colapsada) y marca el flag si CUALQUIERA matchea. Amplío la red sin
+ * tocar los patrones: un evasor que escribe "me c0rto" (leet) o "m a t a r m e"
+ * (letras sueltas) queda cubierto. El original NUNCA se muta.
+ */
 export function detectSafetyFlag(text: string): SafetyFlag {
-  if (CRISIS_PATTERNS.some((r) => r.test(text))) return "crisis";
-  if (ABUSE_PATTERNS.some((r) => r.test(text))) return "abuso";
-  if (EATING_PATTERNS.some((r) => r.test(text))) return "alimentario";
-  if (RISK_PATTERNS.some((r) => r.test(text))) return "riesgo";
+  const normalized = normalizeForSafety(text);
+  const collapsed = collapseLetterRuns(normalized);
+  const variants =
+    collapsed === normalized ? [normalized] : [normalized, collapsed];
+  const matches = (patterns: RegExp[]) =>
+    variants.some((v) => patterns.some((r) => r.test(v)));
+
+  if (matches(CRISIS_PATTERNS)) return "crisis";
+  if (matches(ABUSE_PATTERNS)) return "abuso";
+  if (matches(EATING_PATTERNS)) return "alimentario";
+  if (matches(RISK_PATTERNS)) return "riesgo";
   return null;
 }
 

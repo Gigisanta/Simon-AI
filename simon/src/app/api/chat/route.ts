@@ -51,7 +51,7 @@ import { moderate, type ModerationResult } from "@/lib/moderation";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { sameOriginOk } from "@/lib/env-check";
 import { canUserChat } from "@/lib/consent";
-import { maybeAlertGuardian, type AlertCategory } from "@/lib/alerts";
+import { maybeAlertGuardian, maybePatternAlert, type AlertCategory } from "@/lib/alerts";
 import { MAX_CHILD_AGE, MIN_CHILD_AGE } from "@/lib/guardian";
 import type { KnowledgeCard } from "@/generated/prisma/client";
 
@@ -419,6 +419,13 @@ export async function POST(req: Request) {
   let regexEventId: string | null = null;
   if (regexFlag) {
     regexEventId = await recordSafetyEvent(regexFlag, "keyword");
+    // Alerta de PATRÓN (M-P2): riesgo/alimentario NO alertan de inmediato, pero
+    // su acumulación sí. Diferido a after(): nunca suma latencia ni rompe el
+    // chat (maybePatternAlert es no-throw). El conteo/dedupe vive en lib/alerts.
+    if (regexFlag === "riesgo" || regexFlag === "alimentario") {
+      const patternCategory = regexFlag; // narrowing para el closure de after()
+      after(() => maybePatternAlert(userId, patternCategory));
+    }
   }
 
   // Crisis, abuso o trastorno alimentario: plantilla fija, el LLM no interviene.
@@ -713,6 +720,8 @@ export async function POST(req: Request) {
       `moderation-input:${inputMod.source}`,
     );
     effectiveFlag = "riesgo";
+    // Alerta de patrón por acumulación (ver regex arriba). Diferida; no-throw.
+    after(() => maybePatternAlert(userId, "riesgo"));
   }
 
   // 2) Sesión vencida (M-S7) → cierre amable. Gana sobre la respuesta normal (la

@@ -91,6 +91,27 @@ const cases: Case[] = [
   { text: "ojalá no despertar tan temprano el lunes", expect: null, note: "neg: dormir tarde (sin permanencia)" },
   { text: "hago silencio para no despertar a mis papás", expect: null, note: "neg: no despertar A alguien" },
   { text: "quiero dormir y no despertar a mi hermanito", expect: null, note: "neg: no despertar A alguien" },
+
+  // --- #3: normalización anti-evasión (leetspeak / acentos / espaciado) ---
+  // Positivos: variantes evasivas que ANTES no matcheaban y ahora sí.
+  { text: "me c0rto", expect: "crisis", note: "leet 0→o: 'me corto'" },
+  { text: "m3 quiero matar", expect: "crisis", note: "leet 3→e: 'me quiero matar'" },
+  { text: "qu13ro su1c1darme", expect: "crisis", note: "leet 1→i,3→e: 'quiero suicidarme'" },
+  { text: "no quiero v1v1r", expect: "crisis", note: "leet 1→i: 'no quiero vivir'" },
+  { text: "me hag0 daño cuando estoy mal", expect: "crisis", note: "leet 0→o: 'me hago daño'" },
+  { text: "m a t a r m e", expect: "crisis", note: "colapso letras sueltas → 'matarme'" },
+  { text: "s.u.i.c.i.d.a.r.m.e", expect: "crisis", note: "colapso con puntos → 'suicidarme'" },
+  { text: "quiero d-e-s-a-p-a-r-e-c-e-r", expect: "crisis", note: "colapso con guiones → 'desaparecer'" },
+  { text: "no  aguanto   mas", expect: "riesgo", note: "espacios repetidos + sin acento" },
+  { text: "no aguanto más", expect: "riesgo", note: "acento explícito sigue matcheando" },
+
+  // Negativos-trampa: la normalización NO debe crear falsos positivos.
+  { text: "mi mama tiene 30 anos", expect: null, note: "neg: número normal (edad)" },
+  { text: "tengo 12 anos y juego al futbol", expect: null, note: "neg: número normal" },
+  { text: "el 5 de mayo hay feriado", expect: null, note: "neg: dígito suelto (5→s)" },
+  { text: "a e i o u son las vocales", expect: null, note: "neg: colapso no debe flaggear vocales" },
+  { text: "el codigo es 4 7 0 3 1", expect: null, note: "neg: dígitos sueltos, no palabra de crisis" },
+  { text: "mi equipo gano 3 a 0 el partido", expect: null, note: "neg: marcador (3→e, 0→o)" },
 ];
 
 let passed = 0;

@@ -110,3 +110,35 @@ export async function deliverCrisisAlert(
       "— Simón",
   );
 }
+
+/**
+ * Alerta de PATRÓN al tutor/a (M-P2, acumulación de señales de menor severidad).
+ * No es una crisis puntual: es una señal que se viene REPITIENDO. Tono más suave
+ * que la alerta de crisis, deliberadamente no alarmista. PRIVACIDAD DEL MENOR:
+ * se comparte el tema (`signal`, ver humanPatternCategory en lib/alerts.ts),
+ * NUNCA el contenido de la conversación. Recursos: fuente única de lib/safety.ts.
+ */
+export async function deliverPatternAlert(
+  to: string,
+  { childName, signal }: { childName: string; signal: string },
+): Promise<boolean> {
+  return deliverEmail(
+    to,
+    "Simón: algo que quizás quieras acompañar",
+    "Hola,\n\n" +
+      `Te escribimos desde Simón. No es una urgencia, pero queríamos contarte ` +
+      `algo con calma: en varias conversaciones recientes de ${childName} ` +
+      `aparecieron ${signal}.\n\n` +
+      "No es un episodio puntual sino algo que se repitió, y por eso preferimos " +
+      "avisarte. Por respeto a su privacidad no incluimos lo que dijo: te " +
+      "contamos el tema, no el contenido.\n\n" +
+      "Puede ser un buen momento para buscar un rato tranquilo y preguntarle " +
+      "cómo anda, sin presionar ni sacar conclusiones. Muchas veces alcanza con " +
+      "estar disponible y escuchar.\n\n" +
+      "Si te parece que la situación lo amerita, estos recursos pueden ayudar:\n\n" +
+      `${CRISIS_RESOURCES_AR}\n\n` +
+      "Recordá que Simón es una inteligencia artificial: acompaña, pero no " +
+      "reemplaza tu mirada ni la de un profesional.\n\n" +
+      "— Simón",
+  );
+}
