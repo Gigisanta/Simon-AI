@@ -344,8 +344,13 @@ const ChildCard = memo(function ChildCard({
             <>
               <ul className="flex flex-col gap-2">
                 {events.map((e, i) => (
+                  // `events` es el array ACUMULADO (loadEvents anexa con "Ver
+                  // más"), así que `i` es el índice global del hilo completo:
+                  // key única y estable (la lista solo crece, nunca reordena).
+                  // La API no expone `id` de SafetyEvent, y `createdAt` puede
+                  // repetirse, así que el índice acumulado es la identidad estable.
                   <li
-                    key={`${e.createdAt}-${i}`}
+                    key={`event-${i}`}
                     className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5"
                   >
                     <span className="font-semibold text-ink">{readableCategory(e.category)}</span>
