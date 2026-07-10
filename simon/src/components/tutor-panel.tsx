@@ -4,6 +4,7 @@ import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 import { MAX_CHILD_AGE, MIN_CHILD_AGE } from "@/lib/guardian";
+import { runResendFlow, type ResendState } from "@/lib/resend-verification";
 
 export type ChildRow = {
   id: string;
@@ -17,6 +18,11 @@ export type ChildRow = {
 const currentYear = new Date().getFullYear();
 const minYear = currentYear - MAX_CHILD_AGE;
 const maxYear = currentYear - MIN_CHILD_AGE;
+
+// Cooldown del CTA de reenvío tras un envío exitoso: evita spamear el endpoint
+// (que igual tiene su propio rate-limit server-side) sin dejar el botón clavado
+// para siempre. Pasado el lapso, se re-habilita con texto "Reenviar de nuevo".
+const RESEND_COOLDOWN_MS = 30_000;
 
 // Tokens compartidos con auth-form/chat (design system simon-mocha, touch ≥44px).
 const inputClass =
@@ -446,20 +452,38 @@ export function TutorPanel({
   // better-auth /send-verification-email valida server-side que el email sea el
   // de la sesión (EMAIL_MISMATCH si no) y que no esté ya verificado, y trae rate
   // limit propio (3/60s); acá solo manejamos los estados de UI.
-  const [resendState, setResendState] = useState<
-    "idle" | "loading" | "sent" | "error"
-  >("idle");
+  const [resendState, setResendState] = useState<ResendState>("idle");
+  const [resendMessage, setResendMessage] = useState<string | null>(null);
+  // `cooling` = dentro de la ventana de cooldown tras un envío OK (botón
+  // deshabilitado). Al vencer, se re-habilita. El timer se limpia al desmontar.
+  const [cooling, setCooling] = useState(false);
+  const cooldownTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (cooldownTimer.current) clearTimeout(cooldownTimer.current);
+    },
+    [],
+  );
 
-  async function handleResendVerification() {
-    if (resendState === "loading" || resendState === "sent") return;
-    setResendState("loading");
+  const startCooldown = useCallback(() => {
+    setCooling(true);
+    if (cooldownTimer.current) clearTimeout(cooldownTimer.current);
+    cooldownTimer.current = setTimeout(() => setCooling(false), RESEND_COOLDOWN_MS);
+  }, []);
+
+  // Se puede reenviar salvo mientras hay un envío en curso o durante el cooldown.
+  const canResend = resendState !== "loading" && !cooling;
+
+  function handleResendVerification() {
+    if (!canResend) return;
     // Pasamos el email de la sesión (no un input del tutor/a): el server igual lo
     // exige idéntico al de la sesión, así que nunca se reenvía a un mail ajeno.
-    const { error: resendError } = await authClient.sendVerificationEmail({
-      email,
-      callbackURL: "/tutor",
+    void runResendFlow({
+      send: () => authClient.sendVerificationEmail({ email, callbackURL: "/tutor" }),
+      setState: setResendState,
+      setMessage: setResendMessage,
+      onSent: startCooldown,
     });
-    setResendState(resendError ? "error" : "sent");
   }
 
   async function handleSubmit(e: { preventDefault(): void }) {
@@ -537,23 +561,25 @@ export function TutorPanel({
             <button
               type="button"
               onClick={handleResendVerification}
-              disabled={resendState === "loading" || resendState === "sent"}
+              disabled={!canResend}
               className="min-h-11 rounded-full bg-accent-deep px-4 py-1.5 font-bold text-white hover:opacity-90 disabled:opacity-50"
             >
               {resendState === "loading"
                 ? "Enviando…"
-                : resendState === "sent"
+                : cooling
                   ? "Email enviado"
-                  : "Reenviar email de verificación"}
+                  : resendState === "sent"
+                    ? "Reenviar de nuevo"
+                    : "Reenviar email de verificación"}
             </button>
-            {resendState === "sent" && (
+            {resendState === "sent" && cooling && (
               <span role="status" className="font-semibold">
                 Listo, te lo reenviamos. Revisá tu casilla (y el spam).
               </span>
             )}
-            {resendState === "error" && (
+            {resendState === "error" && resendMessage && (
               <span role="alert" className="font-semibold text-danger">
-                No se pudo reenviar. Esperá un momento y probá de nuevo.
+                {resendMessage}
               </span>
             )}
           </div>
