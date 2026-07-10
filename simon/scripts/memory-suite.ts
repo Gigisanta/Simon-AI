@@ -52,6 +52,7 @@ import {
   trimPastSummaries,
   trimRollingSummary,
 } from "../src/lib/ai/context-budget";
+import { hasVisibleContent, safeTruncate } from "../src/lib/text";
 
 let passed = 0;
 const failures: string[] = [];
@@ -238,6 +239,59 @@ check(notArray.facts.length === 0, "parse: hechos no-array → []");
     truncated !== undefined && truncated.length === 2000,
     "budget: rolling largo se trunca a budget*4 chars",
   );
+
+  // ---------- safeTruncate + hasVisibleContent (#19-3 / #19-4) ----------
+  // Un code unit suelto (surrogate high sin low, o low sin high) = carácter roto.
+  const LONE_SURROGATE =
+    /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+
+  // Regresión: el `.slice()` crudo parte un surrogate pair en un boundary impar.
+  const emoji = "😀😀😀😀😀"; // 5 code points, 10 code units
+  check(
+    LONE_SURROGATE.test(emoji.slice(0, 3)),
+    "regresión: slice(0,3) sobre astral deja un surrogate suelto (motiva safeTruncate)",
+  );
+  const emojiCut = safeTruncate(emoji, 3);
+  check(
+    Array.from(emojiCut).length === 3 && !LONE_SURROGATE.test(emojiCut),
+    "safeTruncate: astral cortado a 3 code points, sin surrogate suelto",
+  );
+  // ZWJ (familia): se corta por code point (puede partir el cluster) pero jamás
+  // deja una unidad suelta.
+  const familyCut = safeTruncate("👨‍👩‍👧‍👦 hola", 2);
+  check(
+    !LONE_SURROGATE.test(familyCut),
+    "safeTruncate: cluster ZWJ recortado sin surrogate suelto",
+  );
+  // Cota de bytes (camino crítico MAX_FACT_CHARS): N code points ≤ 4·N bytes.
+  const astralFact = safeTruncate("😀".repeat(500), 300); // 300 code points
+  check(
+    Array.from(astralFact).length === 300 &&
+      Buffer.byteLength(astralFact, "utf8") <= 300 * 4,
+    "safeTruncate: 300 code points astral ≤ 1200 bytes (unique btree a salvo)",
+  );
+  check(safeTruncate("hola", 10) === "hola", "safeTruncate: BMP dentro de budget intacto");
+  check(safeTruncate("hola", 0) === "", "safeTruncate: budget 0 → vacío");
+
+  // trimRollingSummary sobre texto astral: truncado sin surrogate suelto.
+  const astralRolling = trimRollingSummary("😀".repeat(3000), 500);
+  check(
+    astralRolling !== undefined && !LONE_SURROGATE.test(astralRolling),
+    "budget: rolling astral truncado sin surrogate suelto",
+  );
+
+  // hasVisibleContent: los invisibles de ancho cero NO son contenido.
+  check(hasVisibleContent("hola") === true, "hasVisibleContent: texto normal → true");
+  check(hasVisibleContent("   ") === false, "hasVisibleContent: solo espacios → false");
+  check(
+    hasVisibleContent("\u200B\u200C\u200D\u2060\uFEFF") === false,
+    "hasVisibleContent: solo caracteres de ancho cero → false (a diferencia de trim)",
+  );
+  check(
+    hasVisibleContent("\u200Bhola\u200B") === true,
+    "hasVisibleContent: ancho cero + texto real → true",
+  );
+  check(hasVisibleContent("😀") === true, "hasVisibleContent: emoji → true");
 
   // assembleContext: el mensaje ACTUAL del usuario nunca se recorta.
   const assembled = assembleContext({

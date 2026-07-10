@@ -73,6 +73,20 @@ export function isRaceDeletionError(err: unknown): boolean {
 }
 
 /**
+ * ¿El error es una violación de restricción única (Prisma P2002)? Se usa en la
+ * creación idempotente de la Conversation del PRIMER mensaje: el cliente genera
+ * el id y lo manda; si dos envíos paralelos (doble submit) intentan crear la
+ * misma fila, la PK hace que el perdedor de la carrera reciba P2002 — que no es
+ * un error a propagar sino la señal de "ya existe, adjuntate a la ganadora".
+ * Función pura y testeable.
+ */
+export function isUniqueConstraintError(err: unknown): boolean {
+  return (
+    err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002"
+  );
+}
+
+/**
  * Decide si un usuario puede chatear, dado su rol y su vínculo de tutela.
  * Función pura: sin efectos, sin DB.
  */

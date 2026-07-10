@@ -159,6 +159,7 @@ async function moderateOpenAI(
   text: string,
   apiKey: string,
   now: number,
+  signal?: AbortSignal,
 ): Promise<ModerationResult | null> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), OPENAI_TIMEOUT_MS);
@@ -170,7 +171,9 @@ async function moderateOpenAI(
         authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({ model: "omni-moderation-latest", input: text }),
-      signal: controller.signal,
+      // #19-1: timeout propio + desconexión del cliente (signal). Cualquiera de
+      // los dos aborta el fetch; el catch lo trata como transitorio (fail-open).
+      signal: signal ? AbortSignal.any([signal, controller.signal]) : controller.signal,
     });
 
     if (res.status === 401 || res.status === 403) {
@@ -317,7 +320,7 @@ export function parseLlmClassification(raw: string): ModerationResult {
  * error → available:false (source "none"). Loguea source + latencia (sin
  * contenido) para observabilidad.
  */
-async function moderateLLM(text: string): Promise<ModerationResult> {
+async function moderateLLM(text: string, signal?: AbortSignal): Promise<ModerationResult> {
   if (!aiConfigured()) return unavailable();
   const startedAt = Date.now();
   try {
@@ -336,7 +339,10 @@ async function moderateLLM(text: string): Promise<ModerationResult> {
           prompt: `TEXTO A CLASIFICAR:\n"""\n${text}\n"""`,
           temperature: 0,
           maxOutputTokens: 60,
-          abortSignal: controller.signal,
+          // #19-1: timeout propio + desconexión del cliente (signal).
+          abortSignal: signal
+            ? AbortSignal.any([signal, controller.signal])
+            : controller.signal,
         });
       } finally {
         clearTimeout(timeout);
@@ -368,6 +374,7 @@ async function moderateLLM(text: string): Promise<ModerationResult> {
 export async function moderate(
   text: string,
   now: number = Date.now(),
+  signal?: AbortSignal,
 ): Promise<ModerationResult> {
   const apiKey = process.env.OPENAI_API_KEY;
 
@@ -376,7 +383,7 @@ export async function moderate(
     if (openAiKeyUsable(openAiKeyInvalidAt, now)) {
       // (Re)probamos OpenAI. Si sigue 401/403, moderateOpenAI reinicia la
       // ventana (openAiKeyInvalidAt = now) y volvemos a caer al LLM.
-      const openai = await moderateOpenAI(text, apiKey, now);
+      const openai = await moderateOpenAI(text, apiKey, now, signal);
       if (openai) {
         // Un 2xx tras un período inválido = key recuperada: se limpia el estado.
         openAiKeyInvalidAt = null;
@@ -405,5 +412,5 @@ export async function moderate(
 
   // Paso 2: moderador LLM. Paso 3 (ambos caídos) lo devuelve moderateLLM como
   // available:false (source "none").
-  return moderateLLM(text);
+  return moderateLLM(text, signal);
 }

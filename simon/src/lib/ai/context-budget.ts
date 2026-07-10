@@ -1,4 +1,5 @@
 import type { KnowledgeCard, UserMemory } from "@/generated/prisma/client";
+import { safeTruncate } from "@/lib/text";
 
 /**
  * Presupuesto de contexto (B2.6): recorta cada "bucket" del contexto que se
@@ -109,7 +110,8 @@ export function trimRollingSummary(
 ): string | undefined {
   if (!summary || !summary.trim()) return undefined;
   if (estimateTokens(summary) <= budget) return summary;
-  const hardCut = summary.slice(0, budget * 4);
+  // safeTruncate: corta por code points, sin partir surrogate pairs (emoji roto).
+  const hardCut = safeTruncate(summary, budget * 4);
   // Preferimos cortar en el último final de oración dentro del tope, para no
   // partir una palabra ni una idea a la mitad. Si el texto no tiene ningún
   // límite de oración (sin puntuación), se cae al corte crudo por caracteres.

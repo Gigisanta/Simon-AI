@@ -58,8 +58,10 @@ import {
   blockedChatMessage,
   canUserChat,
   isRaceDeletionError,
+  isUniqueConstraintError,
   NO_GUARDIAN_CHAT_REPLY,
 } from "@/lib/consent";
+import { hasVisibleContent, safeTruncate } from "@/lib/text";
 import { maybeAlertGuardian, maybePatternAlert, type AlertCategory } from "@/lib/alerts";
 import { deriveChildAge } from "@/lib/guardian";
 import type { KnowledgeCard } from "@/generated/prisma/client";
@@ -251,7 +253,10 @@ export async function POST(req: Request) {
     // conversacional lo reconstruye el servidor desde la DB más abajo.
     const lastUser = lastClientUserMessage(clientMessages);
     const userText = lastUser ? messageText(lastUser) : "";
-    if (!userText.trim()) {
+    // hasVisibleContent en vez de `.trim()`: un mensaje hecho solo de caracteres
+    // de ancho cero (ZWSP/ZWJ/BOM…) NO es contenido real y debe rechazarse como
+    // vacío. `.trim()` no los elimina (no son whitespace) y los dejaba pasar.
+    if (!hasVisibleContent(userText)) {
       return Response.json({ error: "Mensaje vacío" }, { status: 400 });
     }
     if (userText.length > MAX_MESSAGE_CHARS) {
@@ -261,27 +266,38 @@ export async function POST(req: Request) {
       );
     }
 
-    // --- Conversación (se crea en el primer mensaje) ---
+    // --- Conversación (idempotente en el PRIMER mensaje, #19-2) ---
+    // El cliente genera el id (crypto.randomUUID) y lo manda DESDE el primer
+    // mensaje. Así dos envíos paralelos del mismo primer mensaje (doble submit,
+    // doble click en un quick-start) convergen en UNA sola Conversation en vez de
+    // crear dos: comparten el id, el servidor crea-si-no-existe de forma atómica
+    // (la unicidad la garantiza la PK) y el perdedor de la carrera recibe P2002 y
+    // se adjunta a la fila ganadora. Sin token del cliente sería imposible dedupe
+    // (el primer request no tiene con qué reconocer a su gemelo).
+    //
+    // Formato validado (defensa): 8..64 chars alfanuméricos/-/_ (cubre uuid y el
+    // cuid del servidor). Un id inválido → null → id generado por el servidor.
+    // SEGURIDAD: ownership siempre por `where: { id, userId }`; un id ajeno nunca
+    // se lee ni se pisa (create con ese id colisiona en la PK → P2002 → como no
+    // es del usuario, loadOwnedHistory da null y se cae al id del servidor).
     let conversationId =
-      typeof body.conversationId === "string" && body.conversationId.length <= 64
+      typeof body.conversationId === "string" &&
+      /^[a-zA-Z0-9_-]{8,64}$/.test(body.conversationId)
         ? body.conversationId
         : null;
+
     // --- F1: el contexto conversacional es del SERVIDOR ---
-    // Si la conversación ya existía (y es del usuario), el historial se carga
-    // desde la DB — mensajes reales que este mismo servidor persistió — ANTES de
-    // guardar el mensaje nuevo (así no se duplica). El modelo verá
-    // [historial de DB] + [último mensaje user del cliente]; el array que mande
-    // el cliente jamás llega al modelo.
-    // Historial crudo (cronológico) para el recorte por presupuesto (B2). El
-    // recorte por CANTIDAD lo hace la query (take); el recorte fino por TAMAÑO lo
-    // hace assembleContext más abajo.
-    // La verificación de ownership y la carga del historial se fusionan en UN
-    // findFirst anidado (una sola ida a la DB): el `where` filtra por userId (no
-    // se leen conversaciones ajenas) y los `messages` vienen incluidos.
+    // Historial crudo (cronológico) para el recorte por presupuesto (B2), cargado
+    // solo si la conversación ya es del usuario. El `where` filtra por userId (no
+    // se leen conversaciones ajenas) y trae los últimos N mensajes incluidos.
     let historyRows: { role: string; content: string }[] = [];
-    if (conversationId) {
+    let isNewConversation = false;
+
+    async function loadOwnedHistory(
+      id: string,
+    ): Promise<{ role: string; content: string }[] | null> {
       const owned = await prisma.conversation.findFirst({
-        where: { id: conversationId, userId },
+        where: { id, userId },
         select: {
           id: true,
           messages: {
@@ -291,26 +307,56 @@ export async function POST(req: Request) {
           },
         },
       });
-      if (!owned) {
-        conversationId = null; // nunca leer/escribir en conversaciones ajenas
+      return owned ? owned.messages.reverse() : null; // ...en orden cronológico.
+    }
+
+    if (conversationId) {
+      const rows = await loadOwnedHistory(conversationId);
+      if (rows) {
+        historyRows = rows; // conversación existente del usuario
       } else {
-        historyRows = owned.messages.reverse(); // ...en orden cronológico.
+        // Aún no es una conversación del usuario: o es el PRIMER mensaje con id
+        // generado por el cliente, o un id ajeno. Se intenta crear con ESE id,
+        // propiedad del usuario actual (create-if-not-exists atómico vía PK).
+        try {
+          await prisma.conversation.create({
+            data: { id: conversationId, userId, title: safeTruncate(userText, 60) },
+            select: { id: true },
+          });
+          isNewConversation = true;
+        } catch (err) {
+          if (isUniqueConstraintError(err)) {
+            // El id ya existía. Si es un request paralelo NUESTRO que ganó la
+            // carrera (mismo userId) → nos adjuntamos y cargamos su historial:
+            // ambos envíos terminan en la MISMA Conversation. Si el id es ajeno,
+            // loadOwnedHistory devuelve null y caemos al id del servidor.
+            const raced = await loadOwnedHistory(conversationId);
+            if (raced) historyRows = raced;
+            else conversationId = null;
+          } else {
+            throw err; // fallo real → lo maneja el catch de infraestructura
+          }
+        }
       }
     }
+
     if (!conversationId) {
+      // Sin id válido del cliente (o id ajeno que colisionó): id del servidor.
       const created = await prisma.conversation.create({
-        data: {
-          userId,
-          title: userText.slice(0, 60),
-        },
+        data: { userId, title: safeTruncate(userText, 60) },
         select: { id: true },
       });
       conversationId = created.id;
+      isNewConversation = true;
+    }
+
+    if (isNewConversation) {
       // Memoria capa 2 (lazy): al abrir una conversación nueva se resume la
       // última que quedó cerrada. `after()` (next/server, estable en Next 16)
       // ejecuta el callback DESPUÉS de enviar la respuesta — en serverless
       // mantiene viva la función (equivalente a waitUntil), así no bloquea ni
-      // se pierde el trabajo. summarizeStaleConversation nunca lanza.
+      // se pierde el trabajo. summarizeStaleConversation nunca lanza. Solo el
+      // GANADOR de una carrera lo dispara (el perdedor no marca isNewConversation).
       after(() => summarizeStaleConversation(userId));
     }
     const responseHeaders = { "x-conversation-id": conversationId };
@@ -731,7 +777,16 @@ export async function POST(req: Request) {
             // maxDuration de la ruta. Se aborta y el catch de acá abajo devuelve el
             // fallback amable. Cubre la generación paralela y la regeneración por
             // riesgo (ambas pasan por generateReply).
-            abortSignal: AbortSignal.timeout(generationTimeoutMs()),
+            //
+            // #19-1: se combina con `req.signal` (AbortSignal.any): si el cliente
+            // corta la conexión (cerró la pestaña, navegó), se aborta la llamada
+            // cara al LLM en vez de seguir generando para nadie. La distinción
+            // entre timeout y desconexión se hace luego con `req.signal.aborted`
+            // (true SOLO si abortó el cliente; el timeout no lo marca).
+            abortSignal: AbortSignal.any([
+              req.signal,
+              AbortSignal.timeout(generationTimeoutMs()),
+            ]),
           }),
         );
         return {
@@ -744,15 +799,29 @@ export async function POST(req: Request) {
           generationLatencyMs: g.steps.at(-1)?.performance?.responseTimeMs ?? null,
         };
       } catch (err) {
-        console.error("[chat] error generando respuesta:", err);
+        // #19-1: desconexión del cliente (req.signal) NO es un error de
+        // generación — se loguea como evento esperado, sin stack ruidoso. Un
+        // timeout de generación (AbortSignal.timeout) SÍ conserva el log de error.
+        if (req.signal.aborted) {
+          console.info("[chat] generación abortada: el cliente cortó la conexión");
+        } else {
+          console.error("[chat] error generando respuesta:", err);
+        }
         return { ok: false };
       }
     }
 
     // --- PARALELO: moderación de entrada + generación (si la IA está configurada) ---
+    // #19-1: respuesta mínima cuando el cliente ya cortó la conexión. El body se
+    // descarta (nadie lo lee); se usa para NO persistir mensajes fantasma del
+    // asistente ni gastar DB/moderación en un request abandonado. NO se usa en
+    // los paths de seguridad (crisis/derivación/sesión), que siempre persisten y
+    // alertan al tutor/a aunque el menor se haya desconectado.
+    const clientGone = () => new Response(null, { status: 499 });
+
     const configured = aiConfigured();
     const [inputMod, parallelGen] = await Promise.all([
-      moderate(userText),
+      moderate(userText, undefined, req.signal),
       configured ? generateReply(systemForParallel) : Promise.resolve(null),
     ]);
 
@@ -855,6 +924,11 @@ export async function POST(req: Request) {
     //    la rama "fallback-error" de decidePostGenPath, evaluada acá por la
     //    dependencia de datos (moderate() necesita generated.text).
     if (!generated.ok) {
+      // #19-1: si la generación falló PORQUE el cliente se desconectó (no un
+      // timeout ni un 5xx), no se persiste un fallback fantasma: el menor ya no
+      // está para leerlo. Un timeout/error real SÍ persiste el fallback (abajo),
+      // como hasta ahora (req.signal.aborted es false en ese caso).
+      if (req.signal.aborted) return clientGone();
       const reply = GENERATION_FALLBACK_REPLY;
       const { id: assistantMessageId } = await saveAssistant(reply, null);
       logInteraction("fallback-error", {
@@ -869,7 +943,12 @@ export async function POST(req: Request) {
     const outputText = generated.text;
 
     // --- Capa de seguridad 2 (moderación de la SALIDA) ---
-    const outputMod = await moderate(outputText);
+    // Se modera SIEMPRE (aunque el cliente se haya desconectado): si el modelo
+    // generó contenido de crisis/abuso, las ramas de sustitución de abajo
+    // registran el SafetyEvent y alertan al tutor/a — esa señal de seguridad no
+    // se pierde por una desconexión. El corte por abort va recién en el path
+    // NORMAL (sin señal), único que dejaría un mensaje fantasma sin valor.
+    const outputMod = await moderate(outputText, undefined, req.signal);
     // Decisión fail-closed cuando la API de salida está caída: se calcula acá
     // (pura, sin efectos) para que decidePostGenPath rutee las ramas post-gen con
     // el MISMO orden que la suite fija. Solo relevante si !outputMod.available.
@@ -957,6 +1036,14 @@ export async function POST(req: Request) {
         return fixedTextResponse(decision.reply, responseHeaders);
       }
     }
+
+    // #19-1: path NORMAL y el cliente ya cortó la conexión. No hay señal de
+    // seguridad que persistir/alertar (las ramas de arriba ya cubrieron crisis/
+    // abuso en entrada y salida), así que no se deja un mensaje fantasma del
+    // asistente ni se gasta el re-chequeo de consentimiento. Se corta acá, antes
+    // de persistir. (Si fue un timeout de generación, esto no aplica: ese caso
+    // cae por la rama fallback-error, con req.signal.aborted en false.)
+    if (req.signal.aborted) return clientGone();
 
     // Salida validada (API OK y sin flag, o degradación con regex limpia +
     // moderación de entrada disponible): mostramos el output del LLM.

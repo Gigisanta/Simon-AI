@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { aiConfigured, generationTimeoutMs, smallModel } from "./provider";
 import { stripDelimiterSequences } from "./system-prompt";
 import { normalizeForSafety } from "@/lib/safety";
+import { safeTruncate } from "@/lib/text";
 
 /**
  * #4 — Anti-inyección en memoria persistente. Los "hechos" que el modelo small
@@ -151,14 +152,15 @@ export function parseSummaryAndFacts(raw: string): {
   const obj = parsed as Record<string, unknown>;
   const summary =
     typeof obj.resumen === "string" && obj.resumen.trim()
-      ? obj.resumen.trim().slice(0, MAX_SUMMARY_CHARS)
+      ? safeTruncate(obj.resumen.trim(), MAX_SUMMARY_CHARS)
       : null;
   const facts = Array.isArray(obj.hechos)
     ? obj.hechos
         .filter((f): f is string => typeof f === "string" && f.trim().length > 0)
         // Trim + tope por hecho (MAX_FACT_CHARS): mantiene `content` dentro del
-        // límite de fila del unique btree de UserMemory.
-        .map((f) => f.trim().slice(0, MAX_FACT_CHARS))
+        // límite de fila del unique btree de UserMemory. safeTruncate corta por
+        // code points (≤4 bytes c/u), preservando la cota de bytes del índice.
+        .map((f) => safeTruncate(f.trim(), MAX_FACT_CHARS))
         .slice(0, MAX_FACTS)
     : [];
   return { summary, facts };
@@ -364,7 +366,7 @@ export function parseRollingSummary(raw: string): string | null {
   }
   const resumen = (parsed as Record<string, unknown>).resumen;
   return typeof resumen === "string" && resumen.trim()
-    ? resumen.trim().slice(0, MAX_ROLLING_SUMMARY_CHARS)
+    ? safeTruncate(resumen.trim(), MAX_ROLLING_SUMMARY_CHARS)
     : null;
 }
 

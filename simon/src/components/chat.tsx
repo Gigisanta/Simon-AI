@@ -14,6 +14,17 @@ import { SESSION_WARN_APPENDIX } from "@/lib/session-limit";
 /** El aviso de pausa lo emite el server (session-limit); acá solo se detecta. */
 const WARN_MARKER = SESSION_WARN_APPENDIX.trim();
 
+/**
+ * Id de conversación generado por el CLIENTE (idempotencia del primer mensaje).
+ * Se manda desde el primer envío: si el usuario hace doble submit (o doble click
+ * en un quick-start), ambos requests llevan el MISMO id y el servidor los
+ * converge en una sola Conversation en vez de crear dos. randomUUID es nativo
+ * (contexto seguro: https o localhost), sin dependencias.
+ */
+function newConversationId(): string {
+  return crypto.randomUUID();
+}
+
 /** Conversación previa que se puede retomar (la devuelve /api/chat/resume). */
 type Resumable = {
   id: string;
@@ -191,6 +202,11 @@ export function Chat() {
   // si el envío falla (el input se limpia de forma optimista al enviar).
   const [lastText, setLastText] = useState("");
   const conversationIdRef = useRef<string | null>(null);
+  // Lazy init (patrón de ref perezoso, evaluado una sola vez): el primer mensaje
+  // ya viaja con un id, base de la idempotencia server-side (#19-2).
+  if (conversationIdRef.current === null) {
+    conversationIdRef.current = newConversationId();
+  }
   // Espejo en state del id de conversación (el ref no dispara render): se
   // deriva al abrir la lista para marcar la fila actual y resetear si se borra.
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
@@ -283,7 +299,8 @@ export function Chat() {
     // anterior seguía escribiéndose en la conversación nueva y vacía.
     stop();
     setMessages([]);
-    conversationIdRef.current = null;
+    // Id fresco para el hilo nuevo (idempotencia de su primer mensaje, #19-2).
+    conversationIdRef.current = newConversationId();
     // Espejo en state: sin esto quedaba stale y la lista seguía marcando la
     // conversación anterior como "actual" tras empezar una nueva.
     setCurrentConversationId(null);
