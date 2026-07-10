@@ -1,36 +1,101 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Simón AI
 
-## Getting Started
+Acompañante emocional con IA para niños y adolescentes (6–18), en español rioplatense.
+**No es un terapeuta ni lo simula.** El alta de un menor la hace un tutor/a desde su
+propia cuenta (verificada por email), y toda respuesta pasa por una capa de moderación
+y un protocolo de crisis. Cada decisión de diseño está subordinada al protocolo de
+seguridad de [`docs/research-safety.md`](../docs/research-safety.md).
 
-First, run the development server:
+## Stack
+
+- **Next.js 16 + React 19 + Tailwind v4** — UI + API en un solo deploy.
+- **Prisma 7** con driver adapter de Neon (`@prisma/adapter-neon`) sobre **Postgres (Neon)**.
+- **better-auth** — sesiones y credenciales en nuestra propia DB (datos de menores = datos sensibles, Ley 25.326).
+- **AI SDK v7** (`@ai-sdk/openai-compatible`) — proveedor de LLM intercambiable por env var (default `deepseek-v4-flash` vía gateway OpenCode Go).
+- **Resend** — email transaccional (verificación del tutor/a, alertas de crisis).
+- **zod** — validación de entrada.
+
+Arquitectura completa en [`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md). Docs de
+research: [`research-safety.md`](../docs/research-safety.md) (crisis, regulación, UX
+para menores — lectura obligatoria antes de tocar el chat),
+[`research-architecture.md`](../docs/research-architecture.md) (LLM/RAG/moderación),
+[`research-guardian.md`](../docs/research-guardian.md) (flujo del tutor/a),
+[`DESIGN-SYSTEM.md`](../docs/DESIGN-SYSTEM.md).
+
+## Setup
+
+1. Copiá el ejemplo de entorno y completá los valores:
+   ```bash
+   cp .env.example .env.local
+   ```
+   Cada variable está documentada en [`.env.example`](.env.example). En Vercel, la DB
+   la provee la integración Neon del Marketplace; en local, `vercel env pull` deja las
+   URLs en `.env.local`.
+2. Instalá dependencias:
+   ```bash
+   pnpm install
+   ```
+3. Generá el cliente Prisma y aplicá las migraciones (usa `DATABASE_URL_UNPOOLED`):
+   ```bash
+   npx prisma migrate deploy
+   npx prisma generate
+   ```
+4. Sembrá la base de conocimiento (RAG liviano):
+   ```bash
+   pnpm db:seed
+   ```
+5. Levantá el server de desarrollo:
+   ```bash
+   pnpm dev
+   ```
+
+## Build
+
+`pnpm build` corre tres pasos: `prisma generate && tsx scripts/migrate-if-production.ts && next build`.
+
+El guard [`scripts/migrate-if-production.ts`](scripts/migrate-if-production.ts) aplica
+`prisma migrate deploy` **solo** cuando `VERCEL_ENV=production` (o cuando se fuerza con
+`ALLOW_MIGRATE=1`). En cualquier otro entorno no migra. Para un build puro que no toque
+la DB, corré directamente:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npx next build
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Tests
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+El gate determinístico corre 17 suites en procesos aislados y agrega el resultado:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+pnpm test            # todas
+pnpm test crisis     # subconjunto por nombre
+```
 
-## Learn More
+Suites (runner [`scripts/run-suites.ts`](scripts/run-suites.ts)): `crisis`,
+`moderation`, `memory`, `guardian`, `guardian-auth`, `env-check`, `alerts`,
+`rate-limit`, `retrieval`, `training-export`, `safety-docs`, `retention`, `purge`,
+`retry`, `chat-precedence`, `csp`, `migrate`.
 
-To learn more about Next.js, take a look at the following resources:
+Type-check y lint:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npx tsc --noEmit
+pnpm lint
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+`scripts/conversation-eval.ts` es un harness exploratorio que llama al LLM real (no
+determinístico) — queda **fuera** del gate.
 
-## Deploy on Vercel
+## Cron de purga / retención
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Vercel Cron dispara `/api/cron/purge` a diario (04:00, ver
+[`vercel.json`](vercel.json)) para borrar datos vencidos por retención (TTL). La ruta
+exige `Authorization: Bearer $CRON_SECRET` con comparación timing-safe: **sin
+`CRON_SECRET` en runtime responde 503 y no corre** (fail-closed, nunca abierta). Seteá
+`CRON_SECRET` en el proyecto de Vercel para que el cron funcione.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Nota sobre Next.js 16
+
+Ver [`AGENTS.md`](AGENTS.md): este proyecto usa Next.js 16, con convenciones y APIs que
+difieren de versiones previas. Consultá la guía en `node_modules/next/dist/docs/` antes
+de escribir código.
