@@ -24,6 +24,7 @@ const SUITES = [
   "memory",
   "guardian",
   "guardian-auth",
+  "guardian-children",
   "safety-events",
   "auth-storage",
   "env-check",

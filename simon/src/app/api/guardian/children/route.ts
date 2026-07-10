@@ -12,7 +12,6 @@
  */
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { Prisma } from "@/generated/prisma/client";
 import { checkRateLimit } from "@/lib/rate-limit";
 import {
   authorizeChildSignup,
@@ -21,8 +20,19 @@ import {
   usernameFromEmail,
 } from "@/lib/guardian";
 import { requireGuardian } from "@/lib/guardian-auth";
+import {
+  childSignupResponse,
+  classifyChildTxError,
+  type ChildSignupOutcome,
+} from "@/lib/guardian-children";
 import { sameOriginOk } from "@/lib/env-check";
 import { z } from "zod";
+
+/** Mapea un desenlace terminal del alta a su Response (fuente única del status/mensaje). */
+function childSignupError(outcome: Exclude<ChildSignupOutcome, "ok">): Response {
+  const { status, error } = childSignupResponse(outcome);
+  return Response.json({ error }, { status });
+}
 
 // Alta de menores: acotado por tutor/a (evita scripting de creación masiva).
 const CREATE_RATE_LIMIT_PER_MINUTE = 10;
@@ -97,10 +107,7 @@ export async function POST(req: Request) {
     select: { id: true },
   });
   if (existing) {
-    return Response.json(
-      { error: "Ese nombre de usuario ya está en uso. Probá con otro." },
-      { status: 409 },
-    );
+    return childSignupError("duplicate-precheck");
   }
 
   // Crear el menor vía better-auth: hashea la contraseña y crea User + Account.
@@ -121,10 +128,7 @@ export async function POST(req: Request) {
     await auth.api.signUpEmail({ body: { name, email, password } });
   } catch (err) {
     console.error("[guardian] error creando menor (signUpEmail):", err);
-    return Response.json(
-      { error: "No se pudo crear la cuenta del menor. Probá de nuevo." },
-      { status: 400 },
-    );
+    return childSignupError("signup-failed");
   }
 
   // Traer la fila canónica desde la DB (la protección de enumeración puede
@@ -134,17 +138,11 @@ export async function POST(req: Request) {
     select: { id: true, role: true },
   });
   if (!child) {
-    return Response.json(
-      { error: "No se pudo crear la cuenta del menor. Probá de nuevo." },
-      { status: 500 },
-    );
+    return childSignupError("no-canonical-user");
   }
   // Carrera: si ya era un menor existente (pre-check no lo vio), no lo pisamos.
   if (child.role === "child") {
-    return Response.json(
-      { error: "Ese nombre de usuario ya está en uso. Probá con otro." },
-      { status: 409 },
-    );
+    return childSignupError("race-already-child");
   }
 
   // Promoción a menor + registro del consentimiento en UNA transacción atómica
@@ -182,20 +180,9 @@ export async function POST(req: Request) {
         console.error("[guardian] no se pudo limpiar el user huérfano:", cleanupErr),
       );
     // P2002 (unique de Guardian.childUserId): carrera en la que el menor ya
-    // tenía tutor/a → mismo 409 que un username en uso.
-    if (
-      err instanceof Prisma.PrismaClientKnownRequestError &&
-      err.code === "P2002"
-    ) {
-      return Response.json(
-        { error: "Ese nombre de usuario ya está en uso. Probá con otro." },
-        { status: 409 },
-      );
-    }
-    return Response.json(
-      { error: "No se pudo crear la cuenta del menor. Probá de nuevo." },
-      { status: 500 },
-    );
+    // tenía tutor/a → mismo 409 que un username en uso. Cualquier otro → 500.
+    // La clasificación del error vive en lib/guardian-children.ts (testeada).
+    return childSignupError(classifyChildTxError(err));
   }
 
   return Response.json(
