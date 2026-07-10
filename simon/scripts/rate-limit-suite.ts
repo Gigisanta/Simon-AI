@@ -161,10 +161,33 @@ async function testProdRequiresUpstash() {
   }
 }
 
+// ---------- 2c. Keys distintas → buckets independientes (#22-2) ----------
+// Fix #22-2: el listado (`conversations:list:`) y el detalle
+// (`conversations:detail:`) usaban la MISMA key `conversations:read:`, así que
+// abrir varios hilos seguidos agotaba la cuota compartida → 429 sorpresivos.
+// Con keys separadas, agotar una NO afecta a la otra. Este caso fija ese
+// invariante (dos keys distintas no comparten bucket) que la separación explota.
+async function testDistinctKeysIndependent() {
+  const user = Math.random();
+  const listKey = `conversations:list:${user}`;
+  const detailKey = `conversations:detail:${user}`;
+  const max = 3;
+  // Agota la cuota del listado.
+  for (let i = 0; i < max; i++) await checkRateLimit(listKey, max, MINUTE);
+  const listBlocked = await checkRateLimit(listKey, max, MINUTE);
+  // El detalle arranca con su cuota intacta pese al listado agotado.
+  const detailOk = await checkRateLimit(detailKey, max, MINUTE);
+  check(
+    !listBlocked.ok && detailOk.ok,
+    "checkRateLimit: agotar `conversations:list:` NO consume `conversations:detail:` (#22-2)",
+  );
+}
+
 async function main() {
   await testEnforcement();
   await testConcurrentSameKey();
   await testIndependentWindows();
+  await testDistinctKeysIndependent();
   await testProdRequiresUpstash();
 
   done();

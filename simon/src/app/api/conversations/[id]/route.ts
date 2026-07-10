@@ -22,6 +22,9 @@ const NO_STORE = { "cache-control": "no-store" };
 // Borrado: acotado por usuario contra scripting/errores en ráfaga.
 const DELETE_RATE_LIMIT_PER_MINUTE = 20;
 // Lectura de una conversación: tope holgado por usuario contra scraping/scripting.
+// Key propia (`conversations:detail:`) — NO se comparte con el listado
+// (`conversations:list:` en ../route.ts): abrir varios hilos seguidos consumía
+// la misma cuota que el listado y disparaba 429 sorpresivos.
 const READ_RATE_LIMIT_PER_MINUTE = 60;
 
 const UNAUTHENTICATED = () =>
@@ -41,7 +44,7 @@ export async function GET(
   if (!session) return UNAUTHENTICATED();
 
   const rl = await checkRateLimit(
-    `conversations:read:${session.user.id}`,
+    `conversations:detail:${session.user.id}`,
     READ_RATE_LIMIT_PER_MINUTE,
     60_000,
   );

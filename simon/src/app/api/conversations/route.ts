@@ -24,6 +24,9 @@ export const dynamic = "force-dynamic";
 const NO_STORE = { "cache-control": "no-store" };
 
 // Listado (lectura): tope holgado por usuario contra scraping/scripting.
+// Key propia (`conversations:list:`) — NO se comparte con el detalle de una
+// conversación (`conversations:detail:` en [id]/route.ts): abrir varios hilos
+// seguidos consumía la misma cuota y disparaba 429 sorpresivos.
 const READ_RATE_LIMIT_PER_MINUTE = 60;
 
 export async function GET(req: Request) {
@@ -36,7 +39,7 @@ export async function GET(req: Request) {
   }
 
   const rl = await checkRateLimit(
-    `conversations:read:${session.user.id}`,
+    `conversations:list:${session.user.id}`,
     READ_RATE_LIMIT_PER_MINUTE,
     60_000,
   );
