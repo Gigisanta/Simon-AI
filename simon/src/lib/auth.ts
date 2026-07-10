@@ -2,7 +2,7 @@ import { betterAuth } from "better-auth";
 import { APIError } from "better-auth/api";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { prisma } from "@/lib/prisma";
-import { deliverVerificationEmail } from "@/lib/email";
+import { deliverResetPasswordEmail, deliverVerificationEmail } from "@/lib/email";
 import {
   consumeChildSignupAuthorization,
   isChildEmail,
@@ -82,6 +82,21 @@ export const auth = betterAuth({
     // (su email sintético `.invalid` jamás es verificable), así que pasan este
     // chequeo — better-auth solo mira `emailVerified` (ver sign-in).
     requireEmailVerification: true,
+    // Reseteo de contraseña — SOLO tutores/as. Los menores no tienen email real
+    // (su `@ninos.simon.invalid` no es ruteable ni verificable), así que su
+    // solicitud se rechaza en silencio: no se envía nada y no se filtra que la
+    // cuenta existe. Mismo transporte no-bloqueante que la verificación
+    // (deliverEmail: en producción sin RESEND_API_KEY el token NUNCA se loguea).
+    //
+    // NO se activa `revokeSessionsOnPasswordReset`: el reseteo del tutor/a no
+    // debe tocar las sesiones del hijo (better-auth solo revocaría las del propio
+    // usuario que resetea, pero se deja explícito para no invalidar al menor).
+    async sendResetPassword({ user, url }) {
+      if (isChildEmail(user.email)) return;
+      // No propagamos errores: un fallo del proveedor no debe romper el flujo
+      // (better-auth corre esto en background; el tutor/a puede reintentar).
+      await deliverResetPasswordEmail(user.email, url);
+    },
   },
   emailVerification: {
     // Enviar el email de verificación al registrarse.

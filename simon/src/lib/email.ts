@@ -84,6 +84,29 @@ export async function deliverVerificationEmail(
 }
 
 /**
+ * Entrega el email de reseteo de contraseña del tutor/a. Mismo transporte
+ * no-bloqueante que la verificación: en producción SIN RESEND_API_KEY el cuerpo
+ * (que contiene la URL con el token de reseteo) NUNCA se loguea (gate NODE_ENV en
+ * deliverEmail). Devuelve `true` si se envió (o se logueó en dev), `false` si el
+ * proveedor falló. Nunca lanza.
+ */
+export async function deliverResetPasswordEmail(
+  to: string,
+  url: string,
+): Promise<boolean> {
+  return deliverEmail(
+    to,
+    "Restablecé tu contraseña — Simón",
+    "Hola,\n\n" +
+      "Recibimos un pedido para restablecer la contraseña de tu cuenta de Simón. " +
+      "Para elegir una nueva, entrá en este enlace:\n" +
+      `${url}\n\n` +
+      "Si no lo pediste, ignorá este mensaje: tu contraseña actual sigue funcionando.\n\n" +
+      "— Simón",
+  );
+}
+
+/**
  * Alerta de crisis al tutor/a (M-P2). PRIVACIDAD DEL MENOR: se comparte la
  * señal detectada (`signal`, en lenguaje humano — ver humanCategory en
  * lib/alerts.ts), NUNCA el contenido de la conversación. Recursos verificados:
