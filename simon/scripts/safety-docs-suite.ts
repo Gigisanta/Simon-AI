@@ -107,4 +107,4 @@ if (failures.length > 0) {
   );
   process.exit(1);
 }
-console.log(`SAFETY-DOCS SUITE: ${passed}/${passed} casos OK`);
+console.log(`SAFETY-DOCS SUITE: ${passed}/${passed + failures.length} casos OK`);
