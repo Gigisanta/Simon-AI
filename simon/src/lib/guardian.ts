@@ -57,7 +57,22 @@ export function isChildEmail(email: string): boolean {
 
 const CHILD_SIGNUP_AUTH_TTL_MS = 30_000;
 
-/** email (lowercase) → expiración (epoch ms). */
+/**
+ * email (lowercase) → expiración (epoch ms).
+ *
+ * INVARIANTE SINGLE-PROCESS (a propósito, no un bug): este Map vive en la memoria
+ * de UN proceso. Funciona porque emisor y consumidor SIEMPRE comparten proceso:
+ * el endpoint del tutor/a llama `authorizeChildSignup(email)` e inmediatamente
+ * después `auth.api.signUpEmail`, que es una llamada IN-PROCESS (no HTTP) — el
+ * hook `databaseHooks.user.create.before` que consume corre en el mismo módulo,
+ * incluso en serverless (una sola invocación atiende ambos). No cruza instancias
+ * ni sobrevive a un reinicio, y no hace falta que lo haga: la ventana emitir→
+ * consumir es de microsegundos dentro de la misma request, con TTL de 30s como
+ * red de seguridad. NO migrar esto a Redis/secondaryStorage: sería complejidad
+ * innecesaria (y una señal que un cliente externo NO puede replicar es justo el
+ * punto — ver C1 abajo). Si alguna vez el consumo dejara de ser in-process, esta
+ * invariante se rompería y habría que repensar el mecanismo.
+ */
 const authorizedChildSignups = new Map<string, number>();
 
 /**
