@@ -24,8 +24,9 @@
  * se resetea o el gateway responde 5xx enseguida, muy por debajo del timeout;
  * un fallo que consume el timeout completo aborta como TimeoutError y NO se
  * reintenta. Por eso el peor caso REAL ≈ (fallo rápido ~<2s) + backoff(~0.3s) +
- * 1 intento completo, que entra cómodo en el maxDuration=60 de la ruta de chat
- * junto con la moderación de salida. p99 añadido ≈ backoff.
+ * 1 intento completo, que entra cómodo en el maxDuration de la ruta de chat
+ * (CHAT_ROUTE_MAX_DURATION_S, lib/ai/limits.ts) junto con la moderación de salida.
+ * p99 añadido ≈ backoff.
  */
 
 const TRANSIENT_NET_CODES = new Set([

@@ -50,6 +50,7 @@ import {
 import { moderate, type ModerationResult } from "@/lib/moderation";
 import { interactionLogTtlCutoff } from "@/lib/retention";
 import { withTransientRetry } from "@/lib/ai/retry";
+import { CHAT_ROUTE_MAX_DURATION_S } from "@/lib/ai/limits";
 import { decideResponsePath, decidePostGenPath } from "@/lib/chat-precedence";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { sameOriginOk } from "@/lib/env-check";
@@ -70,7 +71,9 @@ import type { KnowledgeCard } from "@/generated/prisma/client";
 // sin cambiar el timeout interno de cada llamada (ver lib/ai/retry.ts).
 // No streameamos: generamos completo, moderamos y mostramos
 // (decisión de diseño — ver docs/research-ux.md §2).
-export const maxDuration = 90;
+// El valor vive en lib/ai/limits.ts (fuente única compartida con los comentarios
+// de retry.ts/provider.ts, para que no se desincronicen — Lote 4).
+export const maxDuration = CHAT_ROUTE_MAX_DURATION_S;
 
 // Límites defensivos (costo + abuso). Ver docs/security-review.md.
 const MAX_MESSAGE_CHARS = 4_000; // el cliente corta en 2000; el servidor manda
@@ -707,7 +710,8 @@ export async function POST(req: Request) {
         // propia señal fresca (una ya abortada quedaría inservible). Un
         // timeout/abort NO es transitorio → no se reintenta (es el tope de latencia
         // aceptado). Peor caso real ≈ fallo-rápido + backoff + 1 intento completo,
-        // dentro del maxDuration=60 (ver lib/ai/retry.ts).
+        // dentro del maxDuration de la ruta (CHAT_ROUTE_MAX_DURATION_S, ver
+        // lib/ai/retry.ts y lib/ai/limits.ts).
         const g = await withTransientRetry(() =>
           generateText({
             model: chatModel(),

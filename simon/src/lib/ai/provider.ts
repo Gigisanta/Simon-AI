@@ -91,7 +91,8 @@ export function aiConfigured(): boolean {
  * Timeout de generación en ms (M3). Un modelo/gateway colgado no puede dejar al
  * menor esperando hasta el `maxDuration` de la ruta: se aborta y el caller da un
  * fallback amable. Configurable por `AI_GENERATION_TIMEOUT_MS` (default 25s, con
- * holgura dentro del maxDuration=60 de la ruta de chat). Un valor inválido o no
+ * holgura dentro del maxDuration de la ruta de chat, CHAT_ROUTE_MAX_DURATION_S en
+ * lib/ai/limits.ts). Un valor inválido o no
  * positivo cae al default.
  */
 export function generationTimeoutMs(): number {
