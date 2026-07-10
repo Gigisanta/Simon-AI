@@ -127,6 +127,45 @@ export async function purgeExpiredData(
 }
 
 /**
+ * Nombre del advisory lock de Postgres que serializa el cron de purga. Se pasa a
+ * `hashtext(...)` en la ruta para derivar el bigint del `pg_try_advisory_xact_lock`.
+ * Constante compartida entre la ruta y el test (mismo nombre = mismo lock).
+ */
+export const PURGE_LOCK_NAME = "simon:cron:purge";
+
+export type PurgeUnderLockResult =
+  | { skipped: true }
+  | { skipped: false; deleted: PurgeCounts };
+
+/**
+ * Orquesta la purga bajo un advisory lock para evitar corridas CONCURRENTES del
+ * cron (dos invocaciones solapadas compitiendo por locks de fila / duplicando el
+ * barrido). Determinística y SIN DB directa: las dos operaciones con efecto se
+ * inyectan, de modo que la decisión (correr vs saltar) se testea con mocks.
+ *
+ *   - `tryLock()`  → intenta tomar el lock (pg_try_advisory_xact_lock, no bloquea).
+ *   - `purge()`    → la purga real (purgeExpiredData) — solo se llama si se tomó.
+ *
+ * Si NO se adquiere el lock (otra corrida lo tiene) → `{ skipped: true }`, sin
+ * tocar ninguna tabla. Si se adquiere → corre la purga y devuelve los counts.
+ *
+ * NOTA de liberación: el caller usa `pg_try_advisory_xact_lock` DENTRO de una
+ * transacción interactiva; el lock se libera SOLO al terminar la transacción
+ * (commit/rollback), en la MISMA conexión — así el adapter de Neon (que puede
+ * rotar de conexión entre queries sueltas) no deja el lock colgado. Por eso acá
+ * no hay `unlock`: es responsabilidad del `COMMIT` de la transacción.
+ */
+export async function purgeUnderLock(deps: {
+  tryLock: () => Promise<boolean>;
+  purge: () => Promise<PurgeCounts>;
+}): Promise<PurgeUnderLockResult> {
+  const acquired = await deps.tryLock();
+  if (!acquired) return { skipped: true };
+  const deleted = await deps.purge();
+  return { skipped: false, deleted };
+}
+
+/**
  * Autorización del cron de purga (Vercel Cron manda `Authorization: Bearer
  * <CRON_SECRET>`). Función PURA y testeable.
  *

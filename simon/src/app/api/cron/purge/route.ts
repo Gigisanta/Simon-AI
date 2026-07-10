@@ -1,5 +1,10 @@
 import { prisma } from "@/lib/prisma";
-import { isAuthorizedCron, purgeExpiredData } from "@/lib/retention";
+import {
+  isAuthorizedCron,
+  PURGE_LOCK_NAME,
+  purgeExpiredData,
+  purgeUnderLock,
+} from "@/lib/retention";
 
 /**
  * Purga TTL por cron — INDEPENDIENTE del tráfico (#9 + #12).
@@ -54,11 +59,41 @@ async function handlePurge(req: Request): Promise<Response> {
   }
 
   const now = new Date();
+  const startedAt = Date.now();
   try {
-    const deleted = await purgeExpiredData(prisma, now);
-    console.log("[cron/purge] purga TTL OK", deleted);
+    // Lock distribuido para evitar corridas CONCURRENTES del cron (Vercel puede
+    // reintentar/solapar invocaciones). pg_try_advisory_xact_lock NO bloquea: si
+    // otra corrida tiene el lock devuelve false y esta salta (200 skipped). El
+    // lock + la purga van en UNA transacción interactiva → misma conexión (el
+    // adapter de Neon usa Pool/WebSocket) y liberación automática en el commit,
+    // sin unlock manual ni riesgo de rotación de conexión.
+    const result = await prisma.$transaction(async (tx) => {
+      return purgeUnderLock({
+        tryLock: async () => {
+          const rows = await tx.$queryRaw<
+            { locked: boolean }[]
+          >`SELECT pg_try_advisory_xact_lock(hashtext(${PURGE_LOCK_NAME})) AS locked`;
+          return rows[0]?.locked === true;
+        },
+        purge: () => purgeExpiredData(tx, now),
+      });
+    });
+
+    if (result.skipped) {
+      console.log("[cron/purge] otra corrida tiene el lock — se saltea");
+      return Response.json(
+        { ok: true, skipped: true, purgedAt: now.toISOString() },
+        { headers: NO_STORE },
+      );
+    }
+
+    // Métrica: conteos por tabla + duración total. El detalle por tabla ya venía
+    // en `result.deleted`; se agrega la duración para detectar crecimiento del
+    // backlog (una corrida que borra mucho más de lo habitual o que tarda de más).
+    const durationMs = Date.now() - startedAt;
+    console.log(`[cron/purge] purga TTL OK (${durationMs}ms)`, result.deleted);
     return Response.json(
-      { ok: true, deleted, purgedAt: now.toISOString() },
+      { ok: true, deleted: result.deleted, durationMs, purgedAt: now.toISOString() },
       { headers: NO_STORE },
     );
   } catch (err) {

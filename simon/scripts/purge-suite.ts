@@ -20,8 +20,10 @@
 import { createChecker } from "./suite-helpers";
 import {
   purgeExpiredData,
+  purgeUnderLock,
   interactionLogTtlCutoff,
   orphanChildCutoff,
+  type PurgeCounts,
   type RetentionPurgeClient,
 } from "../src/lib/retention";
 import { memoryTtlCutoff } from "../src/lib/ai/memory";
@@ -126,6 +128,50 @@ async function main() {
   check(
     userIdx > ttlMaxIdx,
     "el borrado de huérfanos (cascade) corre DESPUÉS de las 3 purgas TTL",
+  );
+}
+
+// ---------- 4. purgeUnderLock: lock adquirido vs no adquirido ----------
+const FAKE_COUNTS: PurgeCounts = {
+  userMemory: 1,
+  interactionLog: 2,
+  sessions: 3,
+  orphanChildren: 4,
+};
+
+{
+  // Lock ADQUIRIDO → corre la purga y devuelve los counts.
+  let purgeCalls = 0;
+  const res = await purgeUnderLock({
+    tryLock: async () => true,
+    purge: async () => {
+      purgeCalls += 1;
+      return FAKE_COUNTS;
+    },
+  });
+  check(res.skipped === false, "lock adquirido → skipped false");
+  check(
+    res.skipped === false && res.deleted === FAKE_COUNTS,
+    "lock adquirido → devuelve los counts de la purga",
+  );
+  check(purgeCalls === 1, "lock adquirido → la purga corre EXACTAMENTE una vez");
+}
+
+{
+  // Lock NO adquirido (otra corrida lo tiene) → NO corre la purga, skipped.
+  let purgeCalls = 0;
+  const res = await purgeUnderLock({
+    tryLock: async () => false,
+    purge: async () => {
+      purgeCalls += 1;
+      return FAKE_COUNTS;
+    },
+  });
+  check(res.skipped === true, "lock NO adquirido → skipped true");
+  check(purgeCalls === 0, "lock NO adquirido → la purga NO se ejecuta (cero borrados)");
+  check(
+    !("deleted" in res),
+    "lock NO adquirido → el resultado no trae counts (nada que reportar)",
   );
 }
 }
