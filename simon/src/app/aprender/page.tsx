@@ -6,6 +6,12 @@ import { SiteHeader } from "@/components/site-header";
 import { BottomNav } from "@/components/bottom-nav";
 import { LearnExplorer, type KnowledgeCardRow } from "@/components/learn-explorer";
 
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Aprender — Simón",
+};
+
 // Datos por sesión: nunca cachear.
 export const dynamic = "force-dynamic";
 
