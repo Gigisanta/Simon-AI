@@ -40,7 +40,7 @@ export function translateAuthError(
   return message || "No se pudo completar. Probá de nuevo.";
 }
 
-type Mode = "signin" | "signup";
+type Mode = "signin" | "signup" | "forgot";
 
 const inputClass =
   "min-h-11 rounded-2xl border border-line bg-card px-4 text-base text-ink outline-none placeholder:text-ink-soft focus:border-brand";
@@ -69,6 +69,30 @@ export function AuthForm() {
     setNotice(null);
     setPending(true);
     try {
+      // "Olvidé mi contraseña" (solo tutor/a): pide el enlace de reseteo con
+      // respuesta NEUTRA anti-enumeración. better-auth ya neutraliza server-side
+      // (para un email inexistente simula el envío y responde éxito, ver
+      // lib/auth.ts / node_modules), así que acá mostramos el MISMO aviso exista o
+      // no la cuenta. El link del mail vuelve a /reset-password con el token.
+      if (audience === "adult" && mode === "forgot") {
+        const res = await authClient.requestPasswordReset({
+          email,
+          redirectTo: `${window.location.origin}/reset-password`,
+        });
+        if (res.error) {
+          // Solo errores no-enumerantes (email malformado, rate limit): no
+          // revelan si la cuenta existe.
+          setError(translateAuthError(res.error.message, audience));
+        } else {
+          setMode("signin");
+          setPassword("");
+          setNotice(
+            "Si el email está registrado, te enviamos un enlace para restablecer la contraseña. Revisá tu bandeja (y el spam).",
+          );
+        }
+        return;
+      }
+
       let res;
       if (audience === "child") {
         // El menor ingresa con "usuario": el email sintético se arma detrás.
@@ -140,12 +164,16 @@ export function AuthForm() {
           ? "Entrá con tu usuario"
           : mode === "signin"
             ? "Iniciá sesión"
-            : "Creá tu cuenta"}
+            : mode === "signup"
+              ? "Creá tu cuenta"
+              : "Restablecé tu contraseña"}
       </h2>
       <p className="mt-1 text-sm text-ink-soft">
         {audience === "child"
           ? "Usá el usuario y la contraseña que te dio tu tutor/a."
-          : "Simón — un espacio para hablar y aprender."}
+          : mode === "forgot"
+            ? "Ingresá tu email y te enviamos un enlace para elegir una nueva."
+            : "Simón — un espacio para hablar y aprender."}
       </p>
 
       {notice && (
@@ -191,19 +219,22 @@ export function AuthForm() {
           />
         )}
 
-        <input
-          className={inputClass}
-          placeholder="Contraseña"
-          aria-label="Contraseña"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-          minLength={8}
-          autoComplete={
-            audience === "adult" && mode === "signup" ? "new-password" : "current-password"
-          }
-        />
+        {/* En "olvidé mi contraseña" no se pide contraseña: solo el email. */}
+        {mode !== "forgot" && (
+          <input
+            className={inputClass}
+            placeholder="Contraseña"
+            aria-label="Contraseña"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            minLength={8}
+            autoComplete={
+              audience === "adult" && mode === "signup" ? "new-password" : "current-password"
+            }
+          />
+        )}
 
         {error && <p role="alert" className="text-sm font-semibold text-danger">{error}</p>}
 
@@ -218,14 +249,34 @@ export function AuthForm() {
               ? "Entrar"
               : mode === "signin"
                 ? "Entrar"
-                : "Registrarme"}
+                : mode === "signup"
+                  ? "Registrarme"
+                  : "Enviar enlace"}
         </button>
       </form>
+
+      {/* "Olvidé mi contraseña" (solo tutor/a, en inicio de sesión). */}
+      {audience === "adult" && mode === "signin" && (
+        <button
+          type="button"
+          onClick={() => {
+            setMode("forgot");
+            setError(null);
+            setNotice(null);
+            setPassword("");
+          }}
+          className="mt-2 block text-sm font-semibold text-ink-soft underline-offset-2 hover:underline"
+        >
+          ¿Olvidaste tu contraseña?
+        </button>
+      )}
 
       {audience === "adult" && (
         <button
           type="button"
           onClick={() => {
+            // Desde "olvidé mi contraseña" se vuelve a iniciar sesión; en el
+            // resto se alterna signin↔signup como siempre.
             setMode(mode === "signin" ? "signup" : "signin");
             setError(null);
             setNotice(null);
@@ -234,7 +285,9 @@ export function AuthForm() {
         >
           {mode === "signin"
             ? "¿No tenés cuenta? Registrate"
-            : "¿Ya tenés cuenta? Iniciá sesión"}
+            : mode === "signup"
+              ? "¿Ya tenés cuenta? Iniciá sesión"
+              : "Volver a iniciar sesión"}
         </button>
       )}
     </div>

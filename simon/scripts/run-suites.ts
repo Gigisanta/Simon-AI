@@ -25,6 +25,7 @@ const SUITES = [
   "guardian",
   "guardian-auth",
   "guardian-children",
+  "password",
   "email",
   "safety-events",
   "auth-storage",
