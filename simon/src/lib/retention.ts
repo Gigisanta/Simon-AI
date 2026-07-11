@@ -11,6 +11,20 @@
  * El TTL de UserMemory (90d) vive en `ai/memory.ts` (memoryTtlCutoff); acá vive
  * el de InteractionLog (telemetría, 180d). El cron importa ambos.
  */
+
+/**
+ * Message/Conversation/SafetyEvent (usuario activo): SIN TTL, por diseño.
+ * A diferencia de InteractionLog/UserMemory, estos datos son el historial
+ * terapéutico/de seguridad del menor — su valor para el tutor/a (ver
+ * conversaciones pasadas, exportar, revisar eventos de seguridad) y para la
+ * continuidad del chat (contexto de conversación) no decae con el tiempo como
+ * la telemetría. Se purgan SOLO como efecto del cascade de `User` en dos
+ * caminos: (a) el tutor/a borra la cuenta del menor (derecho de supresión,
+ * ver guardian/children/[childId]/route.ts DELETE) o (b) el barrido de
+ * menores huérfanos de más abajo. Mientras la cuenta exista y tenga tutor/a,
+ * no hay minimización temporal de esta data — decisión de producto, no un
+ * TTL pendiente de implementar.
+ */
 import { createHash, timingSafeEqual } from "node:crypto";
 import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 import { memoryTtlCutoff } from "@/lib/ai/memory";
