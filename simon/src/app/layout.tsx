@@ -10,9 +10,33 @@ const nunito = Nunito({
 });
 
 export const metadata: Metadata = {
-  title: "Simón — Acompañamos cada paso",
+  metadataBase: new URL("https://simon.maat.work"),
+  title: {
+    default: "Simón — Acompañamos cada paso",
+    template: "%s | Simón",
+  },
   description:
-    "Simón — asistente de IA para acompañar y orientar. No reemplaza a un profesional de la salud.",
+    "Un espacio seguro para hablar, entender lo que te pasa y aprender paso a paso.",
+  applicationName: "Simón",
+  alternates: { canonical: "/" },
+  openGraph: {
+    type: "website",
+    locale: "es_AR",
+    url: "/",
+    siteName: "Simón",
+    title: "Simón — Acompañamos cada paso",
+    description: "Un espacio seguro para hablar, entender lo que te pasa y aprender paso a paso.",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Simón — Acompañamos cada paso",
+    description: "Un espacio seguro para hablar, entender lo que te pasa y aprender paso a paso.",
+  },
+  appleWebApp: {
+    capable: true,
+    title: "Simón",
+    statusBarStyle: "default",
+  },
   // App privada de familias con datos de menores: no indexar ni seguir enlaces
   // (refuerza el disallow total de src/app/robots.ts).
   robots: { index: false, follow: false },
