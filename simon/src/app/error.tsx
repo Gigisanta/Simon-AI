@@ -1,9 +1,20 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
 import { SimonAvatar } from "@/components/simon-avatar";
 
-export default function Error({ reset }: { reset: () => void }) {
+export default function Error({
+  error,
+  reset,
+}: {
+  error: Error & { digest?: string };
+  reset: () => void;
+}) {
+  useEffect(() => {
+    console.error("[error-boundary]", error);
+  }, [error]);
+
   return (
     <main className="flex min-h-dvh flex-1 flex-col items-center justify-center gap-6 bg-cream px-4 text-center">
       <SimonAvatar className="size-16" />
