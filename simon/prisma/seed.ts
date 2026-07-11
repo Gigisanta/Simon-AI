@@ -7,6 +7,7 @@ import { PrismaNeon } from "@prisma/adapter-neon";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { KNOWLEDGE_CARDS } from "./knowledge-data";
 import { HELP_RESOURCES } from "./help-resources-data";
+import { TRAMITE_GUIDES } from "./tramites-data";
 
 dotenv({ path: [".env.local", ".env"] });
 
@@ -68,6 +69,28 @@ async function main() {
     });
   }
   console.log(`Seeded ${HELP_RESOURCES.length} help resources.`);
+
+  // Guías de trámites ("Mis trámites"): contenido orientativo con fuente
+  // oficial. reviewed:false hasta validación humana (mismo criterio que las
+  // fichas). Idempotente por `slug`.
+  for (const g of TRAMITE_GUIDES) {
+    const data = {
+      title: g.title,
+      summary: g.summary,
+      category: g.category,
+      estimatedTime: g.estimatedTime ?? null,
+      requirements: g.requirements,
+      steps: g.steps,
+      source: g.source ?? null,
+      sourceUrl: g.sourceUrl ?? null,
+    };
+    await prisma.tramiteGuide.upsert({
+      where: { slug: g.slug },
+      update: data,
+      create: { slug: g.slug, ...data, reviewed: false },
+    });
+  }
+  console.log(`Seeded ${TRAMITE_GUIDES.length} tramite guides.`);
 }
 
 main()

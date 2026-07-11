@@ -37,6 +37,7 @@ model User {
   moods         MoodEntry[]
   guardianFollowups GuardianFollowup[] @relation("gfGuardian")
   childFollowups    GuardianFollowup[] @relation("gfChild")
+  tramiteProgress   TramiteProgress[]
 
   // Menores a cargo de este usuario (si es tutor/a).
   guardianOf    Guardian[] @relation("guardianOf")
@@ -274,6 +275,49 @@ model HelpResource {
   updatedAt     DateTime @updatedAt
 
   @@index([province, kind])
+}
+
+// ---------- Trámites guiados ("Mis trámites") ----------
+
+// Guía de un trámite (CUD, pensión, transporte, escolaridad, salud). Contenido
+// versionable y validable por profesional (reviewed). `requirements` y `steps`
+// son JSON tipados en lib/tramites.ts. Orientativo: siempre remite a la fuente
+// oficial (sourceUrl). No es asesoramiento legal.
+model TramiteGuide {
+  id            String   @id @default(cuid())
+  slug          String   @unique
+  title         String
+  summary       String
+  // "cud" | "pension" | "transporte" | "escolaridad" | "salud"
+  category      String
+  estimatedTime String?
+  requirements  Json // TramiteRequirement[]
+  steps         Json // TramiteStep[]
+  source        String?
+  sourceUrl     String?
+  reviewed      Boolean  @default(false)
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([category])
+}
+
+// Progreso de UNA familia (tutor/a) en un trámite. Lo que vuelve "asistente" a
+// las fichas: recuerda el paso y los documentos ya reunidos. Cascade con el tutor.
+model TramiteProgress {
+  id             String   @id @default(cuid())
+  guardianUserId String
+  guardianUser   User     @relation(fields: [guardianUserId], references: [id], onDelete: Cascade)
+  guideSlug      String
+  status         String   @default("in_progress") // in_progress | done | dismissed
+  currentStep    Int      @default(0)
+  checkedItems   Json     @default("[]") // índices de requisitos tildados
+  startedAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([guardianUserId, guideSlug])
+  @@index([guardianUserId])
 }
 
 // ---------- Puente: seguimiento de derivación del tutor/a ----------

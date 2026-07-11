@@ -34,6 +34,7 @@ const SUITES = [
   "env-check",
   "alerts",
   "bridge",
+  "tramites",
   "rate-limit",
   "claim-once",
   "retrieval",
