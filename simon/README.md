@@ -64,17 +64,18 @@ npx next build
 
 ## Tests
 
-El gate determinístico corre 17 suites en procesos aislados y agrega el resultado:
+El gate determinístico corre 24 suites en procesos aislados y agrega el resultado:
 
 ```bash
 pnpm test            # todas
 pnpm test crisis     # subconjunto por nombre
 ```
 
-Suites (runner [`scripts/run-suites.ts`](scripts/run-suites.ts)): `crisis`,
-`moderation`, `memory`, `guardian`, `guardian-auth`, `env-check`, `alerts`,
-`rate-limit`, `retrieval`, `training-export`, `safety-docs`, `retention`, `purge`,
-`retry`, `chat-precedence`, `csp`, `migrate`.
+El listado completo y siempre actualizado de suites es el array `SUITES` en
+[`scripts/run-suites.ts`](scripts/run-suites.ts) (fuente única). Cubren, entre otras,
+safety/crisis (`crisis`, `moderation`), guardián y menores (`guardian*`), memoria y
+retención (`memory`, `retention`, `purge`), retrieval/knowledge y auth/seguridad
+(`rate-limit`, `csp`, `env-check`).
 
 Type-check y lint:
 
