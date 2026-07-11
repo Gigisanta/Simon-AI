@@ -224,6 +224,8 @@ export function Chat() {
 
   const [input, setInput] = useState("");
   const composerRef = useRef<HTMLTextAreaElement>(null);
+  const logRef = useRef<HTMLDivElement>(null);
+  const [atBottom, setAtBottom] = useState(true);
   const [onboardingSkipped, setOnboardingSkipped] = useState(false);
   const [listOpen, setListOpen] = useState(false);
   // Último texto enviado: sobrevive al vaciado del input para poder reintentar
@@ -249,6 +251,30 @@ export function Chat() {
   // deriva al abrir la lista para marcar la fila actual y resetear si se borra.
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  // Safari/iOS no siempre respeta interactive-widget=resizes-content. El
+  // VisualViewport es la medida real disponible por encima del teclado.
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+    const syncViewport = () => {
+      document.documentElement.style.setProperty(
+        "--visual-viewport-height",
+        `${viewport.height}px`,
+      );
+      if (document.activeElement === composerRef.current) {
+        requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ block: "end" }));
+      }
+    };
+    syncViewport();
+    viewport.addEventListener("resize", syncViewport);
+    viewport.addEventListener("scroll", syncViewport);
+    return () => {
+      viewport.removeEventListener("resize", syncViewport);
+      viewport.removeEventListener("scroll", syncViewport);
+      document.documentElement.style.removeProperty("--visual-viewport-height");
+    };
+  }, []);
 
   // Lazy init: se crea una sola vez y es estable entre renders. El ref
   // conversationIdRef solo se lee/escribe dentro de los callbacks async
@@ -442,19 +468,22 @@ export function Chat() {
         Divulgación obligatoria: Simón es una IA. Requisito legal: SIEMPRE
         visible y compacta para no quitarle viewport a la conversación.
       */}
-      <div className="shrink-0 border-b border-accent/40 bg-peach px-3 py-1 text-center text-[11px] text-accent-deep md:mt-3 md:rounded-2xl md:border md:px-4 md:py-1.5 md:text-xs">
+      <div className="hidden shrink-0 border-b border-accent/40 bg-peach px-3 py-1 text-center text-[11px] text-accent-deep md:mt-3 md:block md:rounded-2xl md:border md:px-4 md:py-1.5 md:text-xs">
         Simón es una IA, no un profesional · crisis: <strong>135</strong> /{" "}
         <strong>102</strong>
       </div>
 
       {/* En mobile la conversación es edge-to-edge; desktop conserva la tarjeta. */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-card md:mt-3 md:rounded-card md:border md:border-line md:shadow-card">
+      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-card md:mt-3 md:rounded-card md:border md:border-line md:shadow-card">
         {/* Header del chat */}
         <div className="flex min-h-12 shrink-0 items-center justify-between gap-2 border-b border-line px-2 pb-0.5 pt-[max(0.125rem,env(safe-area-inset-top))] sm:px-4 md:py-3">
           <span className="flex min-w-0 items-center gap-2 md:hidden">
             <span className="size-2 shrink-0 rounded-full bg-brand motion-safe:animate-pulse" />
             <span className="truncate text-xs font-bold text-ink-soft">
               Siempre acá para vos
+            </span>
+            <span className="rounded-full bg-peach px-2 py-0.5 text-[10px] font-extrabold text-accent-deep">
+              IA
             </span>
           </span>
           {/* Identidad: duplica el SiteHeader → solo en md+ (F1.3) */}
@@ -503,10 +532,15 @@ export function Chat() {
           {announcement}
         </p>
         <div
+          ref={logRef}
           role="log"
           aria-live="off"
           aria-busy={busy}
           aria-label="Conversación con Simón"
+          onScroll={(e) => {
+            const el = e.currentTarget;
+            setAtBottom(el.scrollHeight - el.scrollTop - el.clientHeight < 48);
+          }}
           className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-3 py-3 [scrollbar-width:thin] [scrollbar-color:var(--color-line)_transparent] sm:px-4 sm:py-4"
         >
           {messages.length === 0 && (
@@ -651,6 +685,17 @@ export function Chat() {
           )}
           <div ref={bottomRef} />
         </div>
+
+        {busy && !atBottom && (
+          <button
+            type="button"
+            onClick={() => bottomRef.current?.scrollIntoView({ behavior: "smooth" })}
+            className="absolute bottom-20 left-1/2 z-10 flex min-h-11 -translate-x-1/2 items-center gap-2 rounded-full border border-line bg-card/95 px-4 text-xs font-extrabold text-brand-strong shadow-card backdrop-blur transition-[transform,opacity] active:scale-95 motion-safe:animate-pulse"
+          >
+            <span aria-hidden="true">↓</span>
+            Simón está respondiendo
+          </button>
+        )}
 
         <div className="shrink-0 border-t border-line bg-card/95 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur sm:px-4 md:pb-3 md:pt-3">
           <form onSubmit={handleSubmit} className="flex items-end gap-2">
