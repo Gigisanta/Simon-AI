@@ -34,6 +34,7 @@ model User {
   memories      UserMemory[]
   safetyEvents  SafetyEvent[]
   interactionLogs InteractionLog[]
+  moods         MoodEntry[]
 
   // Menores a cargo de este usuario (si es tutor/a).
   guardianOf    Guardian[] @relation("guardianOf")
@@ -271,6 +272,24 @@ model HelpResource {
   updatedAt     DateTime @updatedAt
 
   @@index([province, kind])
+}
+
+// ---------- Diario emocional del menor ("Mi diario") ----------
+
+// Registro de ánimo (check-in de valencia 1–3) del menor. Parte de SU registro,
+// no telemetría: SIN TTL propio (como Message/Conversation, ver retention.ts) —
+// se purga solo por el cascade de User (baja de cuenta o barrido de huérfanos).
+// value: 1 = mal · 2 = más o menos · 3 = bien. context: cómo se registró.
+model MoodEntry {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  value     Int
+  context   String // "session_start" | "session_close" | "manual"
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
 }
 
 // ---------- Memoria por usuario (aprendizaje) ----------

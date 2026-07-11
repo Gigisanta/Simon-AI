@@ -3,6 +3,7 @@
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import { memo, useEffect, useRef, useState } from "react";
+import { Bienestar } from "@/components/bienestar";
 import { ConversationList } from "@/components/conversation-list";
 import { DiagnosisOnboarding } from "@/components/diagnosis-onboarding";
 import { HelpNow } from "@/components/help-now";
@@ -500,6 +501,8 @@ export function Chat() {
           <div className="flex items-center gap-1">
             {/* Ayuda ahora: crisis + recursos cercanos, siempre a mano (§7.3) */}
             <HelpNow />
+            {/* Bienestar: respirar, anclar y diario emocional (autorregulación) */}
+            <Bienestar />
             <button
               type="button"
               onClick={handleNewConversation}
