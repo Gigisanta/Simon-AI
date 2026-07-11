@@ -31,24 +31,12 @@ import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { rateLimitMessage } from "@/lib/ui-messages";
 import { requireGuardian } from "@/lib/guardian-auth";
-import { isRecordNotFoundError } from "@/lib/guardian-children";
 import { sameOriginOk } from "@/lib/env-check";
 import { revokeUserSessions } from "@/lib/auth-secondary-storage";
-import { z } from "zod";
+import { accountDeleteSchema, deleteGuardianAccount } from "@/lib/guardian-account";
 
 // Borrado irreversible de varias cuentas → tope muy bajo contra errores/scripting.
 const DELETE_RATE_LIMIT_PER_MINUTE = 3;
-
-const deleteSchema = z.object({
-  // Confirmación explícita (nunca confiar en el cliente).
-  confirm: z.literal(true, { error: "Falta la confirmación explícita." }),
-  // Re-auth: la contraseña actual del tutor/a. Se valida contra better-auth; acá
-  // solo se acota el largo (mismo rango que el alta) para no procesar basura.
-  password: z
-    .string()
-    .min(1, "Ingresá tu contraseña.")
-    .max(72, "Contraseña inválida."),
-});
 
 export async function DELETE(req: Request) {
   // Defensa CSRF en profundidad (M3): Origin cross-site → 403.
@@ -81,7 +69,7 @@ export async function DELETE(req: Request) {
   } catch {
     return Response.json({ error: "Body inválido" }, { status: 400 });
   }
-  const parsed = deleteSchema.safeParse(json);
+  const parsed = accountDeleteSchema.safeParse(json);
   if (!parsed.success) {
     return Response.json(
       { error: "Falta la confirmación o la contraseña ({ confirm: true, password })." },
@@ -89,82 +77,48 @@ export async function DELETE(req: Request) {
     );
   }
 
-  // RE-AUTH: la contraseña actual del tutor/a debe verificar (better-auth compara
-  // contra el hash de su Account). Un fallo (o cualquier error del verificador) →
-  // 401 genérico: no se distingue "contraseña incorrecta" de otros fallos.
-  try {
-    await auth.api.verifyPassword({
-      headers: req.headers,
-      body: { password: parsed.data.password },
-    });
-  } catch {
-    return Response.json(
-      { error: "La contraseña no es correcta." },
-      { status: 401 },
-    );
-  }
-
-  // Menores a cargo: se borran en la MISMA transacción que el tutor/a.
-  const childLinks = await prisma.guardian.findMany({
-    where: { guardianUserId },
-    select: { childUserId: true },
+  // La orquestación (re-auth → transacción → verificación post-borrado → revoca
+  // sesiones) vive en @/lib/guardian-account (puro y testeable). Acá se inyectan
+  // las dependencias de I/O reales (better-auth + prisma + secondaryStorage). El
+  // cascade de cada `user.delete`/`deleteMany` arrastra su data y sus vínculos
+  // Guardian; se borran primero los menores y después el tutor/a.
+  const result = await deleteGuardianAccount({
+    guardianUserId,
+    verifyPassword: async () => {
+      await auth.api.verifyPassword({
+        headers: req.headers,
+        body: { password: parsed.data.password },
+      });
+    },
+    findChildIds: async () => {
+      const childLinks = await prisma.guardian.findMany({
+        where: { guardianUserId },
+        select: { childUserId: true },
+      });
+      return childLinks.map((l) => l.childUserId);
+    },
+    deleteAccounts: async (childIds) => {
+      await prisma.$transaction([
+        ...(childIds.length > 0
+          ? [prisma.user.deleteMany({ where: { id: { in: childIds } } })]
+          : []),
+        prisma.user.delete({ where: { id: guardianUserId } }),
+      ]);
+    },
+    countLeftovers: async (childIds) => {
+      const [guardian, children, links] = await Promise.all([
+        prisma.user.count({ where: { id: guardianUserId } }),
+        childIds.length > 0
+          ? prisma.user.count({ where: { id: { in: childIds } } })
+          : Promise.resolve(0),
+        prisma.guardian.count({ where: { guardianUserId } }),
+      ]);
+      return { guardian, children, links };
+    },
+    revokeSessions: async (userId) => {
+      await revokeUserSessions(userId);
+    },
   });
-  const childIds = childLinks.map((l) => l.childUserId);
 
-  try {
-    // Transacción atómica: o se borran TODOS (menores + tutor/a) o ninguno. El
-    // cascade de cada `user.delete`/`deleteMany` arrastra su data y sus vínculos
-    // Guardian; se borran primero los menores y después el tutor/a.
-    await prisma.$transaction([
-      ...(childIds.length > 0
-        ? [prisma.user.deleteMany({ where: { id: { in: childIds } } })]
-        : []),
-      prisma.user.delete({ where: { id: guardianUserId } }),
-    ]);
-  } catch (err) {
-    // Doble-submit concurrente: otra request ya borró al tutor/a (y a sus menores)
-    // casi a la vez → el `user.delete` del tutor/a choca con P2025. El efecto
-    // deseado ya se cumplió (la cuenta no existe) → éxito IDEMPOTENTE, no un 500.
-    // La primera request ya revocó las sesiones; no hace falta repetirlo.
-    if (isRecordNotFoundError(err)) {
-      return Response.json({ ok: true, alreadyDeleted: true });
-    }
-    console.error("[guardian] error borrando la cuenta del tutor/a y sus menores:", err);
-    return Response.json(
-      { error: "No se pudo eliminar la cuenta. Probá de nuevo." },
-      { status: 500 },
-    );
-  }
-
-  // Verificación post-borrado (Ley 25.326: la supresión tiene que ser real).
-  // No deben quedar ni el tutor/a, ni ninguno de sus menores, ni vínculos.
-  const [guardianLeft, childrenLeft, linksLeft] = await Promise.all([
-    prisma.user.count({ where: { id: guardianUserId } }),
-    childIds.length > 0
-      ? prisma.user.count({ where: { id: { in: childIds } } })
-      : Promise.resolve(0),
-    prisma.guardian.count({ where: { guardianUserId } }),
-  ]);
-  if (guardianLeft > 0 || childrenLeft > 0 || linksLeft > 0) {
-    console.error(
-      `[guardian] BORRADO INCOMPLETO de cuenta ${guardianUserId}: [guardian, children, links] = ${guardianLeft}, ${childrenLeft}, ${linksLeft}`,
-    );
-    return Response.json(
-      { error: "La eliminación quedó incompleta. Contactá al soporte." },
-      { status: 500 },
-    );
-  }
-
-  // L4: el cascade borró las Session en DB (tutor/a + menores), pero las copias en
-  // Redis secondaryStorage seguirían autenticando hasta su TTL. Se invalidan
-  // explícitamente para todos (no-op si no hay Upstash configurado).
-  await Promise.all([
-    revokeUserSessions(guardianUserId),
-    ...childIds.map((id) => revokeUserSessions(id)),
-  ]);
-
-  return Response.json({
-    ok: true,
-    deleted: { guardian: 1, children: childIds.length },
-  });
+  return Response.json(result.body, { status: result.status });
 }

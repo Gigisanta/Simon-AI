@@ -33,8 +33,12 @@ import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { rateLimitMessage } from "@/lib/ui-messages";
 import { requireGuardian, findOwnedChild } from "@/lib/guardian-auth";
-import { usernameFromEmail } from "@/lib/guardian";
 import { buildExportedConversations } from "@/lib/export-conversations";
+import {
+  EXPORT_CHILD_SELECT,
+  buildChildProfile,
+  exportFilename,
+} from "@/lib/export-child";
 
 // El export recorre N conversaciones paginando mensajes por cursor (varios
 // round-trips a la DB), así que puede tardar más que un handler corriente. Se le
@@ -54,22 +58,6 @@ const MESSAGE_BATCH = 500;
 
 const NOT_FOUND = () =>
   Response.json({ error: "Menor no encontrado." }, { status: 404 });
-
-// Variante de proyección de export: además del vínculo, trae el perfil del menor
-// en la MISMA query. Sin password/hashes (viven en account, no se tocan). La
-// autorización (where con los tres constraints) vive en findOwnedChild.
-const EXPORT_CHILD_SELECT = {
-  consentAt: true,
-  childUser: {
-    select: {
-      name: true,
-      email: true,
-      birthYear: true,
-      role: true,
-      createdAt: true,
-    },
-  },
-} as const;
 
 /**
  * Trae todos los mensajes de una conversación paginando por cursor en batches,
@@ -122,7 +110,6 @@ export async function GET(
   if (!link) return NOT_FOUND();
 
   const child = link.childUser;
-  const username = usernameFromEmail(child.email);
 
   // Conversaciones (metadata) primero; los mensajes se traen por batches abajo.
   const conversations = await prisma.conversation.findMany({
@@ -154,28 +141,19 @@ export async function GET(
   ]);
 
   const exportedAt = new Date();
+  const profile = buildChildProfile(child, link.consentAt);
   const payload = {
     exportedAt,
     subject: "datos personales del menor",
-    profile: {
-      name: child.name,
-      username,
-      birthYear: child.birthYear,
-      role: child.role,
-      createdAt: child.createdAt,
-      consentAt: link.consentAt,
-    },
+    profile,
     conversations: conversationsWithMessages,
     memories,
     safetyEvents,
   };
 
-  // yyyy-mm-dd para el nombre de archivo (fecha del export).
-  const day = exportedAt.toISOString().slice(0, 10);
-  // Sanitizar el username por las dudas (aunque el schema ya lo restringe a
-  // [a-z0-9_]): nunca dejar que un valor guiado por datos rompa el header.
-  const safeUser = username.replace(/[^a-z0-9_-]/gi, "_");
-  const filename = `simon-datos-${safeUser}-${day}.json`;
+  // Nombre de archivo con el usuario saneado (nunca dejar que un valor guiado por
+  // datos rompa el header Content-Disposition).
+  const filename = exportFilename(profile.username, exportedAt);
 
   return new Response(JSON.stringify(payload, null, 2), {
     status: 200,
