@@ -67,13 +67,13 @@ export function SiteHeader() {
   const items = visibleNavItems(session?.user.role);
 
   return (
-    <header className="sticky top-0 z-40 border-b border-line/70 bg-card/80 px-3 shadow-[0_1px_3px_rgb(0_0_0/0.1),0_1px_2px_-1px_rgb(0_0_0/0.1)] backdrop-blur sm:px-4">
+    <header className="z-40 shrink-0 border-b border-line/70 bg-card/95 px-2 shadow-[0_1px_3px_rgb(0_0_0/0.08)] backdrop-blur sm:px-4">
       {/* Una sola fila SIEMPRE: nada wrappea ni solapa contenido de la página */}
-      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-2 md:h-16">
+      <div className="mx-auto flex h-12 max-w-6xl items-center justify-between gap-1 md:h-16 md:gap-2">
         <Link href="/" className="flex shrink-0 items-center gap-2.5">
-          <SimonAvatar className="size-9 md:size-10" />
+          <SimonAvatar className="size-8 md:size-10" />
           <span className="flex flex-col leading-tight">
-            <span className="text-lg font-extrabold text-ink">Simón</span>
+            <span className="text-base font-extrabold text-ink md:text-lg">Simón</span>
             <span className="hidden text-xs text-ink-soft md:inline">
               Acompañamos cada paso
             </span>
@@ -106,8 +106,10 @@ export function SiteHeader() {
             })}
           </nav>
 
-          <HelpDialog />
-          <CalmToggle />
+          <span className="hidden sm:contents">
+            <HelpDialog />
+            <CalmToggle />
+          </span>
           {session && (
             <span className="hidden max-w-[10rem] truncate text-sm text-ink-soft lg:inline">
               {session.user.name || session.user.email}
@@ -118,7 +120,7 @@ export function SiteHeader() {
             onClick={() =>
               void authClient.signOut().then(() => window.location.reload())
             }
-            className="inline-flex min-h-11 shrink-0 items-center px-2 text-sm font-semibold text-ink-soft underline-offset-2 hover:text-ink hover:underline"
+            className="inline-flex min-h-11 shrink-0 items-center px-2 text-xs font-semibold text-ink-soft underline-offset-2 hover:text-ink hover:underline md:text-sm"
           >
             Salir
           </button>

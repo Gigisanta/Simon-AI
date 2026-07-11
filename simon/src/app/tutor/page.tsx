@@ -21,7 +21,7 @@ export default async function TutorPage() {
     select: {
       consentAt: true,
       alertsEnabled: true,
-      childUser: { select: { id: true, name: true, email: true, birthYear: true } },
+      childUser: { select: { id: true, name: true, email: true, birthYear: true, hasDiagnosis: true } },
     },
     orderBy: { createdAt: "desc" },
   });
@@ -33,6 +33,7 @@ export default async function TutorPage() {
     birthYear: r.childUser.birthYear,
     consentAt: r.consentAt ? r.consentAt.toISOString() : null,
     alertsEnabled: r.alertsEnabled,
+    hasDiagnosis: r.childUser.hasDiagnosis,
   }));
 
   return (

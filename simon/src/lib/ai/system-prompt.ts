@@ -208,6 +208,12 @@ export function buildSystemPrompt(opts: {
    * exacto, sin addendum.
    */
   role?: string | null;
+  /**
+   * La persona tiene diagnóstico previo (TEA, TDAH, etc.) o no.
+   * true = sí, false = no, null = no respondió / se desconoce. Se usa para
+   * ajustar el foco de la conversación.
+   */
+  hasDiagnosis?: boolean | null;
 }): string {
   const parts = [PERSONA];
 
@@ -220,6 +226,18 @@ export function buildSystemPrompt(opts: {
   // §7.1: registro etario con límites numéricos (solo si hay edad válida).
   if (typeof opts.age === "number") {
     parts.push(ageRegisterInstruction(opts.age));
+  }
+
+  // Contexto de diagnóstico: informa a Simón si el chico tiene diagnóstico
+  // previo (TEA, TDAH, etc.) para ajustar el foco y el tono.
+  if (opts.hasDiagnosis === true) {
+    parts.push(
+      "CONTEXTO: la persona tiene un diagnóstico (TEA, TDAH u otra condición). NO preguntes específicamente sobre el diagnóstico a menos que ella lo traiga. Usá esta información para adecuar tu lenguaje: sé claro, concreto y paciente. Priorizá explicaciones paso a paso y validá sus emociones sin presuponer nada sobre su condición.",
+    );
+  } else if (opts.hasDiagnosis === false) {
+    parts.push(
+      "CONTEXTO: la persona NO tiene un diagnóstico. No asumas condiciones ni experiences de discapacidad. Acompañá desde el lugar de escucha y ayuda general.",
+    );
   }
 
   // M-F1: presentación como IA en el primer mensaje de la sesión.

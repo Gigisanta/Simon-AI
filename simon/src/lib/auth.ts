@@ -76,6 +76,11 @@ export const auth = betterAuth({
         required: false,
         input: false,
       },
+      hasDiagnosis: {
+        type: "boolean",
+        required: false,
+        input: false,
+      },
     },
   },
   emailAndPassword: {

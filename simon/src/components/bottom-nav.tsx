@@ -11,6 +11,10 @@ export function BottomNav() {
   const { data: session } = useSession();
   const items = visibleNavItems(session?.user.role);
 
+  // En la ruta de chat la conversación tiene prioridad absoluta en mobile.
+  // La navegación sigue disponible desde las páginas secundarias y en desktop.
+  if (pathname === "/") return null;
+
   // Con un solo ítem (rol child = solo "Chat") la nav no aporta: no se renderiza
   // y el chat recupera el viewport (el pb-20 de page.tsx va con la misma
   // condición). Nunca cambia entre renders para un mismo rol → sin salto.

@@ -13,6 +13,7 @@ export type ChildRow = {
   birthYear: number | null;
   consentAt: string | null;
   alertsEnabled: boolean;
+  hasDiagnosis: boolean | null;
 };
 
 const currentYear = new Date().getFullYear();
@@ -251,6 +252,15 @@ const ChildCard = memo(function ChildCard({
           {child.birthYear ? (
             <span className="font-normal text-ink-soft"> · {child.birthYear}</span>
           ) : null}
+          {child.hasDiagnosis !== null && (
+            <span className={`ml-2 rounded-full px-2 py-0.5 text-xs font-bold ${
+              child.hasDiagnosis
+                ? "bg-brand-soft text-brand-strong"
+                : "bg-sand text-ink-soft"
+            }`}>
+              {child.hasDiagnosis ? "Con diagnóstico" : "Sin diagnóstico"}
+            </span>
+          )}
         </span>
         <span
           className={

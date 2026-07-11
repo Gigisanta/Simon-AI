@@ -4,6 +4,7 @@ import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import { memo, useEffect, useRef, useState } from "react";
 import { ConversationList } from "@/components/conversation-list";
+import { DiagnosisOnboarding } from "@/components/diagnosis-onboarding";
 import { MoodChips } from "@/components/mood-chips";
 import { relativeTime } from "@/components/relative-time";
 import { SessionTimer } from "@/components/session-timer";
@@ -22,6 +23,16 @@ const WARN_MARKER = SESSION_WARN_APPENDIX.trim();
  * (contexto seguro: https o localhost), sin dependencias.
  */
 function newConversationId(): string {
+  return crypto.randomUUID();
+}
+
+/**
+ * Id de mensaje generado por el CLIENTE (idempotencia del reintento, #31-3). Se
+ * manda en el body de cada envío y se REUSA al reintentar el MISMO texto tras un
+ * error: el servidor deduplica por este id (PK del Message) y no persiste dos
+ * veces el mensaje del menor. Un envío nuevo estrena id. randomUUID nativo.
+ */
+function newClientMessageId(): string {
   return crypto.randomUUID();
 }
 
@@ -212,11 +223,16 @@ export function Chat() {
   const quickStarts = isGuardian ? GUARDIAN_QUICK_STARTS : CHILD_QUICK_STARTS;
 
   const [input, setInput] = useState("");
+  const [onboardingSkipped, setOnboardingSkipped] = useState(false);
   const [listOpen, setListOpen] = useState(false);
   // Último texto enviado: sobrevive al vaciado del input para poder reintentar
   // si el envío falla (el input se limpia de forma optimista al enviar).
   const [lastText, setLastText] = useState("");
   const conversationIdRef = useRef<string | null>(null);
+  // Id del mensaje en vuelo (#31-3): estable entre reintentos del MISMO texto.
+  // Lo lee el body del transport en tiempo de request; send() lo renueva salvo
+  // que sea un reintento (ver send()).
+  const clientMessageIdRef = useRef<string | null>(null);
   // Último status HTTP de error del stream de /api/chat: lo captura el fetch
   // wrapper del transport (abajo) para mapear 429/403 a un mensaje amigable en
   // vez del genérico. El ref lo lee onError (callback, valor fresco); el state
@@ -244,6 +260,7 @@ export function Chat() {
         api: "/api/chat",
         body: () => ({
           conversationId: conversationIdRef.current ?? undefined,
+          clientMessageId: clientMessageIdRef.current ?? undefined,
         }),
         fetch: (async (info: RequestInfo | URL, init?: RequestInit) => {
           // Reset por-request ANTES de disparar: si el fetch RECHAZA (offline,
@@ -388,7 +405,6 @@ export function Chat() {
   }, [messages]);
 
   const busy = status === "submitted" || status === "streaming";
-  const hasMessages = messages.length > 0;
 
   const serverWarned = messages.some(
     (m) =>
@@ -398,6 +414,12 @@ export function Chat() {
 
   function send(text: string) {
     if (!text || busy) return;
+    // Idempotencia del reintento (#31-3): reusar el id SÓLO si es un reintento del
+    // mismo mensaje — hay un error visible Y el texto coincide con el último
+    // enviado (es lo que manda el botón "Reintentar"). Cualquier otro envío
+    // (texto distinto, o mismo texto tras un envío exitoso) estrena id.
+    const isRetry = !!error && text === lastText && clientMessageIdRef.current !== null;
+    if (!isRetry) clientMessageIdRef.current = newClientMessageId();
     setLastText(text);
     void sendMessage({ text });
   }
@@ -411,29 +433,26 @@ export function Chat() {
   }
 
   return (
-    <div className="flex min-h-0 w-full max-w-2xl flex-1 flex-col mx-auto px-3 pb-3 sm:px-4 sm:pb-4">
+    <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col md:px-4 md:pb-4">
       {/*
         Divulgación obligatoria: Simón es una IA. Requisito legal: SIEMPRE
-        visible. Con mensajes en pantalla colapsa a una línea (libera viewport
-        mobile, F1.2); en empty state va el texto completo.
+        visible y compacta para no quitarle viewport a la conversación.
       */}
-      {hasMessages ? (
-        <div className="mt-3 rounded-2xl border border-accent/60 bg-peach px-4 py-1.5 text-center text-xs text-accent-deep">
-          Simón es una IA · en crisis: <strong>135</strong> / <strong>102</strong>
-        </div>
-      ) : (
-        <div className="mt-3 rounded-2xl border border-accent/60 bg-peach px-4 py-2.5 text-xs text-accent-deep sm:text-sm">
-          Simón es un asistente de inteligencia artificial, no una persona ni un
-          profesional de la salud. Si estás en peligro o en crisis, contactá una
-          línea de ayuda: en Argentina, llamá al <strong>135</strong> (CAS) o al{" "}
-          <strong>102</strong> (niñas, niños y adolescentes).
-        </div>
-      )}
+      <div className="shrink-0 border-b border-accent/40 bg-peach px-3 py-1 text-center text-[11px] text-accent-deep md:mt-3 md:rounded-2xl md:border md:px-4 md:py-1.5 md:text-xs">
+        Simón es una IA, no un profesional · crisis: <strong>135</strong> /{" "}
+        <strong>102</strong>
+      </div>
 
-      {/* Tarjeta principal del chat (estilo simon-mocha) */}
-      <div className="mt-3 flex flex-1 flex-col overflow-hidden rounded-card border border-line bg-card shadow-card">
+      {/* En mobile la conversación es edge-to-edge; desktop conserva la tarjeta. */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-card md:mt-3 md:rounded-card md:border md:border-line md:shadow-card">
         {/* Header del chat */}
-        <div className="flex items-center justify-between gap-2 border-b border-line px-3 py-2.5 sm:px-4 sm:py-3">
+        <div className="flex min-h-12 shrink-0 items-center justify-between gap-2 border-b border-line px-2 py-0.5 sm:px-4 md:py-3">
+          <span className="flex min-w-0 items-center gap-2 md:hidden">
+            <span className="size-2 shrink-0 rounded-full bg-brand motion-safe:animate-pulse" />
+            <span className="truncate text-xs font-bold text-ink-soft">
+              Siempre acá para vos
+            </span>
+          </span>
           {/* Identidad: duplica el SiteHeader → solo en md+ (F1.3) */}
           <span className="hidden items-center gap-2.5 md:flex">
             <SimonAvatar className="size-8" />
@@ -484,10 +503,16 @@ export function Chat() {
           aria-live="off"
           aria-busy={busy}
           aria-label="Conversación con Simón"
-          className="flex flex-1 flex-col gap-4 overflow-y-auto px-4 py-4 [scrollbar-width:thin] [scrollbar-color:var(--color-line)_transparent]"
+          className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-3 py-3 [scrollbar-width:thin] [scrollbar-color:var(--color-line)_transparent] sm:px-4 sm:py-4"
         >
           {messages.length === 0 && (
-            <div className="my-auto flex flex-col items-center gap-7 py-8">
+            !isGuardian && session?.user.hasDiagnosis == null && !onboardingSkipped ? (
+              <DiagnosisOnboarding
+                onComplete={() => window.location.reload()}
+                onSkip={() => setOnboardingSkipped(true)}
+              />
+            ) : (
+            <div className="my-auto flex flex-col items-center gap-5 py-4 sm:gap-7 sm:py-8">
               {resumable && (
                 <div className="w-full max-w-sm rounded-card bg-card p-4 text-center shadow-card">
                   <p className="text-base font-bold text-ink">
@@ -546,13 +571,13 @@ export function Chat() {
                 <p className="text-sm font-semibold text-ink-soft">
                   ¿Por dónde querés empezar?
                 </p>
-                <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="flex w-full snap-x gap-2 overflow-x-auto pb-2 sm:grid sm:grid-cols-3 sm:overflow-visible sm:pb-0">
                   {quickStarts.map((item) => (
                     <button
                       key={item.label}
                       type="button"
                       onClick={() => send(item.message)}
-                      className="flex min-h-11 flex-col items-start gap-2 rounded-card bg-card p-4 text-left shadow-card transition-[transform,box-shadow] motion-safe:hover:-translate-y-0.5 motion-safe:hover:shadow-card-hover"
+                      className="flex min-h-11 w-[72vw] max-w-64 shrink-0 snap-start flex-col items-start gap-2 rounded-card border border-line/70 bg-card p-3 text-left shadow-sm transition-[transform,box-shadow] active:scale-[0.98] motion-safe:hover:-translate-y-0.5 motion-safe:hover:shadow-card-hover sm:w-auto sm:max-w-none sm:p-4"
                     >
                       <span
                         className={`flex size-10 items-center justify-center rounded-full ${item.circle}`}
@@ -580,6 +605,7 @@ export function Chat() {
                 </div>
               )}
             </div>
+            )
           )}
           {messages.map((m) => (
             <MessageBubble key={m.id} message={m} />
@@ -622,21 +648,31 @@ export function Chat() {
           <div ref={bottomRef} />
         </div>
 
-        <div className="border-t border-line bg-card px-3 pb-3 pt-3 sm:px-4">
-          <form onSubmit={handleSubmit} className="flex items-center gap-2">
-            <input
-              className="min-h-11 flex-1 rounded-full border border-line bg-card px-5 text-base text-ink outline-none placeholder:text-ink-soft focus:border-brand"
-              placeholder="Contale a Simón lo que estás viviendo…"
+        <div className="shrink-0 border-t border-line bg-card/95 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur sm:px-4 md:pb-3 md:pt-3">
+          <form onSubmit={handleSubmit} className="flex items-end gap-2">
+            <textarea
+              rows={1}
+              className="max-h-28 min-h-11 flex-1 resize-none rounded-[1.4rem] border border-line bg-cream/60 px-4 py-2.5 text-base leading-6 text-ink outline-none transition-[border-color,box-shadow] placeholder:text-ink-soft focus:border-brand focus:shadow-[0_0_0_3px_rgb(90_127_97/0.12)]"
+              placeholder="Escribile a Simón…"
               aria-label="Tu mensaje para Simón"
               value={input}
               onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  const text = input.trim();
+                  if (!text || busy) return;
+                  setInput("");
+                  send(text);
+                }
+              }}
               maxLength={2000}
             />
             <button
               type="submit"
               disabled={busy || !input.trim()}
               aria-label="Enviar mensaje"
-              className="flex size-11 shrink-0 items-center justify-center rounded-full bg-brand text-brand-fg transition-colors hover:bg-brand-strong disabled:opacity-50"
+              className="flex size-11 shrink-0 items-center justify-center rounded-full bg-brand text-brand-fg shadow-sm transition-[background-color,transform,opacity] active:scale-90 hover:bg-brand-strong disabled:opacity-40"
             >
               {/* Avión de papel */}
               <svg

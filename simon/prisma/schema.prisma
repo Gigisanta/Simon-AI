@@ -24,6 +24,9 @@ model User {
   // Solo el AÑO de nacimiento (minimización de datos, Ley 25.326): nunca la
   // fecha completa. Se usa para franja etaria, no para identificar.
   birthYear     Int?
+  // null = todavía no respondió; true/false orienta el onboarding sin guardar
+  // detalles clínicos ni el nombre del diagnóstico.
+  hasDiagnosis  Boolean?
 
   sessions      Session[]
   accounts      Account[]
