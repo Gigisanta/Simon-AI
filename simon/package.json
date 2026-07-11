@@ -7,6 +7,7 @@
   },
   "scripts": {
     "dev": "next dev",
+    "postinstall": "prisma generate",
     "build": "prisma generate && tsx scripts/migrate-if-production.ts && next build",
     "start": "next start",
     "lint": "eslint",
