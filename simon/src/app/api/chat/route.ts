@@ -64,6 +64,10 @@ import {
   NO_GUARDIAN_CHAT_REPLY,
 } from "@/lib/consent";
 import { hasVisibleContent, safeTruncate } from "@/lib/text";
+import {
+  parseClientMessageId,
+  resolveDuplicateUserMessage,
+} from "@/lib/chat-idempotency";
 import { maybeAlertGuardian, maybePatternAlert, type AlertCategory } from "@/lib/alerts";
 import { deriveChildAge } from "@/lib/guardian";
 
@@ -246,7 +250,7 @@ export async function POST(req: Request) {
     }
 
     // --- Validación del body (nunca confiar en el cliente) ---
-    let body: { messages?: unknown; conversationId?: unknown };
+    let body: { messages?: unknown; conversationId?: unknown; clientMessageId?: unknown };
     try {
       body = await req.json();
     } catch {
@@ -298,6 +302,11 @@ export async function POST(req: Request) {
       /^[a-zA-Z0-9_-]{8,64}$/.test(body.conversationId)
         ? body.conversationId
         : null;
+
+    // Idempotencia del mensaje del menor (#31-3): id de mensaje generado por el
+    // cliente, estable entre reintentos del MISMO texto. Opcional (retrocompat:
+    // si falta o es inválido → null → el servidor genera el PK como siempre).
+    const clientMessageId = parseClientMessageId(body.clientMessageId);
 
     // --- F1: el contexto conversacional es del SERVIDOR ---
     // Historial crudo (cronológico) para el recorte por presupuesto (B2), cargado
@@ -382,9 +391,17 @@ export async function POST(req: Request) {
     // en memoria). Un fallo de DB acá jamás debe impedir devolver la plantilla de
     // crisis más abajo (M1). Se captura el id para referenciarlo en InteractionLog.
     let userMessageId: string | null = null;
+    // Reintento idempotente (#31-3): true si el mensaje del menor YA estaba
+    // persistido con este clientMessageId; persistedUserAt marca su createdAt para
+    // decidir si hay que regenerar la respuesta o replicar la ya generada.
+    let alreadyPersisted = false;
+    let persistedUserAt: Date | null = null;
     try {
+      // Create optimista: en el caso normal (mensaje nuevo) el clientMessageId no
+      // existe y se persiste con ese id como PK. Sólo la carrera/reintento choca.
       const created = await prisma.message.create({
         data: {
+          ...(clientMessageId ? { id: clientMessageId } : {}),
           conversationId,
           role: "user",
           content: userText,
@@ -394,7 +411,49 @@ export async function POST(req: Request) {
       });
       userMessageId = created.id;
     } catch (err) {
-      console.error("[chat] error guardando el mensaje del usuario (se sigue igual):", err);
+      if (clientMessageId && isUniqueConstraintError(err)) {
+        // El id ya existe: reintento del MISMO mensaje (o su gemelo en carrera de
+        // doble submit). Se decide reuse (no duplicar) vs recreate (id ajeno).
+        const existing = await prisma.message.findUnique({
+          where: { id: clientMessageId },
+          select: { conversationId: true, role: true, createdAt: true },
+        });
+        const decision = resolveDuplicateUserMessage(existing, conversationId);
+        if (decision.kind === "reuse") {
+          userMessageId = clientMessageId;
+          alreadyPersisted = true;
+          persistedUserAt = decision.persistedUserAt;
+        } else {
+          // Colisión con un id ajeno (uuid v4: prácticamente imposible). Se
+          // persiste con el PK del servidor para no atarse a un mensaje ajeno.
+          try {
+            const created = await prisma.message.create({
+              data: { conversationId, role: "user", content: userText, safetyFlag: regexFlag },
+              select: { id: true },
+            });
+            userMessageId = created.id;
+          } catch (err2) {
+            console.error("[chat] error guardando el mensaje del usuario (se sigue igual):", err2);
+          }
+        }
+      } else {
+        console.error("[chat] error guardando el mensaje del usuario (se sigue igual):", err);
+      }
+    }
+
+    // Semántica documentada del reintento: sólo se regenera la respuesta si NO hay
+    // una del asistente POSTERIOR a este mensaje del menor. El botón "Reintentar"
+    // sólo aparece tras un error (sin respuesta persistida), así que el caso normal
+    // regenera. Si el intento previo SÍ había respondido (p.ej. el stream llegó
+    // pero el cliente vio un corte de red en la cola), se devuelve esa respuesta en
+    // vez de generar un segundo turno — idempotencia real, sin assistant duplicado.
+    if (alreadyPersisted && persistedUserAt) {
+      const priorAssistant = await prisma.message.findFirst({
+        where: { conversationId, role: "assistant", createdAt: { gt: persistedUserAt } },
+        orderBy: { createdAt: "asc" },
+        select: { content: true },
+      });
+      if (priorAssistant) return fixedTextResponse(priorAssistant.content, responseHeaders);
     }
 
     // INVARIANTE M1: la respuesta con recursos SIEMPRE gana sobre la persistencia.

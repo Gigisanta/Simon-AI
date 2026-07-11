@@ -41,6 +41,7 @@ const SUITES = [
   "resend-verification",
   "retry",
   "chat-precedence",
+  "chat-idempotency",
   "csp",
   "migrate",
 ] as const;
