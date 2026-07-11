@@ -117,7 +117,7 @@ export default function Home() {
     // único scroll es el historial. `min-h-0` evita que el composer salga al
     // abrir el teclado virtual.
     <div className="flex h-dvh min-h-0 flex-col overflow-hidden">
-      <SiteHeader />
+      <SiteHeader chatMode />
       <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <Chat />
       </main>

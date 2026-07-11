@@ -61,13 +61,17 @@ export function visibleNavItems(role: string | null | undefined) {
   return NAV_ITEMS.filter((item) => !item.guardianOnly || isGuardian);
 }
 
-export function SiteHeader() {
+export function SiteHeader({ chatMode = false }: { chatMode?: boolean }) {
   const pathname = usePathname();
   const { data: session } = useSession();
   const items = visibleNavItems(session?.user.role);
 
   return (
-    <header className="z-40 shrink-0 border-b border-line/70 bg-card/95 px-2 shadow-[0_1px_3px_rgb(0_0_0/0.08)] backdrop-blur sm:px-4">
+    <header
+      className={`z-40 shrink-0 border-b border-line/70 bg-card/95 px-2 shadow-[0_1px_3px_rgb(0_0_0/0.08)] backdrop-blur sm:px-4 ${
+        chatMode ? "hidden md:block" : ""
+      }`}
+    >
       {/* Una sola fila SIEMPRE: nada wrappea ni solapa contenido de la página */}
       <div className="mx-auto flex h-12 max-w-6xl items-center justify-between gap-1 md:h-16 md:gap-2">
         <Link href="/" className="flex shrink-0 items-center gap-2.5">

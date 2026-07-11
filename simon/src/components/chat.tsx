@@ -174,8 +174,8 @@ const MessageBubble = memo(function MessageBubble({
     <div
       className={
         m.role === "user"
-          ? "self-end flex max-w-[80%] flex-col items-end gap-1"
-          : "self-start flex max-w-[80%] flex-col items-start gap-1"
+          ? "self-end flex max-w-[88%] flex-col items-end gap-1 sm:max-w-[80%]"
+          : "self-start flex max-w-[88%] flex-col items-start gap-1 sm:max-w-[80%]"
       }
     >
       {/* Etiqueta de rol visible: no solo color/alineación (SH-U5) */}
@@ -223,6 +223,7 @@ export function Chat() {
   const quickStarts = isGuardian ? GUARDIAN_QUICK_STARTS : CHILD_QUICK_STARTS;
 
   const [input, setInput] = useState("");
+  const composerRef = useRef<HTMLTextAreaElement>(null);
   const [onboardingSkipped, setOnboardingSkipped] = useState(false);
   const [listOpen, setListOpen] = useState(false);
   // Último texto enviado: sobrevive al vaciado del input para poder reintentar
@@ -429,6 +430,9 @@ export function Chat() {
     const text = input.trim();
     if (!text || busy) return;
     setInput("");
+    requestAnimationFrame(() => {
+      if (composerRef.current) composerRef.current.style.height = "auto";
+    });
     send(text);
   }
 
@@ -446,7 +450,7 @@ export function Chat() {
       {/* En mobile la conversación es edge-to-edge; desktop conserva la tarjeta. */}
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-card md:mt-3 md:rounded-card md:border md:border-line md:shadow-card">
         {/* Header del chat */}
-        <div className="flex min-h-12 shrink-0 items-center justify-between gap-2 border-b border-line px-2 py-0.5 sm:px-4 md:py-3">
+        <div className="flex min-h-12 shrink-0 items-center justify-between gap-2 border-b border-line px-2 pb-0.5 pt-[max(0.125rem,env(safe-area-inset-top))] sm:px-4 md:py-3">
           <span className="flex min-w-0 items-center gap-2 md:hidden">
             <span className="size-2 shrink-0 rounded-full bg-brand motion-safe:animate-pulse" />
             <span className="truncate text-xs font-bold text-ink-soft">
@@ -651,18 +655,26 @@ export function Chat() {
         <div className="shrink-0 border-t border-line bg-card/95 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur sm:px-4 md:pb-3 md:pt-3">
           <form onSubmit={handleSubmit} className="flex items-end gap-2">
             <textarea
+              ref={composerRef}
               rows={1}
               className="max-h-28 min-h-11 flex-1 resize-none rounded-[1.4rem] border border-line bg-cream/60 px-4 py-2.5 text-base leading-6 text-ink outline-none transition-[border-color,box-shadow] placeholder:text-ink-soft focus:border-brand focus:shadow-[0_0_0_3px_rgb(90_127_97/0.12)]"
               placeholder="Escribile a Simón…"
               aria-label="Tu mensaje para Simón"
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={(e) => {
+                setInput(e.target.value);
+                e.currentTarget.style.height = "auto";
+                e.currentTarget.style.height = `${Math.min(e.currentTarget.scrollHeight, 112)}px`;
+              }}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
                   const text = input.trim();
                   if (!text || busy) return;
                   setInput("");
+                  requestAnimationFrame(() => {
+                    if (composerRef.current) composerRef.current.style.height = "auto";
+                  });
                   send(text);
                 }
               }}
