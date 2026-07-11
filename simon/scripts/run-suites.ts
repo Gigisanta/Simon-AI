@@ -34,6 +34,7 @@ const SUITES = [
   "env-check",
   "alerts",
   "rate-limit",
+  "claim-once",
   "retrieval",
   "knowledge-cache",
   "training-export",

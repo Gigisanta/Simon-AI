@@ -43,10 +43,12 @@ import {
   isFirstOfSession,
   SESSION_LIMIT_REPLY,
   SESSION_WARN_APPENDIX,
+  SESSION_WARN_DEDUP_TTL_MS,
   sessionLimitApplies,
   sessionState,
   sessionWindowQuery,
 } from "@/lib/session-limit";
+import { claimOnce } from "@/lib/claim-once";
 import { moderate, type ModerationResult } from "@/lib/moderation";
 import { interactionLogTtlCutoff } from "@/lib/retention";
 import { withTransientRetry } from "@/lib/ai/retry";
@@ -1137,7 +1139,18 @@ export async function POST(req: Request) {
 
     // Aviso de pausa a los 30 min (M-S7): se anexa al final y el safetyFlag
     // "session-warn" persiste que el aviso ya fue dado (dedupe de la sesión).
-    if (needsSessionWarn) {
+    // Contención multi-tab: el chequeo de recentMessages (needsSessionWarn) es el
+    // dedupe primario, pero dos pestañas simultáneas cerca del minuto 30 lo pasan
+    // ambas y anexarían el aviso dos veces. `claimOnce` cierra esa carrera con una
+    // marca atómica (Upstash SET NX en prod / memoria en dev): solo la PRIMERA
+    // gana y anexa; la concurrente cae a mensaje normal. Se resuelve ACÁ (punto de
+    // uso) y no antes para no consumir el slot en paths que no entregan el aviso
+    // (blocked-midflight / clientGone). El `&&` corto evita el round-trip a Redis
+    // salvo cuando el aviso realmente corresponde (cerca del minuto 30).
+    const appendSessionWarn =
+      needsSessionWarn &&
+      (await claimOnce(`session-warn:${userId}`, SESSION_WARN_DEDUP_TTL_MS));
+    if (appendSessionWarn) {
       finalText += SESSION_WARN_APPENDIX;
     }
 
@@ -1146,7 +1159,7 @@ export async function POST(req: Request) {
     // "session-warn" porque es el que necesita el dedupe del aviso de pausa. No se
     // necesita un flag compuesto hoy: ningún consumidor cruza ambas dimensiones.
     // saveAssistant ya es a prueba de fallos (M1): no requiere try/catch acá.
-    const finalFlag = needsSessionWarn ? "session-warn" : effectiveFlag;
+    const finalFlag = appendSessionWarn ? "session-warn" : effectiveFlag;
 
     // --- Re-chequeo de consentimiento/existencia (TOCTOU) ANTES de persistir/
     //     entregar el texto del LLM ---

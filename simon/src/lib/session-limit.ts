@@ -15,6 +15,15 @@ export const SESSION_WARN_MS = 30 * 60_000; // >= 30 min → avisar pausa
 export const SESSION_OVER_MS = 45 * 60_000; // >= 45 min → cerrar la sesión
 
 /**
+ * Ventana de la marca atómica que evita el doble aviso de pausa entre pestañas
+ * (claimOnce). Igual a la duración de la fase "warn" (30→45 min): una vez dado el
+ * aviso, ninguna otra pestaña lo repite mientras la sesión siga en "warn"; a los
+ * 45 min pasa a "over" (ya no hay warn) y una sesión nueva exige un gap ≥30 min,
+ * así que para entonces la marca ya venció y el aviso puede volver a darse.
+ */
+export const SESSION_WARN_DEDUP_TTL_MS = SESSION_OVER_MS - SESSION_WARN_MS;
+
+/**
  * B3.2: el límite de sesión (aviso a los 30 min, cierre a los 45) aplica SOLO a
  * los menores (role "child"). Los tutores/as (guardians) son adultos: sin warn
  * ni cierre por tiempo. El recordatorio periódico de IA (shouldAppendDisclosure)
