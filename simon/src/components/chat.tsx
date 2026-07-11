@@ -174,8 +174,8 @@ const MessageBubble = memo(function MessageBubble({
     <div
       className={
         m.role === "user"
-          ? "simon-rise-in self-end flex max-w-[88%] flex-col items-end gap-1 sm:max-w-[80%]"
-          : "simon-rise-in self-start flex max-w-[90%] flex-col items-start gap-1 sm:max-w-[80%]"
+          ? "self-end flex max-w-[88%] flex-col items-end gap-1 sm:max-w-[80%]"
+          : "self-start flex max-w-[90%] flex-col items-start gap-1 sm:max-w-[80%]"
       }
     >
       {/* Etiqueta de rol visible: no solo color/alineación (SH-U5) */}

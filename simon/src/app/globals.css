@@ -126,27 +126,19 @@ body {
 .simon-stagger-2 { animation-delay: 90ms; }
 .simon-stagger-3 { animation-delay: 135ms; }
 
+/* Sin tap highlight nativo: cada botón/link ya define su propio hover/active
+ * (transition-colors, active:scale-*, hover:bg-sand, etc.) — una transición
+ * global de opacity/transform encima duplicaba y deformaba esos estados. */
 button:not(:disabled),
 a[href] {
   -webkit-tap-highlight-color: transparent;
-  transition-property: transform, opacity, color, background-color, border-color, box-shadow;
-  transition-duration: 180ms;
-  transition-timing-function: cubic-bezier(.22, 1, .36, 1);
 }
-
-button:not(:disabled):active,
-a[href]:active { opacity: 0.78; }
 
 dialog[open] { animation: simon-sheet-in 260ms cubic-bezier(.22, 1, .36, 1) both; }
 dialog::backdrop {
   background: rgb(57 53 41 / 0.38);
   backdrop-filter: blur(3px);
   animation: simon-rise-in 200ms ease-out both;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  button:not(:disabled):hover,
-  a[href]:hover { opacity: 0.9; }
 }
 
 /* Modo calma: sin animaciones ni transiciones, scroll instantáneo */
