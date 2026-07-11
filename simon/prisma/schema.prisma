@@ -35,6 +35,8 @@ model User {
   safetyEvents  SafetyEvent[]
   interactionLogs InteractionLog[]
   moods         MoodEntry[]
+  guardianFollowups GuardianFollowup[] @relation("gfGuardian")
+  childFollowups    GuardianFollowup[] @relation("gfChild")
 
   // Menores a cargo de este usuario (si es tutor/a).
   guardianOf    Guardian[] @relation("guardianOf")
@@ -272,6 +274,32 @@ model HelpResource {
   updatedAt     DateTime @updatedAt
 
   @@index([province, kind])
+}
+
+// ---------- Puente: seguimiento de derivación del tutor/a ----------
+
+// Registra la RESPUESTA del tutor/a a una situación detectada por Simón (los
+// SafetyEvent, que ya existen). La "sugerencia" se COMPUTA de los SafetyEvent
+// (nunca se guarda contenido del menor); esta tabla solo guarda qué hizo el
+// tutor/a: contactó un recurso, lo resolvió o lo descartó. Un followup activo por
+// par (tutor, menor). Cascade con ambos (baja de cuenta / barrido de huérfanos).
+model GuardianFollowup {
+  id             String   @id @default(cuid())
+  guardianUserId String
+  guardianUser   User     @relation("gfGuardian", fields: [guardianUserId], references: [id], onDelete: Cascade)
+  childUserId    String
+  childUser      User     @relation("gfChild", fields: [childUserId], references: [id], onDelete: Cascade)
+  // Motivo agregado: "crisis" | "abuso" | "riesgo" | "alimentario".
+  reason         String
+  // "contacted" | "resolved" | "dismissed" ("suggested" es computado, no se guarda).
+  status         String   @default("contacted")
+  resourceId     String?
+  note           String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([guardianUserId, childUserId])
+  @@index([guardianUserId, status])
 }
 
 // ---------- Diario emocional del menor ("Mi diario") ----------

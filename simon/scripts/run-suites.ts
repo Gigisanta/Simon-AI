@@ -33,6 +33,7 @@ const SUITES = [
   "auth-storage",
   "env-check",
   "alerts",
+  "bridge",
   "rate-limit",
   "claim-once",
   "retrieval",

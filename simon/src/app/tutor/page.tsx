@@ -3,7 +3,9 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { usernameFromEmail } from "@/lib/guardian";
+import { loadBridgeCards } from "@/lib/bridge-data";
 import { TutorPanel, type ChildRow } from "@/components/tutor-panel";
+import { BridgePanel } from "@/components/bridge-panel";
 import { SiteHeader } from "@/components/site-header";
 import { BottomNav } from "@/components/bottom-nav";
 
@@ -16,15 +18,18 @@ export default async function TutorPage() {
   if (!session) redirect("/");
   if (session.user.role !== "guardian") redirect("/");
 
-  const rows = await prisma.guardian.findMany({
-    where: { guardianUserId: session.user.id },
-    select: {
-      consentAt: true,
-      alertsEnabled: true,
-      childUser: { select: { id: true, name: true, email: true, birthYear: true, hasDiagnosis: true } },
-    },
-    orderBy: { createdAt: "desc" },
-  });
+  const [rows, bridgeCards] = await Promise.all([
+    prisma.guardian.findMany({
+      where: { guardianUserId: session.user.id },
+      select: {
+        consentAt: true,
+        alertsEnabled: true,
+        childUser: { select: { id: true, name: true, email: true, birthYear: true, hasDiagnosis: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+    loadBridgeCards(session.user.id),
+  ]);
 
   const children: ChildRow[] = rows.map((r) => ({
     id: r.childUser.id,
@@ -40,6 +45,9 @@ export default async function TutorPage() {
     <div className="flex flex-1 flex-col">
       <SiteHeader />
       <div className="pb-24 md:pb-0">
+        <div className="mx-auto w-full max-w-2xl px-4 pt-8">
+          <BridgePanel initialCards={bridgeCards} />
+        </div>
         <TutorPanel
           initialChildren={children}
           emailVerified={session.user.emailVerified}
