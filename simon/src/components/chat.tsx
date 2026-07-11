@@ -5,6 +5,7 @@ import { DefaultChatTransport, type UIMessage } from "ai";
 import { memo, useEffect, useRef, useState } from "react";
 import { ConversationList } from "@/components/conversation-list";
 import { DiagnosisOnboarding } from "@/components/diagnosis-onboarding";
+import { HelpNow } from "@/components/help-now";
 import { MoodChips } from "@/components/mood-chips";
 import { relativeTime } from "@/components/relative-time";
 import { SessionTimer } from "@/components/session-timer";
@@ -497,6 +498,8 @@ export function Chat() {
 
           {/* Acciones de conversación + timer (ambos breakpoints, ≥44px) */}
           <div className="flex items-center gap-1">
+            {/* Ayuda ahora: crisis + recursos cercanos, siempre a mano (§7.3) */}
+            <HelpNow />
             <button
               type="button"
               onClick={handleNewConversation}

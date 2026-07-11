@@ -73,6 +73,11 @@ model Guardian {
   consentRevokedAt DateTime?
   // Alertas de crisis al tutor/a (M-P2). Activadas por defecto.
   alertsEnabled    Boolean   @default(true)
+  // Zona de la familia (Fase "Cerca tuyo"): filtra el directorio de recursos
+  // reales y, a futuro, el enriquecimiento local de las plantillas de crisis.
+  // Minimización: NO es domicilio (no es PII sensible), solo provincia/localidad.
+  province         String?   // "neuquen" | "rionegro" | "nacional" | ...
+  localidad        String?
   createdAt        DateTime  @default(now())
 
   @@index([guardianUserId])
@@ -231,6 +236,41 @@ model KnowledgeCard {
   updatedAt DateTime @updatedAt
 
   @@index([category])
+}
+
+// ---------- Directorio de recursos reales ("Cerca tuyo") ----------
+
+// Recursos de ayuda REALES y georreferenciables: líneas nacionales, hospitales,
+// CeSAC, ONGs, juntas evaluadoras, etc. NO son datos sensibles (directorio
+// público); su valor es decir "a dónde ir ACÁ" cuando el sistema está saturado.
+// Solo entran al producto los `reviewed: true` (validación humana del dato).
+model HelpResource {
+  id            String   @id @default(cuid())
+  slug          String   @unique // clave estable para seed idempotente
+  name          String
+  // "crisis" | "salud_mental" | "discapacidad" | "escuela" | "linea" | "ong"
+  kind          String
+  // "nacional" | "neuquen" | "rionegro" | ...
+  province      String
+  localidad     String?
+  address       String?
+  lat           Float?
+  lng           Float?
+  phone         String?
+  whatsapp      String?
+  hours         String?  // "Lun a Vie 8–20", "24 hs"
+  cost          String   @default("gratis") // "gratis" | "obra_social" | "arancel"
+  takesChildren Boolean  @default(true)
+  noAppointment Boolean  @default(false) // atiende sin turno / guardia
+  url           String?
+  notes         String?
+  source        String?  // organismo que respalda el dato
+  reviewed      Boolean  @default(false) // validado por una persona
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([province, kind])
 }
 
 // ---------- Memoria por usuario (aprendizaje) ----------

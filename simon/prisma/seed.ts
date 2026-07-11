@@ -6,6 +6,7 @@ import { config as dotenv } from "dotenv";
 import { PrismaNeon } from "@prisma/adapter-neon";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { KNOWLEDGE_CARDS } from "./knowledge-data";
+import { HELP_RESOURCES } from "./help-resources-data";
 
 dotenv({ path: [".env.local", ".env"] });
 
@@ -36,6 +37,37 @@ async function main() {
     });
   }
   console.log(`Seeded ${KNOWLEDGE_CARDS.length} knowledge cards.`);
+
+  // Directorio "Cerca tuyo": líneas nacionales verificadas (reviewed:true) +
+  // recursos provinciales pendientes de validar (reviewed:false, no se muestran
+  // hasta que una persona confirme los datos). Idempotente por `slug`.
+  for (const r of HELP_RESOURCES) {
+    const data = {
+      name: r.name,
+      kind: r.kind,
+      province: r.province,
+      localidad: r.localidad ?? null,
+      address: r.address ?? null,
+      lat: r.lat ?? null,
+      lng: r.lng ?? null,
+      phone: r.phone ?? null,
+      whatsapp: r.whatsapp ?? null,
+      hours: r.hours ?? null,
+      cost: r.cost ?? "gratis",
+      takesChildren: r.takesChildren ?? true,
+      noAppointment: r.noAppointment ?? false,
+      url: r.url ?? null,
+      notes: r.notes ?? null,
+      source: r.source ?? null,
+      reviewed: r.reviewed ?? false,
+    };
+    await prisma.helpResource.upsert({
+      where: { slug: r.slug },
+      update: data,
+      create: { slug: r.slug, ...data },
+    });
+  }
+  console.log(`Seeded ${HELP_RESOURCES.length} help resources.`);
 }
 
 main()

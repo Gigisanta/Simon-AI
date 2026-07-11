@@ -43,6 +43,15 @@ function TutorIcon({ className = "size-4" }: { className?: string }) {
   );
 }
 
+function NearbyIcon({ className = "size-4" }: { className?: string }) {
+  return (
+    <svg {...iconProps} className={`shrink-0 ${className}`}>
+      <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
+      <circle cx="12" cy="10" r="3" />
+    </svg>
+  );
+}
+
 /** Ítems del nav compartidos entre el pill de escritorio y la bottom-nav mobile. */
 export const NAV_ITEMS: {
   href: string;
@@ -51,6 +60,7 @@ export const NAV_ITEMS: {
   guardianOnly?: boolean;
 }[] = [
   { href: "/", label: "Chat", Icon: ChatIcon },
+  { href: "/ayuda/cerca", label: "Cerca", Icon: NearbyIcon, guardianOnly: true },
   { href: "/aprender", label: "Aprender", Icon: LearnIcon, guardianOnly: true },
   { href: "/tutor", label: "Tutor", Icon: TutorIcon, guardianOnly: true },
 ];
