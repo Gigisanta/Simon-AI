@@ -21,6 +21,26 @@ function storageKey(userId: string): string {
   return `${STORAGE_PREFIX}:${userId}`;
 }
 
+// Purga entradas huérfanas de otras cuentas (tablets compartidas): cualquier
+// clave con el mismo prefijo cuya racha ya venció (`last` más viejo que
+// SESSION_GAP_MS) no volverá a usarse — `readRecord` la reiniciaría igual — así
+// que se elimina para que localStorage no crezca sin techo. Se salta la clave
+// activa y tolera valores corruptos (los borra: no aportan nada).
+function purgeStale(activeKey: string, nowMs: number): void {
+  try {
+    const stale: string[] = [];
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const k = localStorage.key(i);
+      if (!k || k === activeKey || !k.startsWith(`${STORAGE_PREFIX}:`)) continue;
+      const rec = readRecord(k);
+      if (!rec || nowMs - rec.last >= SESSION_GAP_MS) stale.push(k);
+    }
+    for (const k of stale) localStorage.removeItem(k);
+  } catch {
+    // sin localStorage o acceso denegado: nada que purgar
+  }
+}
+
 function readRecord(key: string): { start: number; last: number } | null {
   try {
     const raw = localStorage.getItem(key);
@@ -56,6 +76,8 @@ export function SessionTimer({
     if (!userId) return;
     const key = storageKey(userId);
     const now = Date.now();
+    // Limpia rachas vencidas de otras cuentas antes de arrancar la propia.
+    purgeStale(key, now);
     let record = readRecord(key);
     if (!record || now - record.last >= SESSION_GAP_MS) {
       record = { start: now, last: now };
