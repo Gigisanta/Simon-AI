@@ -47,6 +47,14 @@
   --color-green-tint: #e4f1e6;
   --color-sky-tint: #e3eff8;
 
+  /* Paleta de ilustración (hero de la home + avatar de Simón). Tonos propios de
+   * los SVG decorativos, coherentes con la paleta (junto a --color-brand-ill). */
+  --color-white: #ffffff;
+  --color-ill-sand: #ede3ce;
+  --color-ill-terra: #e09a72;
+  --color-ill-line: #3f4a41;
+  --color-ill-leaf: #5d7f63;
+
   /* Colores por categoría de ficha (/aprender): kicker + arco izquierdo, AA sobre blanco */
   --color-neuro: #6d5bd0;
   --color-intel: #3a7d54;
@@ -65,12 +73,27 @@
 /* Fondo crema plano (objetivo del proyecto: blanco + contraste oscuro, sin gradientes) */
 html {
   background: var(--color-cream);
+  height: 100%;
+  overflow-x: clip;
 }
 
 body {
   background: var(--color-cream);
   color: var(--foreground);
   font-family: var(--font-nunito), ui-sans-serif, system-ui, sans-serif;
+  width: 100%;
+  min-height: 100%;
+  overflow-x: hidden;
+  overscroll-behavior: none;
+}
+
+/* El viewport mobile del chat no debe rebotar detrás del historial ni hacer
+ * zoom automático en iOS al enfocar el composer. */
+@media (max-width: 767px) {
+  input,
+  textarea {
+    font-size: 16px;
+  }
 }
 
 /* Foco visible en todo elemento interactivo (WCAG 2.4.7) */
