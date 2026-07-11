@@ -124,9 +124,15 @@ export const auth = betterAuth({
     // cuenta existe. Mismo transporte no-bloqueante que la verificación
     // (deliverEmail: en producción sin RESEND_API_KEY el token NUNCA se loguea).
     //
-    // NO se activa `revokeSessionsOnPasswordReset`: el reseteo del tutor/a no
-    // debe tocar las sesiones del hijo (better-auth solo revocaría las del propio
-    // usuario que resetea, pero se deja explícito para no invalidar al menor).
+    // Se activa `revokeSessionsOnPasswordReset`: al resetear la contraseña,
+    // better-auth revoca TODAS las sesiones de ESE userId (solo del que resetea).
+    // No toca al hijo: tutor/a e hijos son userIds distintos, cada uno con sus
+    // propias sesiones, así que el reset del tutor/a jamás alcanza las del menor.
+    // El vector que cierra es el clásico: si una sesión del tutor/a fue robada
+    // (cookie/token filtrado), el reseteo de contraseña debe expulsarla — sin
+    // esto, la sesión comprometida sobrevive al cambio de credencial y el ataque
+    // persiste pese a que el dueño legítimo ya "recuperó" la cuenta.
+    revokeSessionsOnPasswordReset: true,
     async sendResetPassword({ user, url }) {
       if (isChildEmail(user.email)) return;
       // No propagamos errores: un fallo del proveedor no debe romper el flujo
