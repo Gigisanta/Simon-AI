@@ -52,12 +52,12 @@ export function DiagnosisOnboarding({
   }
 
   return (
-    <div className="my-auto flex flex-col items-center gap-6 py-8">
-      <SimonAvatar className="size-14" />
+    <div className="simon-rise-in my-auto flex flex-col items-center gap-6 py-8">
+      <SimonAvatar className="simon-pop-in size-14" />
 
       {step === "ask" && (
         <>
-          <div className="flex flex-col items-center gap-2 text-center">
+          <div className="simon-rise-in flex flex-col items-center gap-2 text-center">
             <p className="max-w-sm text-base font-bold text-ink">
               ¡Hola! Antes de empezar, quiero conocerte un poco mejor
             </p>
@@ -101,7 +101,7 @@ export function DiagnosisOnboarding({
       )}
 
       {step === "saving" && (
-        <div className="flex flex-col items-center gap-3">
+        <div className="simon-pop-in flex flex-col items-center gap-3">
           <div
             aria-hidden="true"
             className="size-10 rounded-full border-2 border-brand border-r-transparent motion-safe:animate-spin"

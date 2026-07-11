@@ -102,6 +102,53 @@ body {
   outline-offset: 2px;
 }
 
+/* Motion language: breve, cálido y consistente. Sólo opacity/transform para
+ * mantener 60fps incluso en teléfonos modestos. */
+@keyframes simon-rise-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes simon-pop-in {
+  0% { opacity: 0; transform: scale(0.86); }
+  70% { opacity: 1; transform: scale(1.035); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes simon-sheet-in {
+  from { opacity: 0; transform: translateY(18px) scale(0.99); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.simon-rise-in { animation: simon-rise-in 280ms cubic-bezier(.22, 1, .36, 1) both; }
+.simon-pop-in { animation: simon-pop-in 320ms cubic-bezier(.22, 1, .36, 1) both; }
+.simon-stagger-1 { animation-delay: 45ms; }
+.simon-stagger-2 { animation-delay: 90ms; }
+.simon-stagger-3 { animation-delay: 135ms; }
+
+button:not(:disabled),
+a[href] {
+  -webkit-tap-highlight-color: transparent;
+  transition-property: transform, opacity, color, background-color, border-color, box-shadow;
+  transition-duration: 180ms;
+  transition-timing-function: cubic-bezier(.22, 1, .36, 1);
+}
+
+button:not(:disabled):active,
+a[href]:active { opacity: 0.78; }
+
+dialog[open] { animation: simon-sheet-in 260ms cubic-bezier(.22, 1, .36, 1) both; }
+dialog::backdrop {
+  background: rgb(57 53 41 / 0.38);
+  backdrop-filter: blur(3px);
+  animation: simon-rise-in 200ms ease-out both;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  button:not(:disabled):hover,
+  a[href]:hover { opacity: 0.9; }
+}
+
 /* Modo calma: sin animaciones ni transiciones, scroll instantáneo */
 [data-calm] *,
 [data-calm] *::before,

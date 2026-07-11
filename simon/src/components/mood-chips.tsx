@@ -90,7 +90,7 @@ export function MoodChips({ onPick }: { onPick: (message: string) => void }) {
     <div
       role="group"
       aria-label="¿Cómo te sentís hoy?"
-      className="flex flex-wrap justify-center gap-2"
+      className="simon-rise-in flex flex-wrap justify-center gap-2"
     >
       {MOODS.map((mood) => (
         <button
