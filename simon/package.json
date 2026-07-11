@@ -19,6 +19,8 @@
     "guardian-suite": "tsx scripts/guardian-suite.ts",
     "guardian-auth-suite": "tsx scripts/guardian-auth-suite.ts",
     "guardian-children-suite": "tsx scripts/guardian-children-suite.ts",
+    "guardian-account-suite": "tsx scripts/guardian-account-suite.ts",
+    "guardian-export-suite": "tsx scripts/guardian-export-suite.ts",
     "password-suite": "tsx scripts/password-suite.ts",
     "email-suite": "tsx scripts/email-suite.ts",
     "safety-events-suite": "tsx scripts/safety-events-suite.ts",
