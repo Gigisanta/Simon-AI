@@ -36,6 +36,14 @@ import { requireGuardian, findOwnedChild } from "@/lib/guardian-auth";
 import { usernameFromEmail } from "@/lib/guardian";
 import { buildExportedConversations } from "@/lib/export-conversations";
 
+// El export recorre N conversaciones paginando mensajes por cursor (varios
+// round-trips a la DB), así que puede tardar más que un handler corriente. Se le
+// da un techo explícito y razonable, en línea con otras rutas pesadas del repo
+// (/api/chat usa 90, cron/purge 60). NO se hace streaming/NDJSON ni job async: si
+// el volumen por menor crece hasta acercarse a este techo, esa es la vía futura
+// (responder un 202 + generar el JSON en background y entregarlo por descarga).
+export const maxDuration = 60;
+
 // Export = varias queries a la DB de datos de un menor. Límite bajo contra abuso
 // y contra scripting de exports en ráfaga.
 const RATE_LIMIT_PER_MINUTE = 5;
