@@ -170,7 +170,12 @@ function fixedTextResponse(text: string, headers?: Record<string, string>) {
       writer.write({ type: "text-end", id });
     },
   });
-  return createUIMessageStreamResponse({ stream, headers });
+  // Respuestas de chat con contenido del menor: nunca cachear por defecto. Un
+  // caller puede sobreescribir pasando su propio "cache-control" (headers gana).
+  return createUIMessageStreamResponse({
+    stream,
+    headers: { "cache-control": "no-store", ...headers },
+  });
 }
 
 export async function POST(req: Request) {
