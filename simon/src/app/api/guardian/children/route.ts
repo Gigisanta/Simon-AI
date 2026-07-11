@@ -228,5 +228,6 @@ export async function GET(req: Request) {
     alertsEnabled: r.alertsEnabled,
   }));
 
-  return Response.json({ children });
+  // Lista de menores con PII: nunca cachear en proxies/navegador.
+  return Response.json({ children }, { headers: { "cache-control": "no-store" } });
 }

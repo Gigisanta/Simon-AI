@@ -95,5 +95,6 @@ export async function GET(
   );
 
   if (result.status === 404) return NOT_FOUND();
-  return Response.json(result.body);
+  // Eventos de seguridad de un menor (PII): nunca cachear en proxies/navegador.
+  return Response.json(result.body, { headers: { "cache-control": "no-store" } });
 }
