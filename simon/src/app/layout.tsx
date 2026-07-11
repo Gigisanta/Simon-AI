@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Nunito } from "next/font/google";
 import { headers } from "next/headers";
 import "./globals.css";
+import { OfflineBanner } from "@/components/offline-banner";
 
 const nunito = Nunito({
   variable: "--font-nunito",
@@ -50,6 +51,9 @@ export default async function RootLayout({
             __html: `try{if(localStorage.getItem("simon-calm")==="1")document.documentElement.setAttribute("data-calm","")}catch(e){}`,
           }}
         />
+        {/* Aviso global de "sin conexión" (no intrusivo, accesible). Se autooculta
+            al volver la red. Montado en el layout raíz para cubrir toda la app. */}
+        <OfflineBanner />
         {children}
       </body>
     </html>
