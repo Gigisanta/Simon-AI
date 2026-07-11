@@ -47,6 +47,7 @@ const SUITES = [
   "chat-idempotency",
   "csp",
   "migrate",
+  "relative-time",
 ] as const;
 
 const here = dirname(fileURLToPath(import.meta.url));

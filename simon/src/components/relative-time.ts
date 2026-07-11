@@ -2,9 +2,13 @@
  * Fecha relativa en es-AR: "hace 2 horas", "ayer". Compartida entre el chat
  * (prompt "¿Seguimos donde quedamos?") y la lista de conversaciones.
  */
-export function relativeTime(iso: string): string {
+export function relativeTime(iso: string, now: number = Date.now()): string {
   const rtf = new Intl.RelativeTimeFormat("es-AR", { numeric: "auto" });
-  const diffSec = Math.round((new Date(iso).getTime() - Date.now()) / 1000);
+  // Los timestamps son del servidor pero `now` sale del reloj del cliente: con
+  // el cliente adelantado, un evento recién persistido cae "en el futuro" y se
+  // vería "en 3 segundos". Un evento ya persistido nunca es futuro → clamp a
+  // no-futuro, así un desfasaje chico muestra "ahora" (0) en vez de futuro.
+  const diffSec = Math.min(0, Math.round((new Date(iso).getTime() - now) / 1000));
   const abs = Math.abs(diffSec);
   if (abs < 60) return rtf.format(diffSec, "second");
   if (abs < 3600) return rtf.format(Math.round(diffSec / 60), "minute");
