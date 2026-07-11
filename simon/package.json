@@ -40,6 +40,10 @@
     "chat-idempotency-suite": "tsx scripts/chat-idempotency-suite.ts",
     "csp-suite": "tsx scripts/csp-suite.ts",
     "migrate-suite": "tsx scripts/migrate-suite.ts",
+    "context-budget-suite": "tsx scripts/context-budget-suite.ts",
+    "session-limit-suite": "tsx scripts/session-limit-suite.ts",
+    "consent-suite": "tsx scripts/consent-suite.ts",
+    "single-flight-suite": "tsx scripts/single-flight-suite.ts",
     "export-training": "tsx scripts/export-training.ts",
     "db:seed": "tsx prisma/seed.ts"
   },

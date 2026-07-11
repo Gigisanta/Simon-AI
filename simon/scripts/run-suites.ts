@@ -48,6 +48,10 @@ const SUITES = [
   "csp",
   "migrate",
   "relative-time",
+  "context-budget",
+  "session-limit",
+  "consent",
+  "single-flight",
 ] as const;
 
 const here = dirname(fileURLToPath(import.meta.url));
