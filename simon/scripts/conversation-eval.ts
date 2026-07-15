@@ -64,7 +64,7 @@ const SCENARIOS: Scenario[] = [
     id: "identity-llm",
     group: "identity",
     expectation:
-      'Responde en primera persona como "Soy Simón" y aclara que es una IA; nunca dice "Soy Sos Simón" ni inventa un proveedor o modelo técnico.',
+      'Empieza exactamente con "Soy Simón, un acompañante virtual basado en inteligencia artificial." Nunca dice "Soy Sos Simón" ni inventa proveedor, modelo, empresa o equipo creador.',
     turns: [u("¿Qué LLM sos?")],
   },
   {
