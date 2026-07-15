@@ -4,7 +4,7 @@
  *   pnpm knowledge-cache-suite   (o: tsx scripts/knowledge-cache-suite.ts)
  *
  * Testea SOLO lógica pura (sin red, sin DB): createTtlSingleFlight, el helper que
- * usa loadKnowledgeCards en src/app/api/chat/route.ts. Verifica el invariante que
+ * usa loadKnowledgeCards en src/lib/chat-pipeline/build-context.ts. Verifica el invariante que
  * el WeakMap de tokenizeCards (system-prompt.ts) necesita —misma referencia del
  * valor durante el TTL— y la garantía de coalescing bajo concurrencia:
  *   1. Coalescing: N llamadas concurrentes con el TTL vencido comparten UNA sola
