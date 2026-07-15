@@ -26,7 +26,7 @@ Simón es un acompañante emocional con IA para chicos y adolescentes (6–18) c
 
 **No es**: terapia, diagnóstico ni tratamiento. Este posicionamiento es deliberado: (a) mantiene a Simón fuera del régimen de producto médico de ANMAT (Disp. 64/2025); (b) evita el camino que quebró a los jugadores más validados del mundo (Woebot: 14 RCTs, US$124M quemados persiguiendo una vía regulatoria que no existe para LLMs); (c) es lo que exige la dirección regulatoria global (Illinois, Nevada, California SB-243, EU AI Act).
 
-**Compliance nativo argentino**: consentimiento por tramos etarios (CCyCN art. 26, autonomía progresiva; tutores <13, asistido 13–16), datos sensibles bajo Ley 25.326 (consentimiento expreso, minimización, cifrado, TTL de retención con purga diaria automática), visibilidad del tutor como *alertas — no transcripciones*, y mapeo explícito a los marcos del propio Estado: Disp. JGM 2/2023 "IA Fiable", guía AAIP de IA responsable y guía CIPPEC de IA para el sector público.
+**Compliance nativo argentino**: consentimiento por tramos etarios (CCyCN art. 26, autonomía progresiva; tutores <13, asistido 13–16), datos sensibles bajo Ley 25.326 (consentimiento expreso, minimización, cifrado, TTL de retención con purga diaria automática), visibilidad del tutor como *alertas — no transcripciones*, y mapeo explícito a los marcos del propio Estado: Disp. JGM 2/2023 "IA Fiable", guía AAIP de IA responsable y guía CIPPEC de IA para el sector público. Compatible además con Ley 26.657 (Salud Mental): régimen *rights-based*, presunción de capacidad, atención por equipos interdisciplinarios — Simón se posiciona como apoyo al sistema (triage, psicoeducación, puente a recursos), nunca como sustituto que diagnostica o trata de forma autónoma; ese límite es lo que evita la colisión con la ley.
 
 **Seguridad por construcción** (arquitectura tipo Wysa/NHS, no tipo Character.AI): capa de crisis determinística sin LLM (~35ms, plantillas exactas con 135 / 0800-345-1435 / 102 / 137 / 911), doble moderación de todo lo que entra y sale del modelo, fail-closed (si algo falla, la respuesta segura sale igual), alertas de crisis al tutor, y gate de tests determinístico de 35+ suites que corre antes de cada deploy.
 
@@ -43,7 +43,28 @@ Simón es un acompañante emocional con IA para chicos y adolescentes (6–18) c
 
 **Simón a USD 36.000/año ≈ USD 0,05 por neuquino por año** (~750k hab.). Incluso midiendo solo sobre 10.000 usuarios activos: USD 3,60/usuario/año — el piso del rango internacional. El fee es **pricing provincial introductorio**: la expansión nacional puede pricear USD 8k–25k/mes por provincia sin contradicción, citando estos mismos benchmarks.
 
-**Qué incluye**: hosting y operación (Vercel + Neon, margen sano: infra+LLM a 10k MAU < USD 500/mes), soporte, monitoreo de seguridad, actualización de contenido (fichas/recursos/trámites con revisión profesional), evolución del producto y reportes a la provincia.
+**Qué incluye**: hosting y operación (Vercel + Neon + Upstash + Resend + tokens LLM), soporte, monitoreo de seguridad, actualización de contenido (fichas/recursos/trámites con revisión profesional), evolución del producto y reportes a la provincia.
+
+#### 4.1.1 Desglose de costos de operación (10k / 50k / 100k MAU)
+
+Supuestos declarados (conservadores — ver riesgo #4 en §6):
+
+- ~25 turnos (intercambio usuario↔Simón) por usuario activo mensual (uso moderado, no diario intensivo).
+- Contexto por turno acotado por el presupuesto de tokens (ADR-7): ~1.400 tokens de entrada "frescos" (resumen + últimos mensajes) + ~2.500 tokens de system prompt/persona/fichas con cache-hit (estable entre turnos) + ~220 tokens de salida.
+- +15% de overhead por la cascada de guardrails (ADR-2 — regex y OpenAI Moderation son gratis; solo escala a un check LLM en una minoría de turnos) y por tareas del modelo chico (`AI_SMALL_MODEL`: título de conversación, extracción de memoria).
+- Arquitectura ya vigente en producción (ADR-1/2/3/4/7, ver `docs/adr-rearquitectura-2026-07.md`): router de proveedores con fallback, cascada de guardrails, purga diaria por TTL — no son compromisos a futuro.
+
+| Servicio | 10k MAU | 50k MAU | 100k MAU | Supuesto / fuente |
+|---|---|---|---|---|
+| Vercel (Pro + Fluid Compute) | ~USD 25–35 | ~USD 45–70 | ~USD 70–110 | Pro USD 20/mes (1 seat) + Active CPU USD 0,128/h + memoria provisionada USD 0,0106/GB-h; el tiempo de espera a la respuesta del LLM no se cobra (Active CPU pricing) |
+| Neon Postgres | ~USD 25–40 | ~USD 100–160 | ~USD 280–350 | USD 0,106/CU-h (plan Launch) a USD 0,222/CU-h (plan Scale) + USD 0,35/GB-mes; a 100k MAU conviene Scale por PITR de 30 días y private networking, relevante para el SLA de un servicio estatal |
+| Upstash Redis | ~USD 5 | ~USD 25 | ~USD 50 | USD 0,20 cada 100k comandos; ~10 comandos/turno (rate limit + sesión de better-auth vía `secondaryStorage`) |
+| Resend | USD 0 (free) | ~USD 20 | ~USD 20 | Plan Pro (USD 20/mes) cubre 50k emails/mes; el volumen escala con altas de tutor + alertas de crisis, **no** 1:1 con MAU (los menores nunca reciben email, ver `docs/research-guardian.md` §3) |
+| Tokens LLM (DeepSeek V4 Flash) | ~USD 75–90 | ~USD 380–450 | ~USD 760–900 | USD 0,14 / USD 0,0028 (cache-hit) / USD 0,28 por millón de tokens entrada/cache/salida (ver `docs/research-architecture.md` §1) |
+| **Total infraestructura + LLM** | **~USD 130–190/mes** | **~USD 570–725/mes** | **~USD 1.180–1.430/mes** | |
+| **Margen sobre el fee de USD 3.000/mes** | **~94–96%** | **~76–81%** | **~52–61%** | |
+
+El margen decrece con la escala (previsible: los tokens LLM son el costo variable dominante) pero se mantiene sano en los tres escenarios, incluso con el 15% de buffer ya cargado en el supuesto de tokens.
 
 **ROI para la provincia**: costo por interacción de IA USD 0,50–2 vs USD 8–15 de atención humana equivalente de primer contacto; cada triage temprano descomprime un sistema con lista de espera. (Wysa-NHS reporta ~£105 y 97 minutos clínicos ahorrados por triage.)
 
@@ -79,4 +100,4 @@ Simón es un acompañante emocional con IA para chicos y adolescentes (6–18) c
 1. La evidencia mundial de eficacia de chatbots generativos **en adolescentes** es aún débil — por eso Simón no claimea eficacia clínica: claimea acompañamiento seguro + plan de generación de evidencia local.
 2. Ningún regulador del mundo autorizó todavía un dispositivo LLM de salud mental — por eso el posicionamiento bienestar/acompañamiento.
 3. Benchmarks de contratos gov LatAm son opacos; los comparables citados son proxies US/UK (declarado en el anexo).
-4. Cifras de infraestructura (Neon/Vercel/LLM) varían por época de plan — re-verificar antes de fijar en contrato.
+4. Cifras de infraestructura (§4.1.1: Vercel/Neon/Upstash/Resend/LLM) son estimaciones a partir de pricing público vigente a jul-2026 y de supuestos de uso declarados (25 turnos/MAU/mes) — no de tráfico real medido. Re-verificar contra telemetría de producción antes de fijar en contrato multi-año.
