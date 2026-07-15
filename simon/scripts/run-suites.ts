@@ -46,6 +46,7 @@ const SUITES = [
   "purge",
   "resend-verification",
   "retry",
+  "provider-router",
   "chat-precedence",
   "chat-idempotency",
   "csp",

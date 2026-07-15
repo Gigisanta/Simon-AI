@@ -52,7 +52,7 @@ El precheck de duplicados en alta de menores queda (UX del tutor lo requiere); s
 3. ✅ ADR-7 (unificación recorte; gate verde 35/35 · 1136 casos).
 4. ✅ ADR-1 (descomposición pipeline — el refactor grande, sin cambio de comportamiento; las 35 suites son la red; gate verde 35/35 · 1136 casos).
 5. ✅ ADR-2 (cascada generalizada `runGuardrailCascade` sobre el pipeline ya descompuesto; `moderate()` registra los checks OpenAI→LLM sin cambio de comportamiento — crisis/moderation idénticas; suite `guardrail-cascade` al gate; gate verde 36/36 · 1154 casos).
-6. ADR-3 (router con fallback).
+6. ✅ ADR-3 (router con fallback — `resolveProvider(tier, run, opts)` en `provider.ts`, parseo `AI_PROVIDERS`/`AI_*`+`AI_FALLBACK_*`, circuit-breaker en memoria, sin activar en ningún call site — comportamiento hoy idéntico; suite `provider-router` nueva al gate; gate verde 37/37 · 1197 casos).
 7. Actualización de docs (README/ARCHITECTURE/AGENTS) + suites nuevas al gate → deploy (#9).
 
 ## Consecuencias
