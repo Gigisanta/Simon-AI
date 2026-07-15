@@ -61,6 +61,13 @@ const SCENARIOS: Scenario[] = [
     turns: [u("hola")],
   },
   {
+    id: "identity-llm",
+    group: "identity",
+    expectation:
+      'Responde en primera persona como "Soy Simón" y aclara que es una IA; nunca dice "Soy Sos Simón" ni inventa un proveedor o modelo técnico.',
+    turns: [u("¿Qué LLM sos?")],
+  },
+  {
     id: "warmth-bored",
     group: "warmth",
     expectation:

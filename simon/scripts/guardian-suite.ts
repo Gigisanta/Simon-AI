@@ -426,8 +426,16 @@ const { check, done } = createChecker("Guardian suite");
   check(!childPrompt.includes(marker), "rol: persona child NO incluye el addendum");
   check(!defaultPrompt.includes(marker), "rol: sin rol (default) NO incluye el addendum");
   // La persona base (mismo comienzo) se preserva para ambos.
-  check(childPrompt.startsWith("Sos Simón,"), "rol: child mantiene la persona base exacta");
-  check(guardianPrompt.startsWith("Sos Simón,"), "rol: guardian mantiene la persona base");
+  check(childPrompt.startsWith("Tu nombre es Simón."), "rol: child mantiene la identidad base exacta");
+  check(guardianPrompt.startsWith("Tu nombre es Simón."), "rol: guardian mantiene la identidad base");
+  check(
+    childPrompt.includes('respondé siempre en primera persona: "Soy Simón,'),
+    "identidad: exige presentarse como Soy Simón",
+  );
+  check(
+    childPrompt.includes('nunca digas "Soy Sos Simón"'),
+    "identidad: prohíbe la construcción Soy Sos Simón",
+  );
   // Menciona los ejes de tutor/a (CUD, prestaciones).
   check(GUARDIAN_PERSONA_ADDENDUM.includes("CUD"), "rol: addendum menciona el CUD");
 
