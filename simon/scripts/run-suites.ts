@@ -21,6 +21,7 @@ import { dirname, join } from "node:path";
 const SUITES = [
   "crisis",
   "moderation",
+  "guardrail-cascade",
   "memory",
   "guardian",
   "guardian-auth",

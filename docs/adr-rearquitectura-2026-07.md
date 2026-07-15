@@ -51,7 +51,7 @@ El precheck de duplicados en alta de menores queda (UX del tutor lo requiere); s
 2. ✅ ADR-6 + ADR-8 (hardening barato; gate verde).
 3. ✅ ADR-7 (unificación recorte; gate verde 35/35 · 1136 casos).
 4. ✅ ADR-1 (descomposición pipeline — el refactor grande, sin cambio de comportamiento; las 35 suites son la red; gate verde 35/35 · 1136 casos).
-5. ADR-2 (cascada generalizada sobre el pipeline ya descompuesto).
+5. ✅ ADR-2 (cascada generalizada `runGuardrailCascade` sobre el pipeline ya descompuesto; `moderate()` registra los checks OpenAI→LLM sin cambio de comportamiento — crisis/moderation idénticas; suite `guardrail-cascade` al gate; gate verde 36/36 · 1154 casos).
 6. ADR-3 (router con fallback).
 7. Actualización de docs (README/ARCHITECTURE/AGENTS) + suites nuevas al gate → deploy (#9).
 

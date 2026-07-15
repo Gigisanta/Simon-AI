@@ -5,7 +5,9 @@
  * del usuario (pre-LLM, cuando la regex no disparó bypass) como sobre la
  * SALIDA generada por el modelo (post-LLM).
  *
- * CASCADA (moderate()):
+ * CASCADA (moderate()): se registra sobre la primitiva generalizada
+ * `runGuardrailCascade` (guardrails/cascade.ts, ADR-2) como una lista ordenada
+ * de checks cheapest-first. Corta en el primer veredicto concluyente:
  *   1. OpenAI Moderation API ("omni-moderation-latest") si hay OPENAI_API_KEY
  *      válida. Si responde 2xx → se usa (source "openai"). Un 401/403 desactiva
  *      la key POR PROCESO (no se reintenta cada request — evita sumar latencia
@@ -28,8 +30,18 @@ import { generateText } from "ai";
 import type { SafetyFlag } from "./safety";
 import { aiConfigured, smallModel } from "./ai/provider";
 import { withTransientRetry } from "./ai/retry";
+import {
+  runGuardrailCascade,
+  type GuardrailCheck,
+  type GuardrailVerdict,
+} from "./guardrails/cascade";
 
-export interface ModerationResult {
+/**
+ * Veredicto de la cascada de moderación. Es un `GuardrailVerdict` (ADR-2) con
+ * `source` restringido a las capas que hoy existen: OpenAI, moderador LLM, o
+ * "none" (ninguna capa concluyó → inconcluso, dispara la política fail-closed).
+ */
+export interface ModerationResult extends GuardrailVerdict {
   /** true solo si alguna capa (OpenAI o LLM) clasificó con éxito. */
   available: boolean;
   /** true si la capa activa marcó el texto como problemático. */
@@ -365,52 +377,98 @@ async function moderateLLM(text: string, signal?: AbortSignal): Promise<Moderati
   }
 }
 
-// ---------- Cascada pública ----------
+// ---------- Cascada pública (registro de checks sobre runGuardrailCascade) ----------
+
+/** Input de la cascada de moderación: el texto y el reloj (para el re-probe). */
+interface ModerationInput {
+  text: string;
+  now: number;
+}
 
 /**
- * Modera un texto siguiendo la cascada (OpenAI → LLM → no disponible).
- * Nunca lanza.
+ * Check 1 (más barato): OpenAI Moderation API. Concluye (`available:true`) solo
+ * con un 2xx válido; en cualquier otro caso devuelve null (cae al moderador LLM)
+ * sin fabricar un veredicto limpio (fail-closed). Encapsula el gate de estado de
+ * la key por proceso (usable / re-probe con TTL / aviso de degradación).
+ */
+const openAiCheck: GuardrailCheck<ModerationInput, ModerationResult> = {
+  source: "openai",
+  async run({ text, now }, signal) {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      if (!warnedNoOpenAiKey) {
+        console.warn(
+          "[moderation] OPENAI_API_KEY no configurada; capa 1 (OpenAI) omitida, " +
+            "se usa el moderador LLM.",
+        );
+        warnedNoOpenAiKey = true;
+      }
+      return null;
+    }
+    // Solo probamos OpenAI si la key nunca fue inválida o ya toca re-probar.
+    if (!openAiKeyUsable(openAiKeyInvalidAt, now)) {
+      if (shouldWarnKeyInvalid(lastKeyInvalidWarnAt, now)) {
+        // Dentro de la ventana de invalidez: no reprobamos (sin latencia
+        // muerta), pero re-advertimos la degradación a baja frecuencia para que
+        // no quede invisible tras el primer error.
+        lastKeyInvalidWarnAt = now;
+        console.error(
+          "[moderation] OpenAI sigue desactivada (OPENAI_API_KEY inválida desde el " +
+            "último 401/403); corriendo solo con el moderador LLM. Se re-probará " +
+            "automáticamente pasadas ~6 h.",
+        );
+      }
+      return null;
+    }
+    // (Re)probamos OpenAI. Si sigue 401/403, moderateOpenAI reinicia la ventana
+    // (openAiKeyInvalidAt = now) y devolvemos null → caé al LLM.
+    const openai = await moderateOpenAI(text, apiKey, now, signal);
+    if (openai) {
+      // Un 2xx tras un período inválido = key recuperada: se limpia el estado.
+      openAiKeyInvalidAt = null;
+      lastKeyInvalidWarnAt = null;
+      return openai;
+    }
+    return null;
+  },
+};
+
+/**
+ * Check 2: moderador LLM real. Concluye con `available:true` si clasificó; si no
+ * (sin AI_API_KEY, timeout o error) devuelve `available:false` (source "none"),
+ * que la cascada trata como no concluyente → resultado inconcluso final.
+ */
+const llmCheck: GuardrailCheck<ModerationInput, ModerationResult> = {
+  source: "llm",
+  run({ text }, signal) {
+    return moderateLLM(text, signal);
+  },
+};
+
+/**
+ * Cascada de moderación registrada, cheapest-first (ADR-2). Para enchufar un
+ * clasificador propio en el futuro (research §4) se inserta su check en el orden
+ * que corresponda; `moderate()` no cambia.
+ */
+const MODERATION_CHECKS: ReadonlyArray<
+  GuardrailCheck<ModerationInput, ModerationResult>
+> = [openAiCheck, llmCheck];
+
+/**
+ * Modera un texto siguiendo la cascada (OpenAI → LLM → no disponible), corriendo
+ * los checks sobre `runGuardrailCascade`. Corta en el primer veredicto
+ * concluyente; si ninguno concluye devuelve el inconcluso canónico
+ * (`available:false`, source "none"). Nunca lanza.
  */
 export async function moderate(
   text: string,
   now: number = Date.now(),
   signal?: AbortSignal,
 ): Promise<ModerationResult> {
-  const apiKey = process.env.OPENAI_API_KEY;
-
-  // Paso 1: OpenAI, solo si hay key y (nunca fue inválida, o ya toca re-probar).
-  if (apiKey) {
-    if (openAiKeyUsable(openAiKeyInvalidAt, now)) {
-      // (Re)probamos OpenAI. Si sigue 401/403, moderateOpenAI reinicia la
-      // ventana (openAiKeyInvalidAt = now) y volvemos a caer al LLM.
-      const openai = await moderateOpenAI(text, apiKey, now, signal);
-      if (openai) {
-        // Un 2xx tras un período inválido = key recuperada: se limpia el estado.
-        openAiKeyInvalidAt = null;
-        lastKeyInvalidWarnAt = null;
-        return openai;
-      }
-      // null → caé al LLM (401/403 invalidó la key, o fue un fallo transitorio).
-    } else if (shouldWarnKeyInvalid(lastKeyInvalidWarnAt, now)) {
-      // Dentro de la ventana de invalidez: no reprobamos (sin latencia muerta),
-      // pero re-advertimos la degradación a baja frecuencia para que no quede
-      // invisible tras el primer error.
-      lastKeyInvalidWarnAt = now;
-      console.error(
-        "[moderation] OpenAI sigue desactivada (OPENAI_API_KEY inválida desde el " +
-          "último 401/403); corriendo solo con el moderador LLM. Se re-probará " +
-          "automáticamente pasadas ~6 h.",
-      );
-    }
-  } else if (!warnedNoOpenAiKey) {
-    console.warn(
-      "[moderation] OPENAI_API_KEY no configurada; capa 1 (OpenAI) omitida, " +
-        "se usa el moderador LLM.",
-    );
-    warnedNoOpenAiKey = true;
-  }
-
-  // Paso 2: moderador LLM. Paso 3 (ambos caídos) lo devuelve moderateLLM como
-  // available:false (source "none").
-  return moderateLLM(text, signal);
+  return runGuardrailCascade(
+    MODERATION_CHECKS,
+    { text, now },
+    unavailable(),
+    signal,
+  );
 }

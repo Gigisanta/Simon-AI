@@ -16,6 +16,7 @@
     "rate-limit-suite": "tsx scripts/rate-limit-suite.ts",
     "claim-once-suite": "tsx scripts/claim-once-suite.ts",
     "moderation-suite": "tsx scripts/moderation-suite.ts",
+    "guardrail-cascade-suite": "tsx scripts/guardrail-cascade-suite.ts",
     "retrieval-suite": "tsx scripts/retrieval-suite.ts",
     "knowledge-cache-suite": "tsx scripts/knowledge-cache-suite.ts",
     "guardian-suite": "tsx scripts/guardian-suite.ts",
