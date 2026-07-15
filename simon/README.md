@@ -15,7 +15,10 @@ seguridad de [`docs/research-safety.md`](../docs/research-safety.md).
 - **Resend** — email transaccional (verificación del tutor/a, alertas de crisis).
 - **zod** — validación de entrada.
 
-Arquitectura completa en [`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md). Docs de
+Arquitectura completa en [`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md) — pipeline
+de `/api/chat` por stages en `src/lib/chat-pipeline/` (ADR-1), cascada de guardrails
+genérica (ADR-2), router de proveedores con fallback (ADR-3), retención completa
+(ADR-4) y demás decisiones en [`docs/adr-rearquitectura-2026-07.md`](../docs/adr-rearquitectura-2026-07.md). Docs de
 research: [`research-safety.md`](../docs/research-safety.md) (crisis, regulación, UX
 para menores — lectura obligatoria antes de tocar el chat),
 [`research-architecture.md`](../docs/research-architecture.md) (LLM/RAG/moderación),
@@ -65,7 +68,7 @@ npx next build
 ## Tests
 
 El gate determinístico corre cada suite en un proceso aislado y agrega el resultado
-(35 suites al momento de escribir; el número exacto vive en `scripts/run-suites.ts`):
+(37 suites al momento de escribir; el número exacto vive en `scripts/run-suites.ts`):
 
 ```bash
 pnpm test            # todas

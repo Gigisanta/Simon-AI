@@ -2,7 +2,7 @@
 
 > Fecha: 2026-07-15 · Estado: **EN PRODUCCIÓN** en `https://simon.maat.work` (alias Vercel: `simon-ai-sigma.vercel.app`) — ver "Estado de implementación" al final
 > LLM en producción: DeepSeek V4 Flash REAL vía gateway OpenCode Go (`https://opencode.ai/zen/go/v1`, suscripción $0/token) con `AI_EXTRA_BODY={"thinking":{"type":"disabled"}}` (sin ese param el modelo quema el presupuesto en reasoning y devuelve content vacío)
-> Docs complementarios: [research-architecture.md](research-architecture.md) (LLM/RAG/moderación), [research-safety.md](research-safety.md) (protocolo de crisis, regulación, UX para menores — **lectura obligatoria antes de tocar el chat**)
+> Docs complementarios: [research-architecture.md](research-architecture.md) (LLM/RAG/moderación), [research-safety.md](research-safety.md) (protocolo de crisis, regulación, UX para menores — **lectura obligatoria antes de tocar el chat**), [adr-rearquitectura-2026-07.md](adr-rearquitectura-2026-07.md) (decisiones ADR-1..10 de la rearquitectura, quirúrgica sobre este mismo diseño)
 
 Simón: acompañante emocional con IA para niños y adolescentes (6–18, con y sin discapacidad), español rioplatense, Argentina-first. **No es un terapeuta ni lo simula.** Toda decisión de diseño está subordinada al protocolo de seguridad de `research-safety.md`.
 
@@ -34,55 +34,68 @@ Criterios: costo total < USD 60/mes worst case, mantenible por 1 persona, datos 
 ## 2. Arquitectura del sistema
 
 ```
-                         ┌─────────────────────────────────────────────┐
-                         │                VERCEL (Next.js 16)          │
-                         │                                             │
- Navegador (chico/a)     │  UI (React 19 + Tailwind v4)                │
- ┌──────────────┐        │  ├─ /            chat (useChat, streaming)  │
- │ Chat Simón   │◄──SSE──┤  ├─ /login       auth-form                  │
- │ Quick replies│        │  └─ /tutor       panel tutor (Fase 2)       │
- │ Botón crisis │        │                                             │
- └──────────────┘        │  API Routes                                 │
-                         │  ├─ /api/auth/[...all] ─── better-auth ──┐  │
-                         │  └─ /api/chat  (POST)                    │  │
-                         │       │                                  │  │
-                         │       ▼ pipeline por mensaje             │  │
-                         │  [1] sesión válida + rate limit          │  │
-                         │  [2] SAFETY pre-LLM ────────────┐        │  │
-                         │      keywords → Moderation API  │        │  │
-                         │      match → plantilla fija,    │        │  │
-                         │      SIN LLM + SafetyEvent      │        │  │
-                         │  [3] contexto: system prompt    │        │  │
-                         │      + cards relevantes (RAG)   │        │  │
-                         │      + memoria usuario          │        │  │
-                         │      + últimos 20 mensajes      │        │  │
-                         │  [4] streamText → LLM           │        │  │
-                         │  [5] SAFETY post-LLM (async)    │        │  │
-                         │  [6] persistir mensajes         │        │  │
-                         └───────┬───────────┬─────────────┼────────┼──┘
-                                 │           │             │        │
-                    ┌────────────▼──┐  ┌─────▼──────┐  ┌───▼────────▼───┐
-                    │ LLM provider  │  │ OpenAI     │  │ Neon Postgres  │
-                    │ (env-swap):   │  │ Moderation │  │ (Prisma 7)     │
-                    │ DeepSeek V4   │  │ API (free) │  │ users/sessions │
-                    │ Flash │ GPT   │  └────────────┘  │ conversations  │
-                    │ 4.1 │ local   │                  │ messages/cards │
-                    │ vLLM/Ollama   │                  │ memoria/safety │
-                    └───────────────┘                  └────────────────┘
+                         ┌──────────────────────────────────────────────┐
+                         │                VERCEL (Next.js 16)           │
+                         │                                              │
+ Navegador (chico/a)     │  UI (React 19 + Tailwind v4)                 │
+ ┌──────────────┐        │  ├─ /            chat (useChat, sin stream)  │
+ │ Chat Simón   │◄──JSON──┤  ├─ /login       auth-form                  │
+ │ Quick replies│        │  └─ /tutor       panel tutor                 │
+ │ Botón crisis │        │                                              │
+ └──────────────┘        │  API Routes                                  │
+                         │  ├─ /api/auth/[...all] ── better-auth ────┐  │
+                         │  ├─ /api/chat (POST) — adaptador fino     │  │
+                         │  │    CSRF · requireSession · defer=after │  │
+                         │  │    delega TODO en runChatPipeline()    │  │
+                         │  └─ /api/cron/purge — retención (ADR-4)   │  │
+                         │       │                                   │  │
+                         │       ▼ src/lib/chat-pipeline/run.ts      │  │
+                         │  consentimiento → rate limit → validate   │  │
+                         │  → flag regex (safety.ts, sin LLM) ───┐   │  │
+                         │  → [paralelo: moderación entrada       │   │  │
+                         │     + generación] → decideResponsePath │   │  │
+                         │     (chat-precedence.ts, pura)         │   │  │
+                         │  → moderación salida → decidePostGenPath│  │  │
+                         │  → persist.ts (transacción, nunca lanza)│  │  │
+                         │  → notify.ts (diferido: alerta/log/purga)│ │  │
+                         └───────┬────────────┬──────────┬─────────┼──┘
+                                 │            │          │         │
+                    ┌────────────▼──┐  ┌──────▼─────┐ ┌──▼─────────▼───┐
+                    │ LLM provider  │  │ Guardrail  │ │ Neon Postgres  │
+                    │ chatModel()/  │  │ cascade    │ │ (Prisma 7)     │
+                    │ smallModel()  │  │ (ADR-2):   │ │ users/sessions │
+                    │ (provider.ts; │  │ regex →    │ │ conversations  │
+                    │ resolveProvider│ │ OpenAI Mod │ │ messages/cards │
+                    │ ADR-3 listo,  │  │ → LLM judge│ │ memoria/safety │
+                    │ sin activar)  │  └────────────┘ └────────────────┘
+                    └───────────────┘
 ```
 
 Módulos en `simon/src/`:
 
 | Módulo | Archivo | Responsabilidad |
 |---|---|---|
-| Provider IA | `lib/ai/provider.ts` | `createOpenAICompatible` sobre `AI_BASE_URL`/`AI_MODEL` — swap por env, cero código |
-| System prompt | `lib/ai/system-prompt.ts` | Persona Simón (límites duros de research-safety §5.2) |
-| Safety | `lib/safety.ts` | Capa 1 keywords + capa 2 Moderation API; plantillas de crisis EXACTAS (nunca LLM) |
+| Adaptador HTTP | `app/api/chat/route.ts` | CSRF (`sameOriginOk`), sesión (`requireSession`, ADR-8), `maxDuration`, inyecta `defer=after()`, catch de infra — <150 líneas |
+| Orquestador chat | `lib/chat-pipeline/run.ts` | `runChatPipeline()` (ADR-1): consentimiento → rate limit → validate → flag regex → moderación+generación en paralelo → precedencia → persist → notify |
+| Validación | `lib/chat-pipeline/validate.ts` | Rate limit, body, tope de mensajes/caracteres, `clientMessageId` |
+| Contexto | `lib/chat-pipeline/build-context.ts` | Fichas + memoria + resúmenes + historial → `assembleContext()` (ADR-7) → system prompt |
+| Generación | `lib/chat-pipeline/generate.ts` | `generateText()` con retry/timeout vía `chatModel()`; nunca lanza (`GenerationResult`) |
+| Persistencia | `lib/chat-pipeline/persist.ts` | `saveAssistant`/`recordSafetyEvent` en una transacción; nunca lanza (invariante M1) |
+| Diferidos | `lib/chat-pipeline/notify.ts` | Alerta a tutor, `InteractionLog`, purga lazy — todo vía `defer` (post-respuesta) |
+| Precedencia de seguridad | `lib/chat-precedence.ts` | `decideResponsePath`/`decidePostGenPath` — funciones puras, sin cambios por la rearquitectura |
+| Guardrail cascade | `lib/guardrails/cascade.ts` | `runGuardrailCascade(checks, input, inconclusive)` (ADR-2): cheapest-first, fail-closed ante throw/timeout, primer veredicto concluyente gana |
+| Moderación | `lib/moderation.ts` | Registra los checks (regex → OpenAI Moderation → clasificador LLM) sobre la cascada genérica |
+| Safety regex | `lib/safety.ts` | Capa 1 determinística (~35ms, sin LLM); plantillas de crisis EXACTAS |
+| Provider IA | `lib/ai/provider.ts` | `chatModel()`/`smallModel()` en uso; `resolveProvider(tier, run, opts)` (ADR-3: lista ordenada por env, retry, circuit-breaker en memoria) implementado y testeado, **sin activar** en ningún call site — falta un segundo proveedor contratado |
+| Presupuesto de contexto | `lib/ai/context-budget.ts` | `assembleContext()` (ADR-7) — única fuente de recorte por tokens estimados, por bucket (fichas/memoria/resúmenes/historial); el mensaje actual nunca se recorta |
+| Sesión compartida | `lib/require-session.ts` | `requireSession()` (ADR-8) — 401 uniforme con `cache-control: no-store`, reemplaza el chequeo duplicado en 8+ rutas |
+| Retención | `lib/retention.ts` | `purgeExpiredData()` (ADR-4): TTL de `Message`/`Conversation` (365d), `SafetyEvent` (730d, excluye alertas pendientes), `UserMemory`/`InteractionLog`/`Session`, bajo lock advisory Postgres |
+| Export de entrenamiento | `lib/training-export.ts` | `redactPII()` (ADR-5) — regex de PII estructural (email/teléfono/DNI/dirección/credenciales en URL) → `[REDACTADO:<tipo>]`, antes de escribir el JSONL |
+| Env/CSRF | `lib/env-check.ts` | `assertProdEnv()` — hard-fail si falta Upstash en `VERCEL_ENV=production` (ADR-6); `sameOriginOk()` (CSRF en profundidad) |
 | Auth | `lib/auth.ts` / `lib/auth-client.ts` | better-auth server + client |
-| Rate limit | `lib/rate-limit.ts` | Por usuario en `/api/chat` (endpoint público autenticado) |
 | DB | `lib/prisma.ts` | Cliente Prisma con driver adapter |
 
-Regla invariante: **ningún output de LLM llega al usuario en un flujo de crisis**. La rama de seguridad responde con plantillas hardcodeadas (research-safety §3.3) y registra el evento.
+Regla invariante: **ningún output de LLM llega al usuario en un flujo de crisis**. La rama de seguridad responde con plantillas hardcodeadas (research-safety §3.3) y registra el evento. Tampoco se streamea nunca la respuesta: se genera completa, se modera la salida y recién ahí se muestra — así ningún texto sin moderar llega a un menor.
 
 ---
 
@@ -196,6 +209,7 @@ Gate objetivo (desde `simon/`): **`pnpm test`** (runner unificado `scripts/run-s
 - Tier "riesgo" cálido (QA loop): `crisisSystemAddendum("riesgo")` con derivación liviana (adulto de confianza + Línea 102, sin volcar el bloque de emergencia) + invariantes de regresión en crisis-suite. Crisis/abuso/alimentario siguen con plantilla fija intocable.
 - Latencia optimizada: moderación de entrada en paralelo con generación (regeneración solo en el caso raro riesgo-por-API) — p50 medido 5.3s → **3.6s**.
 - Páginas de framework (`error/not-found/loading`), favicon propio, `alert()` eliminados, viewport fix iOS.
+- Rearquitectura ADR-1..9 ([`adr-rearquitectura-2026-07.md`](adr-rearquitectura-2026-07.md), quirúrgica, sin cambio de comportamiento): pipeline por stages (`chat-pipeline/`), cascada de guardrails genérica y activa en `moderation.ts`, router de proveedores implementado y testeado (sin activar, falta segundo proveedor), retención completa Message/Conversation/SafetyEvent, redacción PII en export de entrenamiento, Upstash obligatorio en prod, fuente única de recorte de contexto por tokens, `requireSession()` compartido — gate 37/37 · 1197 casos.
 
 **Pendiente (backlog ordenado):**
 1. Dominio propio verificado en Resend + `EMAIL_FROM` (hoy `onboarding@resend.dev`: solo entrega al dueño de la cuenta). Upstash en prod para rate limit distribuido. Registrar base ante AAIP.
@@ -211,3 +225,4 @@ Gate objetivo (desde `simon/`): **`pnpm test`** (runner unificado `scripts/run-s
 1. **DeepSeek alignment débil** → mitigado con moderación pre/post obligatoria y plantillas de crisis sin LLM; si falla en la suite de crisis, swap inmediato a `gpt-4.1-nano` (2 env vars).
 2. **Datos fuera de Argentina** (Vercel/Neon/DeepSeek US) → Ley 25.326 art. 12 exige nivel adecuado de protección en el receptor: cifrado, DPA de cada proveedor, y consentimiento informado del tutor que lo declare. Registrar base ante AAIP (Fase 1).
 3. **Deprecación DeepSeek:** IDs legacy `deepseek-chat`/`deepseek-reasoner` mueren el 2026-07-24 — la app ya usa `deepseek-v4-flash` en `.env.example`, local y producción.
+4. **Enumeración de usernames en alta de menores (ADR-9):** el precheck de duplicados de username en el alta guiada por el tutor revela si un username ya existe. Se acepta porque la UX del flujo lo requiere (evitar altas fallidas silenciosas); mitigado con rate limit sobre el endpoint y con que el alta exige sesión de tutor autenticada (no es superficie anónima).
