@@ -123,41 +123,27 @@ async function testIndependentWindows() {
   check(day.ok, "checkRateLimit: el bucket diario es independiente del de minuto");
 }
 
-// ---------- 3. Fail-fast de producción sin Upstash (#35) ----------
-async function testProdRequiresUpstash() {
+// ---------- 3. Fallback operativo de producción sin Upstash ----------
+async function testProdFallsBackToMemory() {
   const prevNodeEnv = process.env.NODE_ENV;
-  const prevOverride = process.env.RATE_LIMIT_ALLOW_MEMORY;
   // NODE_ENV es typed readonly; el cast permite mutarlo solo para el test.
   const env = process.env as Record<string, string | undefined>;
   try {
-    // prod, sin Upstash, sin override → debe LANZAR en el primer uso.
+    // Upstash es opcional: en producción su ausencia degrada a memoria, pero no
+    // puede tumbar chat, historial ni las superficies del tutor.
     env.NODE_ENV = "production";
-    delete env.RATE_LIMIT_ALLOW_MEMORY;
     delete env.UPSTASH_REDIS_REST_URL;
     delete env.UPSTASH_REDIS_REST_TOKEN;
-    let threw = false;
-    try {
-      await checkRateLimit(`prod:no-upstash:${Math.random()}`, 3, MINUTE);
-    } catch {
-      threw = true;
-    }
-    check(threw, "prod sin Upstash sin override → checkRateLimit LANZA (#35)");
-
-    // prod, con override explícito → usa memoria, no lanza.
-    env.RATE_LIMIT_ALLOW_MEMORY = "1";
-    const overridden = await checkRateLimit(`prod:override:${Math.random()}`, 3, MINUTE);
-    check(overridden.ok, "prod con RATE_LIMIT_ALLOW_MEMORY=1 → usa memoria (ok)");
+    const prod = await checkRateLimit(`prod:no-upstash:${Math.random()}`, 3, MINUTE);
+    check(prod.ok, "prod sin Upstash → usa memoria sin tumbar la request");
 
     // dev (NODE_ENV != production), sin Upstash → memoria sin lanzar.
-    delete env.RATE_LIMIT_ALLOW_MEMORY;
     env.NODE_ENV = "development";
     const dev = await checkRateLimit(`dev:mem:${Math.random()}`, 3, MINUTE);
     check(dev.ok, "dev sin Upstash → usa memoria sin lanzar");
   } finally {
     if (prevNodeEnv === undefined) delete env.NODE_ENV;
     else env.NODE_ENV = prevNodeEnv;
-    if (prevOverride === undefined) delete env.RATE_LIMIT_ALLOW_MEMORY;
-    else env.RATE_LIMIT_ALLOW_MEMORY = prevOverride;
   }
 }
 
@@ -188,7 +174,7 @@ async function main() {
   await testConcurrentSameKey();
   await testIndependentWindows();
   await testDistinctKeysIndependent();
-  await testProdRequiresUpstash();
+  await testProdFallsBackToMemory();
 
   done();
 }

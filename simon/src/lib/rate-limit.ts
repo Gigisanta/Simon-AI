@@ -7,15 +7,10 @@
  *   todas las instancias comparten el contador.
  * - Sin esas env (dev / instancia única): ventana deslizante en memoria.
  *
- * PRODUCCIÓN (#35): el modo in-memory NO se comparte entre instancias
- * serverless, así que en prod NO protege realmente (cada lambda tiene su propio
- * contador → el atacante multiplica su cupo por la cantidad de instancias). Por
- * eso, si `NODE_ENV === "production"` y falta la config de Upstash, el primer
- * uso runtime de `checkRateLimit` LANZA con un mensaje accionable. El chequeo es
- * lazy (en el primer uso, no a nivel de módulo) para NO romper `next build`, que
- * corre con NODE_ENV=production y sin envs. Override explícito para staging /
- * despliegue de instancia única: `RATE_LIMIT_ALLOW_MEMORY=1` (documentado, hay
- * que setearlo a propósito) permite volver a la memoria en prod.
+ * PRODUCCIÓN: el modo in-memory NO se comparte entre instancias serverless y por
+ * eso protege menos que Upstash. Aun así, es un fallback operativo: la ausencia
+ * de un servicio opcional no puede tumbar chat, historial y superficies del
+ * tutor. `assertProdEnv()` deja una advertencia accionable en el cold start.
  *
  * Robustez: si Redis está CONFIGURADO pero no responde (timeout 2s, red caída,
  * respuesta rara), se DEGRADA a la implementación in-memory para esa llamada y
@@ -160,25 +155,6 @@ async function checkRateLimitUpstash(
 }
 
 /**
- * Fail-fast de producción (#35): en prod, sin Upstash configurado y sin el
- * override explícito, el rate limiting in-memory es inseguro (no compartido
- * entre instancias). Se lanza con un mensaje accionable en el PRIMER uso runtime
- * — no a nivel de módulo — para no romper `next build`. Función pura sobre env.
- */
-function assertRateLimitBackendUsable(hasUpstash: boolean): void {
-  if (hasUpstash) return;
-  if (process.env.NODE_ENV !== "production") return; // dev / test: memoria OK
-  if (process.env.RATE_LIMIT_ALLOW_MEMORY === "1") return; // override staging
-  throw new Error(
-    "[rate-limit] En producción se requiere Upstash Redis " +
-      "(UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN): el rate limiting " +
-      "in-memory no se comparte entre instancias serverless y no protege de " +
-      "verdad. Configurá Upstash, o si es un deploy de instancia única/staging " +
-      "seteá RATE_LIMIT_ALLOW_MEMORY=1 para permitir el modo en memoria a propósito.",
-  );
-}
-
-/**
  * @param key      identificador (p. ej. `chat:${userId}`)
  * @param max      máximo de eventos permitidos dentro de la ventana
  * @param windowMs tamaño de la ventana en ms
@@ -191,7 +167,6 @@ export async function checkRateLimit(
   const restUrl = process.env.UPSTASH_REDIS_REST_URL;
   const restToken = process.env.UPSTASH_REDIS_REST_TOKEN;
   const hasUpstash = Boolean(restUrl && restToken);
-  assertRateLimitBackendUsable(hasUpstash);
   if (hasUpstash) {
     const shared = await checkRateLimitUpstash(key, max, windowMs, restUrl!, restToken!);
     if (shared !== null) return shared;
