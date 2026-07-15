@@ -20,6 +20,8 @@ export interface ProdEnvSnapshot {
   UPSTASH_REDIS_REST_URL?: string;
   UPSTASH_REDIS_REST_TOKEN?: string;
   AI_API_KEY?: string;
+  /** "production" | "preview" | "development" en Vercel; undefined self-hosted. */
+  VERCEL_ENV?: string;
 }
 
 export interface ProdEnvReport {
@@ -35,12 +37,16 @@ export interface ProdEnvReport {
  * sin lanzar y sin loguear.
  *
  * Criterio (el mismo que aplica assertProdEnv):
- *  - HARD-FAIL solo la config de SEGURIDAD del arranque: `BETTER_AUTH_SECRET` y
+ *  - HARD-FAIL la config de SEGURIDAD del arranque: `BETTER_AUTH_SECRET` y
  *    `BETTER_AUTH_URL` (que además debe ser https en prod). Sin eso la app no
  *    puede correr de forma segura.
+ *  - HARD-FAIL Upstash SOLO en `VERCEL_ENV=production` (ADR-6): serverless
+ *    multi-instancia con rate-limit/secondary-storage in-memory POR instancia
+ *    es un bypass real del rate limiting (producto para menores — inaceptable).
+ *    En dev/preview/self-hosted la degradación sigue permitida (warn).
  *  - WARN la config de FEATURES cuya ausencia deja la app funcional y SEGURA:
  *      · RESEND_API_KEY → sin emails (verificación de tutores, alertas).
- *      · Upstash → rate limiting en memoria por instancia.
+ *      · Upstash (fuera de VERCEL_ENV=production) → rate limiting en memoria.
  *      · AI_API_KEY → chat (núcleo del producto) sin proveedor: la ruta
  *        /api/chat responde un mensaje amable y las capas de seguridad siguen
  *        fail-closed. El resto (auth, panel del tutor/a, alta de menores) sigue
@@ -64,10 +70,19 @@ export function evaluateProdEnv(env: ProdEnvSnapshot): ProdEnvReport {
     );
   }
   if (!env.UPSTASH_REDIS_REST_URL || !env.UPSTASH_REDIS_REST_TOKEN) {
-    warnings.push(
-      "[env] Upstash no configurado — el rate limiting queda en memoria POR " +
-        "INSTANCIA: insuficiente en serverless con múltiples instancias.",
-    );
+    if (env.VERCEL_ENV === "production") {
+      // ADR-6: en Vercel production el rate limiting in-memory por instancia
+      // equivale a NO tener rate limiting (cada instancia cuenta de cero).
+      missing.push(
+        "UPSTASH_REDIS_REST_URL/TOKEN (obligatorios en VERCEL_ENV=production: " +
+          "rate limiting in-memory por instancia = bypass real multi-instancia)",
+      );
+    } else {
+      warnings.push(
+        "[env] Upstash no configurado — el rate limiting queda en memoria POR " +
+          "INSTANCIA: insuficiente en serverless con múltiples instancias.",
+      );
+    }
   }
   if (!env.AI_API_KEY) {
     warnings.push(
@@ -81,10 +96,11 @@ export function evaluateProdEnv(env: ProdEnvSnapshot): ProdEnvReport {
 
 /**
  * En producción exige `BETTER_AUTH_SECRET` y `BETTER_AUTH_URL` (https) — sin
- * eso la app no debe arrancar (lanza Error). Si faltan `RESEND_API_KEY`, las
- * credenciales de Upstash o `AI_API_KEY` solo advierte por console.error (la app
- * funciona degradada pero segura: sin emails / rate limiting por instancia /
- * chat sin proveedor con mensaje amable). Ver `evaluateProdEnv`.
+ * eso la app no debe arrancar (lanza Error). En `VERCEL_ENV=production` exige
+ * además Upstash (ADR-6). Si faltan `RESEND_API_KEY`, `AI_API_KEY` o Upstash
+ * fuera de Vercel production, solo advierte por console.error (la app funciona
+ * degradada pero segura: sin emails / rate limiting por instancia / chat sin
+ * proveedor con mensaje amable). Ver `evaluateProdEnv`.
  *
  * NO corre durante `next build` (NEXT_PHASE=phase-production-build): el build
  * no tiene por qué conocer los secretos de runtime.
@@ -103,6 +119,7 @@ export function assertProdEnv(): void {
     UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL,
     UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN,
     AI_API_KEY: process.env.AI_API_KEY,
+    VERCEL_ENV: process.env.VERCEL_ENV,
   });
   if (missing.length > 0) {
     throw new Error(

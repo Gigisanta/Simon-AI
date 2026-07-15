@@ -22,6 +22,7 @@ import {
   MIN_PAIRS_FLOOR,
   parseRoleFilter,
   qualityTier,
+  redactPII,
   TRAINING_SYSTEM_PROMPT,
   truncateAtFirstFlag,
   trimToLastAssistant,
@@ -173,7 +174,81 @@ const a = (content: string, flag: string | null = null): ExportMessage => ({
   check(MIN_PAIRS_FLOOR === 3, "build: piso duro = 3 pares");
 }
 
-// ---------- 7. Flags CLI ----------
+// ---------- 7. Redacción de PII (ADR-5) ----------
+{
+  // Email.
+  const email = redactPII("escribime a juan.perez+chat@gmail.com cuando puedas");
+  check(email.includes("[REDACTADO:email]"), "pii: email → [REDACTADO:email]");
+  check(!email.includes("juan.perez"), "pii: el email no sobrevive en el texto");
+
+  // Teléfono AR (celular con +54 9 y separadores).
+  const tel = redactPII("mi celu es +54 9 299 412-3456, llamame");
+  check(tel.includes("[REDACTADO:telefono]"), "pii: teléfono AR → [REDACTADO:telefono]");
+  check(!/\d{4}/.test(tel), "pii: no quedan bloques de 4+ dígitos del teléfono");
+
+  // Teléfono local pelado (8 dígitos).
+  check(
+    redactPII("llamá al 42345678").includes("[REDACTADO:telefono]"),
+    "pii: teléfono local de 8 dígitos → redactado",
+  );
+
+  // DNI con puntos.
+  const dni = redactPII("mi dni es 40.123.456 y vivo acá");
+  check(dni.includes("[REDACTADO:dni]"), "pii: DNI con puntos → [REDACTADO:dni]");
+  check(!dni.includes("40.123.456"), "pii: el DNI no sobrevive");
+
+  // DNI con keyword (sin puntos) — la keyword evita etiquetarlo como teléfono.
+  check(
+    redactPII("DNI 40123456").includes("[REDACTADO:dni]"),
+    "pii: 'DNI 40123456' → [REDACTADO:dni] (keyword gana sobre teléfono)",
+  );
+
+  // Dirección con altura.
+  const dir = redactPII("vivo en calle San Martín 1234, Neuquén");
+  check(dir.includes("[REDACTADO:direccion]"), "pii: dirección con altura → [REDACTADO:direccion]");
+  check(!dir.includes("San Martín 1234"), "pii: la dirección no sobrevive");
+  check(
+    redactPII("estoy por Av. Argentina 2500").includes("[REDACTADO:direccion]"),
+    "pii: 'Av. <nombre> <altura>' → redactada",
+  );
+
+  // URL con credenciales embebidas.
+  const url = redactPII("entrá a https://user:secret123@interno.example.com/panel");
+  check(url.includes("[REDACTADO:url-credenciales]"), "pii: URL con user:pass → redactada");
+  check(!url.includes("secret123"), "pii: la credencial no sobrevive");
+
+  // Texto limpio queda INTACTO (números chicos, edades, notas).
+  const clean = "tengo 15 años, saqué un 10 en mate y mañana rindo a las 8";
+  check(redactPII(clean) === clean, "pii: texto sin PII queda intacto");
+  check(redactPII("") === "", "pii: string vacío → vacío");
+
+  // buildTrainingExample APLICA la redacción al contenido exportado.
+  const withPii = buildTrainingExample({
+    id: "c-pii",
+    createdAt: new Date("2026-05-01T00:00:00Z"),
+    messages: [
+      u("mi mail es nena2011@hotmail.com"),
+      a("¡gracias!"),
+      u("y mi dni es 45.678.901"),
+      a("ok"),
+      u("dale"),
+      a("nos vemos"),
+    ],
+    safetyEventCategories: [],
+  });
+  const exported = JSON.stringify(withPii?.record ?? {});
+  check(withPii !== null, "pii: la conversación con PII se exporta (redactada, no excluida)");
+  check(
+    !exported.includes("nena2011@hotmail.com") && !exported.includes("45.678.901"),
+    "pii: build aplica redactPII — ni email ni DNI llegan al record",
+  );
+  check(
+    exported.includes("[REDACTADO:email]") && exported.includes("[REDACTADO:dni]"),
+    "pii: build deja los placeholders [REDACTADO:*] en el record",
+  );
+}
+
+// ---------- 8. Flags CLI ----------
 {
   check(parseRoleFilter("child") === "child", "role: child");
   check(parseRoleFilter("guardian") === "guardian", "role: guardian");

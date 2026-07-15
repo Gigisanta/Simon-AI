@@ -12,7 +12,7 @@
  * Guardian del usuario). Siempre se incluyen los recursos "nacional" junto a los
  * de la provincia, para que las líneas de crisis estén presentes en todos lados.
  */
-import { auth } from "@/lib/auth";
+import { requireSession } from "@/lib/require-session";
 import { prisma } from "@/lib/prisma";
 
 const MAX_RESULTS = 200;
@@ -42,10 +42,8 @@ async function inferProvince(userId: string, role?: string | null): Promise<stri
 }
 
 export async function GET(req: Request) {
-  const session = await auth.api.getSession({ headers: req.headers });
-  if (!session) {
-    return Response.json({ error: "No autenticado" }, { status: 401 });
-  }
+  const { session, response } = await requireSession(req);
+  if (!session) return response;
 
   const url = new URL(req.url);
   const q = url.searchParams.get("q")?.trim() || "";

@@ -1,4 +1,4 @@
-import { auth } from "@/lib/auth";
+import { requireSession } from "@/lib/require-session";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { rateLimitMessage } from "@/lib/ui-messages";
@@ -31,13 +31,8 @@ const NO_STORE = { "cache-control": "no-store" };
 const READ_RATE_LIMIT_PER_MINUTE = 60;
 
 export async function GET(req: Request) {
-  const session = await auth.api.getSession({ headers: req.headers });
-  if (!session) {
-    return Response.json(
-      { error: "No autenticado" },
-      { status: 401, headers: NO_STORE },
-    );
-  }
+  const { session, response } = await requireSession(req);
+  if (!session) return response;
 
   const rl = await checkRateLimit(
     `conversations:list:${session.user.id}`,

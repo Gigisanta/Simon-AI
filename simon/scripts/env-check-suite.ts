@@ -68,11 +68,36 @@ function has(list: string[], needle: string): boolean {
   check(r2.missing.length === 0, "warn: falta RESEND NO es hard-fail");
   check(has(r2.warnings, "RESEND_API_KEY"), "warn: falta RESEND advierte");
 
-  // Upstash: falta cualquiera de las dos credenciales → warn.
+  // Upstash: falta cualquiera de las dos credenciales → warn (fuera de
+  // VERCEL_ENV=production; ver bloque ADR-6 abajo).
   const r3 = evaluateProdEnv({ ...full, UPSTASH_REDIS_REST_URL: undefined });
   check(has(r3.warnings, "Upstash"), "warn: falta UPSTASH_URL advierte");
+  check(r3.missing.length === 0, "warn: falta UPSTASH_URL NO es hard-fail sin VERCEL_ENV");
   const r4 = evaluateProdEnv({ ...full, UPSTASH_REDIS_REST_TOKEN: undefined });
   check(has(r4.warnings, "Upstash"), "warn: falta UPSTASH_TOKEN advierte");
+}
+
+// ---------- ADR-6: Upstash obligatorio SOLO en VERCEL_ENV=production ----------
+{
+  // Vercel production sin Upstash → HARD-FAIL (rate limit in-memory por
+  // instancia = bypass real multi-instancia).
+  const r = evaluateProdEnv({ ...full, UPSTASH_REDIS_REST_URL: undefined, VERCEL_ENV: "production" });
+  check(has(r.missing, "UPSTASH_REDIS_REST_URL"), "ADR-6: prod Vercel sin UPSTASH_URL es hard-fail");
+  check(!has(r.warnings, "Upstash"), "ADR-6: hard-fail no duplica el warn");
+
+  const r2 = evaluateProdEnv({ ...full, UPSTASH_REDIS_REST_TOKEN: undefined, VERCEL_ENV: "production" });
+  check(has(r2.missing, "UPSTASH_REDIS_REST_URL/TOKEN"), "ADR-6: prod Vercel sin UPSTASH_TOKEN es hard-fail");
+
+  // Con Upstash completo en production → ni fallo ni warning.
+  const r3 = evaluateProdEnv({ ...full, VERCEL_ENV: "production" });
+  check(r3.missing.length === 0 && r3.warnings.length === 0, "ADR-6: prod Vercel con Upstash completo ok");
+
+  // Preview/development: degradación permitida (warn, no hard-fail).
+  const r4 = evaluateProdEnv({ ...full, UPSTASH_REDIS_REST_URL: undefined, VERCEL_ENV: "preview" });
+  check(r4.missing.length === 0, "ADR-6: preview sin Upstash NO es hard-fail");
+  check(has(r4.warnings, "Upstash"), "ADR-6: preview sin Upstash advierte");
+  const r5 = evaluateProdEnv({ ...full, UPSTASH_REDIS_REST_URL: undefined, VERCEL_ENV: "development" });
+  check(r5.missing.length === 0, "ADR-6: development sin Upstash NO es hard-fail");
 }
 
 // ---------- Combinado: hard-fail y warnings coexisten ----------

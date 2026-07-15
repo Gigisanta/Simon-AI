@@ -17,6 +17,10 @@ import { retryFailedCrisisAlerts } from "@/lib/alerts";
  *   - UserMemory vencida (updatedAt < corte 90d — mismo helper que el path lazy).
  *   - InteractionLog vencido (createdAt < corte 180d — mismo helper compartido).
  *   - Session vencida (expiresAt < now) → borra ipAddress/userAgent colgados.
+ *   - Message vencido y Conversation vencida-y-vacía (365d, ADR-4 — override
+ *     RETENTION_CONVERSATION_TTL_DAYS): minimización del contenido sensible.
+ *   - SafetyEvent vencido (730d, ADR-4 — override RETENTION_SAFETY_EVENT_TTL_DAYS),
+ *     PRESERVANDO los que tienen alertFailedAt pendiente.
  *   - Menores HUÉRFANOS pasado el período de gracia: filas User role "child" sin
  *     vínculo de tutela (el cascade de Guardian dejó al menor sin ruta de borrado
  *     al eliminarse la cuenta del tutor/a). Cascade de User arrastra toda su data

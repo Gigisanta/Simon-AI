@@ -13,17 +13,19 @@
  */
 
 /**
- * Message/Conversation/SafetyEvent (usuario activo): SIN TTL, por diseño.
- * A diferencia de InteractionLog/UserMemory, estos datos son el historial
- * terapéutico/de seguridad del menor — su valor para el tutor/a (ver
- * conversaciones pasadas, exportar, revisar eventos de seguridad) y para la
- * continuidad del chat (contexto de conversación) no decae con el tiempo como
- * la telemetría. Se purgan SOLO como efecto del cascade de `User` en dos
- * caminos: (a) el tutor/a borra la cuenta del menor (derecho de supresión,
- * ver guardian/children/[childId]/route.ts DELETE) o (b) el barrido de
- * menores huérfanos de más abajo. Mientras la cuenta exista y tenga tutor/a,
- * no hay minimización temporal de esta data — decisión de producto, no un
- * TTL pendiente de implementar.
+ * Message/Conversation/SafetyEvent: TTL propio (ADR-4 — Ley 25.326, principio
+ * de limitación). Antes eran "sin TTL por diseño"; para un producto estatal la
+ * retención indefinida de contenido sensible de menores es incumplimiento
+ * directo, así que:
+ *   - Message/Conversation: TTL configurable por env
+ *     (`RETENTION_CONVERSATION_TTL_DAYS`, default 365 días). El tutor/a
+ *     conserva un año de historial exportable; después se minimiza.
+ *   - SafetyEvent: TTL propio (`RETENTION_SAFETY_EVENT_TTL_DAYS`, default 730
+ *     días = 2 años) por su valor de auditoría — no guarda contenido de
+ *     mensaje. Los eventos con `alertFailedAt` pendiente NUNCA se purgan por
+ *     TTL (una alerta de crisis fallida no se pierde; ver schema).
+ * El borrado inmediato sigue existiendo por cascade de `User` (supresión por
+ * el tutor/a o barrido de huérfanos de más abajo).
  */
 import { createHash, timingSafeEqual } from "node:crypto";
 import type { Prisma, PrismaClient } from "@/generated/prisma/client";
@@ -41,6 +43,38 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 /** Corte temporal para InteractionLog: filas con createdAt < corte están vencidas. */
 export function interactionLogTtlCutoff(now: Date): Date {
   return new Date(now.getTime() - INTERACTION_LOG_TTL_DAYS * DAY_MS);
+}
+
+/**
+ * Lee un TTL en días desde env: entero > 0, o el fallback ante ausente/inválido
+ * (fail-safe: un valor roto NUNCA desactiva la purga ni la vuelve agresiva).
+ * Exportada para testear el parseo.
+ */
+export function ttlDaysFromEnv(name: string, fallback: number): number {
+  const n = Number(process.env[name]);
+  return Number.isInteger(n) && n > 0 ? n : fallback;
+}
+
+/** TTL de Message/Conversation (ADR-4): default 365 días, configurable. */
+export const CONVERSATION_TTL_DAYS = ttlDaysFromEnv(
+  "RETENTION_CONVERSATION_TTL_DAYS",
+  365,
+);
+
+/** TTL de SafetyEvent (ADR-4): default 730 días (2 años, auditoría sin contenido). */
+export const SAFETY_EVENT_TTL_DAYS = ttlDaysFromEnv(
+  "RETENTION_SAFETY_EVENT_TTL_DAYS",
+  730,
+);
+
+/** Corte de Message (createdAt) y Conversation (updatedAt). */
+export function conversationTtlCutoff(now: Date): Date {
+  return new Date(now.getTime() - CONVERSATION_TTL_DAYS * DAY_MS);
+}
+
+/** Corte de SafetyEvent (createdAt). */
+export function safetyEventTtlCutoff(now: Date): Date {
+  return new Date(now.getTime() - SAFETY_EVENT_TTL_DAYS * DAY_MS);
 }
 
 /**
@@ -89,13 +123,22 @@ export function orphanChildWhere(now: Date): Prisma.UserWhereInput {
 /** Subconjunto de PrismaClient que necesita la purga — inyectable para testear. */
 export type RetentionPurgeClient = Pick<
   PrismaClient,
-  "userMemory" | "interactionLog" | "session" | "user"
+  | "userMemory"
+  | "interactionLog"
+  | "session"
+  | "safetyEvent"
+  | "message"
+  | "conversation"
+  | "user"
 >;
 
 export interface PurgeCounts {
   userMemory: number;
   interactionLog: number;
   sessions: number;
+  safetyEvents: number;
+  messages: number;
+  conversations: number;
   orphanChildren: number;
 }
 
@@ -104,29 +147,54 @@ export interface PurgeCounts {
  * (route pasa `prisma`; los tests pasan un fake) para que la orquestación tenga
  * cobertura determinística sin DB.
  *
- * ORDEN (evita deadlocks): las tres purgas por TTL tocan tablas DISJUNTAS
- * (UserMemory / InteractionLog / Session) → seguras en paralelo. El borrado de
- * menores huérfanos, en cambio, hace CASCADE sobre esas MISMAS tablas
- * (UserMemory/InteractionLog/Session del menor), así que correrlo concurrente
- * con el batch anterior podría competir por locks de fila. Se corre DESPUÉS, en
+ * ORDEN (evita deadlocks): las cinco purgas por TTL tocan tablas DISJUNTAS
+ * (UserMemory / InteractionLog / Session / SafetyEvent / Message) → seguras en
+ * paralelo. Conversation corre DESPUÉS del batch porque su cascade (schema:
+ * Message.conversation onDelete Cascade) toca Message. El borrado de menores
+ * huérfanos hace CASCADE sobre TODAS esas tablas, así que corre último, en
  * secuencia. El resultado es idempotente en cualquier orden; la secuencia solo
  * evita contención de locks.
+ *
+ * INVARIANTES (ADR-4):
+ *   - SafetyEvent con `alertFailedAt` pendiente NUNCA se purga por TTL: una
+ *     alerta de crisis que no llegó al tutor/a no se borra hasta resolverse.
+ *   - Conversation solo se borra si además de vencida (updatedAt < corte) quedó
+ *     VACÍA tras la purga de mensajes (`messages: none`). Si conserva algún
+ *     mensaje no vencido, la fila sobrevive — el cascade jamás puede arrastrar
+ *     un mensaje dentro de TTL.
  */
 export async function purgeExpiredData(
   client: RetentionPurgeClient,
   now: Date,
 ): Promise<PurgeCounts> {
-  const [userMemory, interactionLog, sessions] = await Promise.all([
-    client.userMemory.deleteMany({
-      where: { updatedAt: { lt: memoryTtlCutoff(now) } },
-    }),
-    client.interactionLog.deleteMany({
-      where: { createdAt: { lt: interactionLogTtlCutoff(now) } },
-    }),
-    client.session.deleteMany({
-      where: { expiresAt: { lt: now } },
-    }),
-  ]);
+  const [userMemory, interactionLog, sessions, safetyEvents, messages] =
+    await Promise.all([
+      client.userMemory.deleteMany({
+        where: { updatedAt: { lt: memoryTtlCutoff(now) } },
+      }),
+      client.interactionLog.deleteMany({
+        where: { createdAt: { lt: interactionLogTtlCutoff(now) } },
+      }),
+      client.session.deleteMany({
+        where: { expiresAt: { lt: now } },
+      }),
+      client.safetyEvent.deleteMany({
+        where: {
+          createdAt: { lt: safetyEventTtlCutoff(now) },
+          alertFailedAt: null,
+        },
+      }),
+      client.message.deleteMany({
+        where: { createdAt: { lt: conversationTtlCutoff(now) } },
+      }),
+    ]);
+
+  const conversations = await client.conversation.deleteMany({
+    where: {
+      updatedAt: { lt: conversationTtlCutoff(now) },
+      messages: { none: {} },
+    },
+  });
 
   const orphanChildren = await client.user.deleteMany({
     where: orphanChildWhere(now),
@@ -136,6 +204,9 @@ export async function purgeExpiredData(
     userMemory: userMemory.count,
     interactionLog: interactionLog.count,
     sessions: sessions.count,
+    safetyEvents: safetyEvents.count,
+    messages: messages.count,
+    conversations: conversations.count,
     orphanChildren: orphanChildren.count,
   };
 }

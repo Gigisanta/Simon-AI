@@ -1,4 +1,4 @@
-import { auth } from "@/lib/auth";
+import { requireSession } from "@/lib/require-session";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { rateLimitMessage } from "@/lib/ui-messages";
@@ -23,10 +23,8 @@ export async function PATCH(req: Request) {
     return Response.json({ error: "Origen no permitido" }, { status: 403 });
   }
 
-  const session = await auth.api.getSession({ headers: req.headers });
-  if (!session) {
-    return Response.json({ error: "No autenticado" }, { status: 401 });
-  }
+  const { session, response } = await requireSession(req);
+  if (!session) return response;
 
   // Solo menores pueden responder esta pregunta desde su onboarding.
   if (session.user.role !== "child") {

@@ -9,8 +9,9 @@ import { PERSONA } from "@/lib/ai/system-prompt";
  *
  * CAMINO CRÍTICO (Ley 25.326 — datos de menores): el dataset NUNCA incluye
  * userName, memorias ni ningún dato personal en el system prompt (se usa la
- * persona genérica). Se excluyen conversaciones que tocaron crisis/abuso y se
- * corta el ejemplo en la primera señal de seguridad.
+ * persona genérica). Se excluyen conversaciones que tocaron crisis/abuso, se
+ * corta el ejemplo en la primera señal de seguridad, y TODO contenido pasa por
+ * redacción de PII estructural (redactPII, ADR-5) antes de tocar el JSONL.
  */
 
 /** Mensaje tal como sale de la DB (rol + contenido + flag de seguridad). */
@@ -115,10 +116,62 @@ export function qualityTier(pairs: number): "high" | "medium" {
 /** Piso duro de pares user/assistant para incluir una conversación. */
 export const MIN_PAIRS_FLOOR = 3;
 
+// ---------- Redacción de PII (ADR-5, Ley 25.326) ----------
+
+/**
+ * Patrones de PII ESTRUCTURAL que se redactan del contenido antes de escribir
+ * el JSONL: `texto` → `[REDACTADO:<tipo>]`. Determinístico y auditable.
+ *
+ * ORDEN: importa. URLs con credenciales van primero (contienen otras formas);
+ * email antes que teléfono (los emails traen dígitos); DNI con puntos/keyword
+ * antes que teléfono (si no, un DNI pelado se etiquetaría como teléfono).
+ *
+ * LÍMITE DOCUMENTADO: regex ≠ NER. Detecta formas estructurales (email,
+ * teléfono AR, DNI, dirección con altura, credenciales en URL), NO nombres
+ * propios en texto libre. El sesgo es hacia SOBRE-redактar (p. ej. un monto
+ * "1.500.000" cae como DNI con puntos): perder un número en un dataset de
+ * entrenamiento es aceptable; filtrar el DNI de un menor, no.
+ */
+const PII_PATTERNS: readonly { tipo: string; re: RegExp }[] = [
+  // URL con credenciales embebidas (esquema://user:pass@host/...).
+  { tipo: "url-credenciales", re: /\b[a-z][a-z0-9+.-]*:\/\/[^\s/@]+:[^\s/@]+@\S+/gi },
+  { tipo: "email", re: /\b[\w.+-]+@[\w-]+(?:\.[\w-]+)+\b/g },
+  // DNI con keyword ("dni 40123456", "documento: 40.123.456").
+  { tipo: "dni", re: /\b(?:dni|documento)[\s:.]*\d{1,2}\.?\d{3}\.?\d{3}(?!\d)/gi },
+  // DNI con puntos de miles (12.345.678) — la forma escrita típica.
+  { tipo: "dni", re: /(?<!\d)\d{1,2}\.\d{3}\.\d{3}(?!\d)/g },
+  // Teléfono AR: +54 opcional, 9 opcional, característica opcional, 15
+  // opcional, y 7–8 dígitos de línea (con separadores comunes).
+  {
+    tipo: "telefono",
+    re: /(?<!\d)(?:\+?54[\s.-]?)?(?:9[\s.-]?)?(?:\(?\d{2,4}\)?[\s.-])?(?:15[\s.-]?)?\d{3,4}[\s.-]?\d{4}(?!\d)/g,
+  },
+  // Dirección con altura: vía + nombre + número (calle San Martín 1234).
+  {
+    tipo: "direccion",
+    re: /\b(?:calle|av\.?|avenida|pasaje|pje\.?|diagonal|ruta|bo?ulevard?|bv\.?)\s+[a-záéíóúñü][a-záéíóúñü0-9 .'-]{1,40}?\s+\d{1,5}\b/gi,
+  },
+];
+
+/**
+ * Redacta PII estructural: cada match se reemplaza por `[REDACTADO:<tipo>]`.
+ * Pura y sin estado (los literales regex con /g se re-crean por llamada vía
+ * el array, y `replace` no depende de lastIndex).
+ */
+export function redactPII(text: string): string {
+  let out = text;
+  for (const { tipo, re } of PII_PATTERNS) {
+    out = out.replace(re, `[REDACTADO:${tipo}]`);
+  }
+  return out;
+}
+
 /**
  * Convierte una conversación en un ejemplo de entrenamiento, o null si no
  * califica (tocó crisis/abuso, o quedó con menos de `minTurns` pares tras el
- * corte). `minTurns` nunca baja del piso duro `MIN_PAIRS_FLOOR`.
+ * corte). `minTurns` nunca baja del piso duro `MIN_PAIRS_FLOOR`. El contenido
+ * de CADA mensaje pasa por redactPII (ADR-5) — el system prompt es la persona
+ * genérica y no lo necesita.
  */
 export function buildTrainingExample(
   conv: {
@@ -149,7 +202,7 @@ export function buildTrainingExample(
     record: {
       messages: [
         { role: "system", content: TRAINING_SYSTEM_PROMPT },
-        ...msgs.map((m) => ({ role: m.role as ChatRole, content: m.content })),
+        ...msgs.map((m) => ({ role: m.role as ChatRole, content: redactPII(m.content) })),
       ],
     },
     meta: {

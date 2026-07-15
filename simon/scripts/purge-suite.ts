@@ -7,12 +7,18 @@
  *
  * Testea con un CLIENTE FALSO inyectado (sin DB): registra cada `deleteMany`, su
  * modelo, su `where` y el orden de invocación. Fija los invariantes:
- *   1. Se purgan las CUATRO cosas: UserMemory (90d), InteractionLog (180d),
- *      Session (expiradas) y menores huérfanos (role child, sin tutela, gracia).
+ *   1. Se purgan las SIETE cosas: UserMemory (90d), InteractionLog (180d),
+ *      Session (expiradas), SafetyEvent (730d, ADR-4), Message (365d, ADR-4),
+ *      Conversation (365d y vacía, ADR-4) y menores huérfanos (role child, sin
+ *      tutela, gracia).
  *   2. Cada `where` usa el corte correcto (mismos helpers que el path lazy).
- *   3. El barrido de huérfanos corre DESPUÉS del batch TTL (evita deadlock: su
- *      cascade toca UserMemory/InteractionLog/Session del menor).
- *   4. Los counts devueltos mapean a cada tabla sin cruzarse.
+ *   3. SafetyEvent con alertFailedAt pendiente NO se purga (alerta de crisis
+ *      fallida nunca se pierde por TTL).
+ *   4. Conversation solo se borra vencida Y vacía (`messages: none`) — el
+ *      cascade jamás arrastra un mensaje dentro de TTL.
+ *   5. Orden anti-deadlock: Conversation DESPUÉS del batch TTL (su cascade toca
+ *      Message) y huérfanos al final (su cascade toca TODAS las tablas).
+ *   6. Los counts devueltos mapean a cada tabla sin cruzarse.
  *
  * Camino crítico (supresión de datos de menores, Ley 25.326): sale con código 1
  * si algún caso falla.
@@ -25,6 +31,8 @@ import {
   purgeExpiredData,
   purgeUnderLock,
   interactionLogTtlCutoff,
+  conversationTtlCutoff,
+  safetyEventTtlCutoff,
   orphanChildCutoff,
   type PurgeCounts,
   type RetentionPurgeClient,
@@ -41,6 +49,9 @@ function makeFakeClient(counts: {
   userMemory: number;
   interactionLog: number;
   session: number;
+  safetyEvent: number;
+  message: number;
+  conversation: number;
   user: number;
 }) {
   const calls: Call[] = [];
@@ -54,6 +65,9 @@ function makeFakeClient(counts: {
     userMemory: delegate("userMemory", counts.userMemory),
     interactionLog: delegate("interactionLog", counts.interactionLog),
     session: delegate("session", counts.session),
+    safetyEvent: delegate("safetyEvent", counts.safetyEvent),
+    message: delegate("message", counts.message),
+    conversation: delegate("conversation", counts.conversation),
     user: delegate("user", counts.user),
   } as unknown as RetentionPurgeClient;
   return { client, calls };
@@ -113,19 +127,22 @@ function testTransactionConfig() {
 async function main() {
 testTransactionConfig();
 
-// ---------- 1. Se llama a las cuatro tablas, con el where correcto ----------
+// ---------- 1. Se llama a las siete tablas, con el where correcto ----------
 {
   const { client, calls } = makeFakeClient({
     userMemory: 3,
     interactionLog: 5,
     session: 7,
+    safetyEvent: 11,
+    message: 13,
+    conversation: 17,
     user: 2,
   });
   const result = await purgeExpiredData(client, now);
 
   const byModel = (m: string) => calls.find((c) => c.model === m)?.where;
 
-  check(calls.length === 4, "se ejecutan exactamente 4 deleteMany");
+  check(calls.length === 7, "se ejecutan exactamente 7 deleteMany");
 
   const mem = byModel("userMemory") as { updatedAt?: { lt?: Date } } | undefined;
   check(
@@ -145,6 +162,39 @@ testTransactionConfig();
     "Session: expiresAt.lt = now (sesiones expiradas)",
   );
 
+  // ADR-4: SafetyEvent — TTL 730d, PRESERVANDO alertas de crisis fallidas.
+  const sev = byModel("safetyEvent") as
+    | { createdAt?: { lt?: Date }; alertFailedAt?: unknown }
+    | undefined;
+  check(
+    sev?.createdAt?.lt?.getTime() === safetyEventTtlCutoff(now).getTime(),
+    "SafetyEvent: createdAt.lt = corte 730d (ADR-4)",
+  );
+  check(
+    sev !== undefined && "alertFailedAt" in sev && sev.alertFailedAt === null,
+    "SafetyEvent: alertFailedAt = null (una alerta fallida pendiente NUNCA se purga por TTL)",
+  );
+
+  // ADR-4: Message — TTL 365d por createdAt.
+  const msg = byModel("message") as { createdAt?: { lt?: Date } } | undefined;
+  check(
+    msg?.createdAt?.lt?.getTime() === conversationTtlCutoff(now).getTime(),
+    "Message: createdAt.lt = corte 365d (ADR-4)",
+  );
+
+  // ADR-4: Conversation — vencida (updatedAt) Y vacía tras la purga de mensajes.
+  const conv = byModel("conversation") as
+    | { updatedAt?: { lt?: Date }; messages?: unknown }
+    | undefined;
+  check(
+    conv?.updatedAt?.lt?.getTime() === conversationTtlCutoff(now).getTime(),
+    "Conversation: updatedAt.lt = corte 365d (mismo helper que Message)",
+  );
+  check(
+    JSON.stringify(conv?.messages) === JSON.stringify({ none: {} }),
+    "Conversation: messages { none: {} } — solo se borra si quedó VACÍA (el cascade jamás arrastra un mensaje vigente)",
+  );
+
   const usr = byModel("user") as
     | { role?: string; guardedBy?: unknown; updatedAt?: { lt?: Date } }
     | undefined;
@@ -162,26 +212,37 @@ testTransactionConfig();
   check(result.userMemory === 3, "count userMemory mapeado (3)");
   check(result.interactionLog === 5, "count interactionLog mapeado (5)");
   check(result.sessions === 7, "count sessions mapeado (7)");
+  check(result.safetyEvents === 11, "count safetyEvents mapeado (11)");
+  check(result.messages === 13, "count messages mapeado (13)");
+  check(result.conversations === 17, "count conversations mapeado (17)");
   check(result.orphanChildren === 2, "count orphanChildren mapeado (2)");
 }
 
-// ---------- 3. Orden anti-deadlock: huérfanos DESPUÉS del batch TTL ----------
+// ---------- 3. Orden anti-deadlock: Conversation tras el batch, huérfanos al final ----------
 {
   const { client, calls } = makeFakeClient({
     userMemory: 0,
     interactionLog: 0,
     session: 0,
+    safetyEvent: 0,
+    message: 0,
+    conversation: 0,
     user: 0,
   });
   await purgeExpiredData(client, now);
+  const convIdx = calls.findIndex((c) => c.model === "conversation");
   const userIdx = calls.findIndex((c) => c.model === "user");
-  const ttlModels = ["userMemory", "interactionLog", "session"];
+  const ttlModels = ["userMemory", "interactionLog", "session", "safetyEvent", "message"];
   const ttlMaxIdx = Math.max(
     ...ttlModels.map((m) => calls.findIndex((c) => c.model === m)),
   );
   check(
-    userIdx > ttlMaxIdx,
-    "el borrado de huérfanos (cascade) corre DESPUÉS de las 3 purgas TTL",
+    convIdx > ttlMaxIdx,
+    "Conversation (cascade sobre Message) corre DESPUÉS de las 5 purgas TTL paralelas",
+  );
+  check(
+    userIdx > convIdx,
+    "el borrado de huérfanos (cascade total) corre ÚLTIMO, después de Conversation",
   );
 }
 
@@ -190,6 +251,9 @@ const FAKE_COUNTS: PurgeCounts = {
   userMemory: 1,
   interactionLog: 2,
   sessions: 3,
+  safetyEvents: 5,
+  messages: 6,
+  conversations: 7,
   orphanChildren: 4,
 };
 

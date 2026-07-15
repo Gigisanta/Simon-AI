@@ -1,4 +1,4 @@
-import { auth } from "@/lib/auth";
+import { requireSession } from "@/lib/require-session";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { rateLimitMessage } from "@/lib/ui-messages";
@@ -28,9 +28,6 @@ const DELETE_RATE_LIMIT_PER_MINUTE = 20;
 // la misma cuota que el listado y disparaba 429 sorpresivos.
 const READ_RATE_LIMIT_PER_MINUTE = 60;
 
-const UNAUTHENTICATED = () =>
-  Response.json({ error: "No autenticado" }, { status: 401, headers: NO_STORE });
-
 const NOT_FOUND = () =>
   Response.json(
     { error: "Conversación no encontrada" },
@@ -41,8 +38,8 @@ export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const session = await auth.api.getSession({ headers: req.headers });
-  if (!session) return UNAUTHENTICATED();
+  const { session, response } = await requireSession(req);
+  if (!session) return response;
 
   const rl = await checkRateLimit(
     `conversations:detail:${session.user.id}`,
@@ -100,8 +97,8 @@ export async function DELETE(
     return Response.json({ error: "Origen no permitido" }, { status: 403 });
   }
 
-  const session = await auth.api.getSession({ headers: req.headers });
-  if (!session) return UNAUTHENTICATED();
+  const { session, response } = await requireSession(req);
+  if (!session) return response;
 
   const rl = await checkRateLimit(
     `conversation:delete:${session.user.id}`,

@@ -8,7 +8,7 @@
  * Psicoeducación, no diagnóstico: es un diario de bienestar, no una escala
  * clínica. Sin PII en `note` (texto corto y opcional del propio menor).
  */
-import { auth } from "@/lib/auth";
+import { requireSession } from "@/lib/require-session";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { findOwnedChild } from "@/lib/guardian-auth";
@@ -31,10 +31,8 @@ export async function POST(req: Request) {
     return Response.json({ error: "Origen no permitido" }, { status: 403 });
   }
 
-  const session = await auth.api.getSession({ headers: req.headers });
-  if (!session) {
-    return Response.json({ error: "No autenticado" }, { status: 401 });
-  }
+  const { session, response } = await requireSession(req);
+  if (!session) return response;
 
   const rl = await checkRateLimit(
     `mood:post:${session.user.id}`,
@@ -75,10 +73,8 @@ export async function POST(req: Request) {
 }
 
 export async function GET(req: Request) {
-  const session = await auth.api.getSession({ headers: req.headers });
-  if (!session) {
-    return Response.json({ error: "No autenticado" }, { status: 401 });
-  }
+  const { session, response } = await requireSession(req);
+  if (!session) return response;
 
   const childId = new URL(req.url).searchParams.get("childId")?.trim();
 

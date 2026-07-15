@@ -64,7 +64,8 @@ npx next build
 
 ## Tests
 
-El gate determinístico corre 24 suites en procesos aislados y agrega el resultado:
+El gate determinístico corre cada suite en un proceso aislado y agrega el resultado
+(35 suites al momento de escribir; el número exacto vive en `scripts/run-suites.ts`):
 
 ```bash
 pnpm test            # todas

@@ -7,7 +7,7 @@ import {
   type UIMessage,
 } from "ai";
 import { after } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireSession } from "@/lib/require-session";
 import { prisma } from "@/lib/prisma";
 import {
   aiConfigured,
@@ -194,10 +194,8 @@ export async function POST(req: Request) {
     return Response.json({ error: "Origen no permitido" }, { status: 403 });
   }
 
-  const session = await auth.api.getSession({ headers: req.headers });
-  if (!session) {
-    return Response.json({ error: "No autenticado" }, { status: 401 });
-  }
+  const { session, response } = await requireSession(req);
+  if (!session) return response;
   const userId = session.user.id;
   // Rol del interlocutor (B3): se captura acá (session ya está narrowed) para
   // usarlo también dentro del closure diferido de logInteraction.

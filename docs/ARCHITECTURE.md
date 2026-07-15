@@ -1,6 +1,6 @@
 # Simón AI — Arquitectura
 
-> Fecha: 2026-07-09 · Estado: **EN PRODUCCIÓN** en `https://simon-ai-sigma.vercel.app` — ver "Estado de implementación" al final
+> Fecha: 2026-07-15 · Estado: **EN PRODUCCIÓN** en `https://simon.maat.work` (alias Vercel: `simon-ai-sigma.vercel.app`) — ver "Estado de implementación" al final
 > LLM en producción: DeepSeek V4 Flash REAL vía gateway OpenCode Go (`https://opencode.ai/zen/go/v1`, suscripción $0/token) con `AI_EXTRA_BODY={"thinking":{"type":"disabled"}}` (sin ese param el modelo quema el presupuesto en reasoning y devuelve content vacío)
 > Docs complementarios: [research-architecture.md](research-architecture.md) (LLM/RAG/moderación), [research-safety.md](research-safety.md) (protocolo de crisis, regulación, UX para menores — **lectura obligatoria antes de tocar el chat**)
 
@@ -175,9 +175,9 @@ Prompt por mensaje ≈ 4.5K tokens input (system 1.2K + fichas 1.5K + memoria 0.
 
 ---
 
-## Estado de implementación (2026-07-09 — EN PRODUCCIÓN)
+## Estado de implementación (2026-07-15 — EN PRODUCCIÓN)
 
-**Producción:** `https://simon-ai-sigma.vercel.app` (Vercel proyecto `simon-ai`, team giolivos-projects; deploy por CLI `vercel deploy --prod` desde `simon/` — el push a GitHub NO dispara deploy). DB: Neon managed vía Vercel Marketplace (runtime pooled, migraciones/seed con `DATABASE_URL_UNPOOLED`). 18 fichas seedeadas y actualizadas (Secretaría Nacional de Discapacidad, Decreto 942/2025).
+**Producción:** `https://simon.maat.work` — dominio oficial (Vercel proyecto `simon-ai`, team giolivos-projects, alias `simon-ai-sigma.vercel.app`; deploy por CLI `vercel deploy --prod` desde `simon/` — el push a GitHub NO dispara deploy). DB: Neon managed vía Vercel Marketplace (runtime pooled, migraciones/seed con `DATABASE_URL_UNPOOLED`). Seed (fuente única en `prisma/*-data.ts`): 19 fichas de conocimiento, 20 recursos georreferenciados de Cerca tuyo y 5 guías de trámites, actualizadas (Secretaría Nacional de Discapacidad, Decreto 942/2025).
 
 Gate objetivo (desde `simon/`): **`pnpm test`** (runner unificado `scripts/run-suites.ts`, cuyo array `SUITES` es la fuente de verdad del conjunto de suites: safety/crisis, moderación, guardián y menores, memoria/retención, retrieval/knowledge y auth/seguridad) `&& pnpm lint && pnpm build` — **verde tras dos auditorías** (security review + code review con fixes H1/H2/M1/M2/M3/L1/L2/L5 aplicados: anti-injection de roles en historial, sweep del rate limiter por ventana propia, plantilla de crisis inmune a fallos de DB, alta de menor transaccional, timeout de generación). `scripts/conversation-eval.ts` es el harness exploratorio con LLM real (no determinístico, fuera del gate) usado por el loop de QA/entrenamiento.
 
@@ -186,11 +186,12 @@ Gate objetivo (desde `simon/`): **`pnpm test`** (runner unificado `scripts/run-s
 - Sin streaming por diseño: generar completo → moderar → mostrar (garantía de que ningún output sin moderar llega a un menor).
 - Safety: capa 1 regex (T1-T7, crisis en ~35ms sin LLM, plantillas §3.3 exactas con 135/0800-345-1435/102/137/911) + capa 2 cascada OpenAI Moderation → **clasificador LLM real** (deepseek temp 0, conservador; la key OpenAI del sistema da 401) + fail-closed en salida + `SafetyEvent` auditable con `source`.
 - Guardian tutor-first: registro con verificación de email (Resend real), alta de menores (email sintético `.invalid` bloqueado en signup público por hook one-shot), consentimiento con timestamp+IP+UA, gate de chat para menores sin consentimiento, alertas de crisis por email con dedupe 1h, derecho de supresión con cascade verificado (0 huérfanos), toggle de alertas.
+- Cerca tuyo (Fase 1): directorio de recursos reales georreferenciado en `/ayuda/cerca` (20 recursos seedeados) + guías de trámites — ver `docs/PLAN-EXPANSION.md`.
 - Seguridad post-auditoría: fixes C1/A1/A2/M1/M3/M4/B2 aplicados (Origin check, rate limit Upstash-ready, env bootstrap, delimitadores anti-injection, sin tokens en logs prod).
 - Memoria: resumen lazy de conversación previa (modelo small) + extracción de hechos sin PII + TTL 90 días lazy + inyección delimitada.
 - Sesión: disclosure IA determinístico cada 10 turnos, aviso a los 30 min, cierre suave a los 45 (server-side).
 - UI design system "simon-mocha" (spec: [DESIGN-SYSTEM.md](DESIGN-SYSTEM.md)): Nunito, paleta crema/salvia/terracota con gradiente de fondo, logo squircle + ilustración hero, header sticky con nav de píldoras, bottom-nav mobile flotante, chat a viewport fijo (h-dvh + `interactiveWidget: resizes-content` para el teclado), quick-start cards, mood chips, typing indicator, modo calma, AA en contrastes y touch ≥44px. Verificado con screenshots desktop/mobile en prod.
-- `/aprender`: mapa de diagnósticos y trámites con las 18 fichas reales de la DB (filtros por categoría, búsqueda, detalle en dialog con fuente legal y badge de revisión). Solo tutores.
+- `/aprender`: mapa de diagnósticos y trámites con las 19 fichas reales de la DB (filtros por categoría, búsqueda, detalle en dialog con fuente legal y badge de revisión). Solo tutores.
 - Retomar conversación: `GET /api/chat/resume` (auth, sin safetyFlag) + tarjeta "¿Seguimos donde quedamos?" con elección explícita Continuar/Empezar de nuevo.
 - Tier "riesgo" cálido (QA loop): `crisisSystemAddendum("riesgo")` con derivación liviana (adulto de confianza + Línea 102, sin volcar el bloque de emergencia) + invariantes de regresión en crisis-suite. Crisis/abuso/alimentario siguen con plantilla fija intocable.
 - Latencia optimizada: moderación de entrada en paralelo con generación (regeneración solo en el caso raro riesgo-por-API) — p50 medido 5.3s → **3.6s**.

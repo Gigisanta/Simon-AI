@@ -6,7 +6,9 @@
  * Testea SOLO lógica pura (sin red, sin DB):
  *   1. Cortes TTL (interactionLogTtlCutoff, y el compartido memoryTtlCutoff) —
  *      que el cron y el path lazy usan LA MISMA constante/helper.
- *   2. isAuthorizedCron — auth timing-safe del cron: secret ausente, header
+ *   2. TTL de Message/Conversation (365d) y SafetyEvent (730d) — ADR-4 — y el
+ *      parser fail-safe de overrides por env (ttlDaysFromEnv).
+ *   3. isAuthorizedCron — auth timing-safe del cron: secret ausente, header
  *      ausente, sin prefijo, token vacío, mismatch, match.
  *
  * Camino crítico (retención de datos de menores + endpoint protegido): sale con
@@ -16,6 +18,11 @@ import { createChecker } from "./suite-helpers";
 import {
   INTERACTION_LOG_TTL_DAYS,
   interactionLogTtlCutoff,
+  CONVERSATION_TTL_DAYS,
+  conversationTtlCutoff,
+  SAFETY_EVENT_TTL_DAYS,
+  safetyEventTtlCutoff,
+  ttlDaysFromEnv,
   isAuthorizedCron,
   ORPHAN_CHILD_GRACE_DAYS,
   orphanChildCutoff,
@@ -57,6 +64,50 @@ const DAY_MS = 24 * 60 * 60 * 1000;
     interactionLogTtlCutoff(now).getTime() < memoryTtlCutoff(now).getTime(),
     "el corte de InteractionLog (180d) es más viejo que el de UserMemory (90d)",
   );
+}
+
+// ---------- 1b. TTL de Message/Conversation y SafetyEvent (ADR-4) ----------
+{
+  const now = new Date("2026-07-10T12:00:00.000Z");
+
+  // Defaults (el gate corre sin overrides de env — si esto falla, hay un env
+  // colado en CI o cambió el default sin actualizar ADR/docs).
+  check(CONVERSATION_TTL_DAYS === 365, "Message/Conversation TTL = 365 días (default ADR-4)");
+  check(SAFETY_EVENT_TTL_DAYS === 730, "SafetyEvent TTL = 730 días (default ADR-4)");
+
+  check(
+    conversationTtlCutoff(now).getTime() === now.getTime() - 365 * DAY_MS,
+    "conversationTtlCutoff = now - 365d exacto",
+  );
+  check(
+    safetyEventTtlCutoff(now).getTime() === now.getTime() - 730 * DAY_MS,
+    "safetyEventTtlCutoff = now - 730d exacto",
+  );
+  // SafetyEvent retiene MÁS que el contenido (auditoría sin contenido de
+  // mensaje): su corte debe ser más viejo que el de Message/Conversation.
+  check(
+    safetyEventTtlCutoff(now).getTime() < conversationTtlCutoff(now).getTime(),
+    "el corte de SafetyEvent (730d) es más viejo que el de Message/Conversation (365d)",
+  );
+
+  // Parser de overrides por env — fail-safe: ausente/inválido/no-positivo/no
+  // entero → fallback; solo un entero > 0 en string lo reemplaza.
+  const PROBE = "RETENTION_SUITE_TTL_PROBE";
+  delete process.env[PROBE];
+  check(ttlDaysFromEnv(PROBE, 365) === 365, "ttlDaysFromEnv: env ausente → fallback");
+  process.env[PROBE] = "30";
+  check(ttlDaysFromEnv(PROBE, 365) === 30, "ttlDaysFromEnv: '30' → 30 (override válido)");
+  process.env[PROBE] = "0";
+  check(ttlDaysFromEnv(PROBE, 365) === 365, "ttlDaysFromEnv: '0' → fallback (jamás desactiva la purga)");
+  process.env[PROBE] = "-7";
+  check(ttlDaysFromEnv(PROBE, 365) === 365, "ttlDaysFromEnv: negativo → fallback");
+  process.env[PROBE] = "1.5";
+  check(ttlDaysFromEnv(PROBE, 365) === 365, "ttlDaysFromEnv: no entero → fallback");
+  process.env[PROBE] = "abc";
+  check(ttlDaysFromEnv(PROBE, 365) === 365, "ttlDaysFromEnv: no numérico → fallback");
+  process.env[PROBE] = "";
+  check(ttlDaysFromEnv(PROBE, 365) === 365, "ttlDaysFromEnv: string vacío → fallback");
+  delete process.env[PROBE];
 }
 
 // ---------- 2. isAuthorizedCron (timing-safe) ----------
