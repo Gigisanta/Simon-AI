@@ -7,9 +7,10 @@ import { safeTruncate } from "@/lib/text";
  * latencia + dilución de la señal) cuando una conversación se hace larga o hay
  * mucha memoria/fichas acumuladas.
  *
- * Es la contraparte del recorte grueso por cantidad (MAX_HISTORY_MESSAGES): acá
- * el recorte es por TAMAÑO estimado, por bucket, con una política de prioridad
- * explícita cuando algo sobra.
+ * FUENTE ÚNICA de recorte de contexto (ADR-7): no hay recorte por conteo en
+ * ningún otro lado — la ruta solo acota el FETCH de filas (guarda de I/O) y
+ * este módulo decide qué entra, por TAMAÑO estimado, por bucket, con una
+ * política de prioridad explícita cuando algo sobra.
  *
  * INVARIANTE: el mensaje ACTUAL del usuario JAMÁS se recorta (pasa verbatim).
  *

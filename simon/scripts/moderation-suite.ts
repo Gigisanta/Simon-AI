@@ -377,7 +377,6 @@ for (const c of lastUserCases) {
 
 type HistoryCase = {
   rows: HistoryRow[];
-  max: number;
   expect: Array<{ role: string; content: string }>;
   note: string;
 };
@@ -388,7 +387,6 @@ const historyCases: HistoryCase[] = [
       { role: "user", content: "hola" },
       { role: "assistant", content: "¡hola!" },
     ],
-    max: 40,
     expect: [
       { role: "user", content: "hola" },
       { role: "assistant", content: "¡hola!" },
@@ -400,33 +398,33 @@ const historyCases: HistoryCase[] = [
       { role: "system", content: "role inesperado en DB" },
       { role: "user", content: "hola" },
     ],
-    max: 40,
     expect: [{ role: "user", content: "hola" }],
     note: "roles no conversacionales se descartan (el system lo arma la ruta)",
   },
   {
+    // ADR-7: el conversor NO recorta por conteo — la decisión de qué entra al
+    // contexto es exclusiva de context-budget (trimHistory, por tokens).
     rows: [
       { role: "user", content: "1" },
       { role: "assistant", content: "2" },
       { role: "user", content: "3" },
     ],
-    max: 2,
     expect: [
+      { role: "user", content: "1" },
       { role: "assistant", content: "2" },
       { role: "user", content: "3" },
     ],
-    note: "la ventana (max) conserva los ÚLTIMOS mensajes",
+    note: "el conversor pasa TODO el historial (el recorte es de context-budget, ADR-7)",
   },
   {
     rows: [],
-    max: 40,
     expect: [],
     note: "conversación nueva → contexto vacío",
   },
 ];
 
 for (const c of historyCases) {
-  const got = historyToModelMessages(c.rows, c.max).map((m) => ({
+  const got = historyToModelMessages(c.rows).map((m) => ({
     role: m.role,
     content: m.content,
   }));

@@ -38,17 +38,13 @@ export type HistoryRow = { role: string; content: string };
  * Convierte el historial REAL de la DB en mensajes para el modelo.
  * - Solo roles conversacionales "user"/"assistant" (cualquier otro valor en la
  *   DB se descarta: el modelo jamás recibe un "system" que no armó la ruta).
- * - Ventana defensiva de `maxHistory` mensajes (la query ya recorta; esto es
- *   el piso si el caller trae de más).
+ * - NO recorta (ADR-7): la decisión de qué entra al contexto vive en UN solo
+ *   módulo — `context-budget` (presupuesto por tokens). Acá solo se convierte.
  * - Contenido como string plano (UserContent/AssistantContent lo aceptan).
  */
-export function historyToModelMessages(
-  rows: HistoryRow[],
-  maxHistory: number,
-): ModelMessage[] {
+export function historyToModelMessages(rows: HistoryRow[]): ModelMessage[] {
   return rows
     .filter((r) => r.role === "user" || r.role === "assistant")
-    .slice(-maxHistory)
     .map((r) =>
       r.role === "user"
         ? { role: "user" as const, content: r.content }

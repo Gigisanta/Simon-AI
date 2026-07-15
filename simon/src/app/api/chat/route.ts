@@ -93,10 +93,13 @@ if (maxDuration !== CHAT_ROUTE_MAX_DURATION_S) {
 
 // Límites defensivos (costo + abuso). Ver docs/security-review.md.
 const MAX_MESSAGE_CHARS = 4_000; // el cliente corta en 2000; el servidor manda
-// Ventana de contexto (cantidad) enviada al LLM. Bajó de 40 a 24 (B2): con el
-// rolling summary cubriendo lo más viejo, alcanza una ventana reciente más chica
-// (menos tokens, menos costo). El recorte fino por tamaño lo hace assembleContext.
-const MAX_HISTORY_MESSAGES = 24;
+// Guarda de I/O del fetch de historial (ADR-7): tope de FILAS que se leen de la
+// DB por request — NO es política de contexto. Qué entra al prompt lo decide UN
+// solo módulo: assembleContext/trimHistory (presupuesto por TOKENS). 200 filas
+// alcanzan de sobra para llenar el presupuesto (history: 3000 tokens) y acotan
+// el costo de leer conversaciones larguísimas. Mismo tope que la lectura de UI
+// (conversations/[id], take: 200).
+const HISTORY_FETCH_LIMIT = 200;
 // Cap defensivo del array `messages` del cliente (costo + abuso). La ruta NO usa
 // el historial del cliente (F1: el contexto conversacional se reconstruye desde
 // la DB); del body se toma SOLO el último mensaje con role "user". useChat
@@ -107,7 +110,8 @@ const MAX_HISTORY_MESSAGES = 24;
 // escanea desde el final, así el último "user" (que el cliente siempre appendea
 // al enviar) queda incluido y se acota el costo de recorrer un array inflado.
 // El valor es holgado (varias veces la ventana de resume, take:40) para no tocar
-// jamás un cliente real; el recorte real de contexto lo hace MAX_HISTORY_MESSAGES.
+// jamás un cliente real; el recorte real de contexto lo hace assembleContext
+// (presupuesto por tokens — ADR-7).
 const MAX_CLIENT_MESSAGES = 100;
 // Retención de InteractionLog (telemetría, 180d) y su corte temporal viven en
 // lib/retention.ts — MISMA fuente que usa el cron de purga (#9): cero duplicación.
@@ -324,7 +328,7 @@ export async function POST(req: Request) {
           id: true,
           messages: {
             orderBy: { createdAt: "desc" }, // los últimos N...
-            take: MAX_HISTORY_MESSAGES,
+            take: HISTORY_FETCH_LIMIT,
             select: { role: true, content: true },
           },
         },
@@ -780,11 +784,8 @@ export async function POST(req: Request) {
       currentUserText: userText,
     });
 
-    // Historial (recortado) en el formato del modelo.
-    const dbHistory: ModelMessage[] = historyToModelMessages(
-      context.history,
-      MAX_HISTORY_MESSAGES,
-    );
+    // Historial (ya recortado por presupuesto de tokens) en el formato del modelo.
+    const dbHistory: ModelMessage[] = historyToModelMessages(context.history);
 
     // System prompt base + addendum de "riesgo" por REGEX (previo y gratis).
     const baseSystem = buildSystemPrompt({
