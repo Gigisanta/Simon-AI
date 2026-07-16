@@ -70,19 +70,16 @@ export function evaluateProdEnv(env: ProdEnvSnapshot): ProdEnvReport {
     );
   }
   if (!env.UPSTASH_REDIS_REST_URL || !env.UPSTASH_REDIS_REST_TOKEN) {
-    if (env.VERCEL_ENV === "production") {
-      // ADR-6: en Vercel production el rate limiting in-memory por instancia
-      // equivale a NO tener rate limiting (cada instancia cuenta de cero).
-      missing.push(
-        "UPSTASH_REDIS_REST_URL/TOKEN (obligatorios en VERCEL_ENV=production: " +
-          "rate limiting in-memory por instancia = bypass real multi-instancia)",
-      );
-    } else {
-      warnings.push(
-        "[env] Upstash no configurado — el rate limiting queda en memoria POR " +
-          "INSTANCIA: insuficiente en serverless con múltiples instancias.",
-      );
-    }
+    // ADR-6 (enmienda): sin Upstash el rate limit cae al storage "database"
+    // (tabla rateLimit en Postgres) — compartido y correcto multi-instancia,
+    // pero suma un round-trip a la DB por request de auth. Warn, no hard-fail:
+    // Upstash dejó de ser dependencia dura de producción.
+    warnings.push(
+      "[env] Upstash no configurado — el rate limiting va vía Postgres (tabla " +
+        "rateLimit): compartido entre instancias y correcto, pero con más " +
+        "latencia/carga de DB. Configurá UPSTASH_REDIS_REST_URL/TOKEN para " +
+        "moverlo a Redis.",
+    );
   }
   if (!env.AI_API_KEY) {
     warnings.push(

@@ -18,9 +18,10 @@ import { upstashSecondaryStorage } from "@/lib/auth-secondary-storage";
 // server-side (lanza si faltan BETTER_AUTH_SECRET / BETTER_AUTH_URL https).
 assertProdEnv();
 
-// F3 (A1): con env de Upstash, el rate limit de better-auth pasa a storage
-// COMPARTIDO entre instancias (ver lib/auth-secondary-storage.ts). Sin env,
-// undefined → comportamiento actual intacto (memory por instancia).
+// F3 (A1): con env de Upstash, el rate limit de better-auth usa Redis como
+// storage COMPARTIDO entre instancias (ver lib/auth-secondary-storage.ts).
+// Sin env, cae al storage "database" (Postgres, también compartido — ADR-6
+// enmienda): Upstash es optimización de latencia, no dependencia dura.
 const secondaryStorage = upstashSecondaryStorage();
 
 export const auth = betterAuth({
@@ -175,14 +176,17 @@ export const auth = betterAuth({
   // (better-auth lo activa solo en producción por defecto; acá es explícito
   // y con ventana más estricta para los endpoints sensibles.)
   //
-  // A1: con Upstash configurado (secondaryStorage) el contador es COMPARTIDO
-  // entre instancias serverless ("secondary-storage"); sin env queda el
-  // storage "memory" por instancia, como antes.
+  // A1 + ADR-6 (enmienda): el contador es COMPARTIDO entre instancias
+  // serverless SIEMPRE — Redis ("secondary-storage") si hay Upstash; si no,
+  // Postgres ("database": tabla rateLimit, UPDATE atómico condicional del
+  // prisma-adapter, sin ventana de carrera). "memory" ya no es alcanzable.
   rateLimit: {
     enabled: true,
     window: 60,
     max: 30,
-    ...(secondaryStorage ? { storage: "secondary-storage" as const } : {}),
+    storage: secondaryStorage
+      ? ("secondary-storage" as const)
+      : ("database" as const),
     customRules: {
       "/sign-in/email": { window: 60, max: 5 },
       "/sign-up/email": { window: 60, max: 3 },

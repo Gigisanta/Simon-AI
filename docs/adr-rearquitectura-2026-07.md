@@ -26,8 +26,10 @@ La cascada ad-hoc de `moderation.ts` se generaliza en `runGuardrailCascade(check
 ### ADR-5 — Export de entrenamiento con redacción PII [sec M1]
 `training-export.ts` incorpora paso de redacción previo al JSONL: regex determinísticas para PII estructural (emails, teléfonos AR, DNI, direcciones con altura, URLs con credenciales) + placeholder `[REDACTADO:<tipo>]`, y suite `training-export` extendida con fixtures. Redacción NER más fina queda para el lab (research §6) — se documenta el límite.
 
-### ADR-6 — Upstash obligatorio en producción [arch H3]
-`env-check` falla el build/boot en `VERCEL_ENV=production` si faltan `UPSTASH_REDIS_REST_URL/TOKEN`: rate-limit y secondary storage in-memory por instancia son inaceptables multi-instancia (bypass de rate limit real). En dev/preview la degradación sigue permitida.
+### ADR-6 — Rate limiting compartido: Redis si hay, Postgres si no [arch H3]
+Redacción original: `env-check` fallaba el build/boot en `VERCEL_ENV=production` si faltaban `UPSTASH_REDIS_REST_URL/TOKEN` — rate-limit in-memory por instancia era bypass real multi-instancia.
+
+**Enmienda (2026-07)**: sin Upstash, el rate limit de better-auth cae a `rateLimit.storage: "database"` — tabla `rateLimit` en Postgres (modelo `RateLimit`, migración `20260712000000_add_rate_limit`), con consumo vía `incrementOne` del prisma-adapter 1.6: UPDATE atómico condicional, sin ventana de carrera entre instancias. El contador queda COMPARTIDO en ambos caminos, así que Upstash deja de ser dependencia dura: `env-check` ahora emite warning (no hard-fail) en todos los entornos, y el storage "memory" por instancia ya no es alcanzable. Trade-off documentado: sin Redis, cada request de auth suma un round-trip a la DB; Upstash queda como optimización recomendada de latencia/carga.
 
 ### ADR-7 — Fuente única de recorte de historial [arch M1]
 Se elimina el recorte por conteo; queda solo el presupuesto por tokens (`context-budget`). Un solo módulo decide qué entra al contexto.
@@ -61,4 +63,4 @@ El precheck de duplicados en alta de menores queda (UX del tutor lo requiere); s
 - (+) Desbloquea router multi-modelo y guardrails por capas sin reescritura futura.
 - (+) Cada paso deja el gate verde — deployable en todo momento.
 - (−) ~2–3 días de trabajo de refactor sin feature visible para el usuario final.
-- (−) ADR-6 endurece el deploy: producción exige Upstash provisionado (documentado en README).
+- (−) ~~ADR-6 endurece el deploy: producción exige Upstash provisionado (documentado en README).~~ Enmendado (2026-07): producción ya no exige Upstash — sin él, el rate limit va compartido por Postgres (tabla `rateLimit`); Upstash queda como optimización recomendada.

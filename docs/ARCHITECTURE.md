@@ -91,7 +91,7 @@ Módulos en `simon/src/`:
 | Sesión compartida | `lib/require-session.ts` | `requireSession()` (ADR-8) — 401 uniforme con `cache-control: no-store`, reemplaza el chequeo duplicado en 8+ rutas |
 | Retención | `lib/retention.ts` | `purgeExpiredData()` (ADR-4): TTL de `Message`/`Conversation` (365d), `SafetyEvent` (730d, excluye alertas pendientes), `UserMemory`/`InteractionLog`/`Session`, bajo lock advisory Postgres |
 | Export de entrenamiento | `lib/training-export.ts` | `redactPII()` (ADR-5) — regex de PII estructural (email/teléfono/DNI/dirección/credenciales en URL) → `[REDACTADO:<tipo>]`, antes de escribir el JSONL |
-| Env/CSRF | `lib/env-check.ts` | `assertProdEnv()` — hard-fail si falta Upstash en `VERCEL_ENV=production` (ADR-6); `sameOriginOk()` (CSRF en profundidad) |
+| Env/CSRF | `lib/env-check.ts` | `assertProdEnv()` — sin Upstash solo advierte: el rate limit cae a Postgres compartido (ADR-6 enmendado); `sameOriginOk()` (CSRF en profundidad) |
 | Auth | `lib/auth.ts` / `lib/auth-client.ts` | better-auth server + client |
 | DB | `lib/prisma.ts` | Cliente Prisma con driver adapter |
 
@@ -209,7 +209,7 @@ Gate objetivo (desde `simon/`): **`pnpm test`** (runner unificado `scripts/run-s
 - Tier "riesgo" cálido (QA loop): `crisisSystemAddendum("riesgo")` con derivación liviana (adulto de confianza + Línea 102, sin volcar el bloque de emergencia) + invariantes de regresión en crisis-suite. Crisis/abuso/alimentario siguen con plantilla fija intocable.
 - Latencia optimizada: moderación de entrada en paralelo con generación (regeneración solo en el caso raro riesgo-por-API) — p50 medido 5.3s → **3.6s**.
 - Páginas de framework (`error/not-found/loading`), favicon propio, `alert()` eliminados, viewport fix iOS.
-- Rearquitectura ADR-1..9 ([`adr-rearquitectura-2026-07.md`](adr-rearquitectura-2026-07.md), quirúrgica, sin cambio de comportamiento): pipeline por stages (`chat-pipeline/`), cascada de guardrails genérica y activa en `moderation.ts`, router de proveedores implementado y testeado (sin activar, falta segundo proveedor), retención completa Message/Conversation/SafetyEvent, redacción PII en export de entrenamiento, Upstash obligatorio en prod, fuente única de recorte de contexto por tokens, `requireSession()` compartido — gate 37/37 · 1197 casos.
+- Rearquitectura ADR-1..9 ([`adr-rearquitectura-2026-07.md`](adr-rearquitectura-2026-07.md), quirúrgica, sin cambio de comportamiento): pipeline por stages (`chat-pipeline/`), cascada de guardrails genérica y activa en `moderation.ts`, router de proveedores implementado y testeado (sin activar, falta segundo proveedor), retención completa Message/Conversation/SafetyEvent, redacción PII en export de entrenamiento, rate limit compartido en prod (Redis, o Postgres sin Upstash — ADR-6 enmendado), fuente única de recorte de contexto por tokens, `requireSession()` compartido — gate 37/37 · 1197 casos.
 
 **Pendiente (backlog ordenado):**
 1. Dominio propio verificado en Resend + `EMAIL_FROM` (hoy `onboarding@resend.dev`: solo entrega al dueño de la cuenta). Upstash en prod para rate limit distribuido. Registrar base ante AAIP.

@@ -450,3 +450,22 @@ model InteractionLog {
   // Sin este índice el barrido es un full-table-scan de InteractionLog.
   @@index([createdAt])
 }
+
+// ADR-6 (enmienda): rate limiting de better-auth compartido vía Postgres
+// (`rateLimit.storage: "database"`) cuando NO hay Upstash configurado. Una
+// fila por clave (ip/path); el consumo es un UPDATE atómico condicional
+// (`incrementOne` del prisma-adapter 1.6), sin ventana de carrera entre
+// instancias. `lastRequest` es epoch ms → BigInt; better-auth lo normaliza a
+// Number al leer. El nombre de tabla "rateLimit" es el que better-auth 1.6
+// tiene hardcodeado para este storage.
+model RateLimit {
+  id          String @id @default(cuid())
+  key         String @unique
+  count       Int
+  lastRequest BigInt
+
+  // Poda que hace el propio better-auth en background tras cada ventana
+  // vencida: deleteMany por `lastRequest < corte`. Sin índice = full scan.
+  @@index([lastRequest])
+  @@map("rateLimit")
+}
