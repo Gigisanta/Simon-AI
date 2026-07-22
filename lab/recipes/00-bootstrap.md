@@ -36,24 +36,29 @@ uv tool install "skypilot[runpod]"        # orquestador spot (recovery+cleanup n
 - [ ] Bucket Backblaze B2 `maatwork-lab-checkpoints` + application key → `~/.hermes/.env`. Es el resume ante preemption (requisito duro, recipe 02).
 - [ ] Script `lab/scripts/pod-sweep.sh`: lista y apaga pods huérfanos (teardown idempotente). Correrlo manual primero; después va en cada tick.
 
-### 4. Teacher API con TOS verificados (≈30 min, decisión)
-- [ ] Verificar términos de uso del profesor elegido respecto de **generar datos de entrenamiento** (no asumir): DeepSeek directo (sin batch API; off-peak 50–75% en 16:30–00:30 UTC ≈ 13:30–21:30 AR + context caching) vs. OpenRouter (elegir modelo con licencia de salida permisiva).
-- [ ] Decidir y anotar el profesor del tick 1 en el run log de la recipe 01.
+### 4. Teacher API con TOS verificados — ✅ RESUELTO (verificado 2026-07-22, fuente primaria)
 
-### 5. Data engine ejecutable (días — hoy es README)
-Implementar [`data/README.md`](../data/README.md) como scripts en `lab/scripts/`:
-- [ ] `generate.py`: generación sintética persona-driven (Magpie/PersonaHub) contra el profesor, con cap de gasto por corrida.
-- [ ] `curate.py`: filtro voseo → dedup exacto + minhash → cascada de moderación de prod como filtro → decontaminación n-gram 8–13 contra TODO el harness → safety-mix por batch.
-- [ ] Salida: JSONL versionado + dataset card (hash, git SHA del pipeline, config de filtros, conteos por tema/franja) + push a HF Hub.
-- [ ] Validación de esquema JSONL antes del push (batch inválido se descarta y loguea).
+**Profesor recomendado: DeepSeek** (directo) o **OpenRouter con filtro distilable**. NO OpenAI.
 
-### 6. Eval harness ejecutable (días — hoy es README; **sin esto no hay gate**)
-Implementar como mínimo las capas 1, 4, 6 y 7 de [`eval/README.md`](../eval/README.md), todas con **exit codes**:
-- [ ] Capa 1: `lm-eval-harness` con SpanishBench instalado y corriendo contra un endpoint OpenAI-compatible.
-- [ ] Capa 4: rúbrica de voseo (regex + LLM-judge).
-- [ ] Capa 6: crisis fixtures T1–T7 ejecutables desde los fixtures de `simon/` (100% o exit 1).
-- [ ] Capa 7: `conversation-eval` con umbrales duros y exit 1 (gap G6 de `docs/mejoras-arquitectura-2026-07.md`).
-- [ ] Gate S4 como función pura sobre los scores (sin LLM decidiendo) — los umbrales en un archivo versionado con CODEOWNERS humano.
+- **DeepSeek** — [TOS de la API](https://cdn.deepseek.com/policies/en-US/deepseek-open-platform-terms-of-service.html), §4.2(3): *"You may apply the Inputs and Outputs of the Services to a wide range of use cases, including ... training other models (such as model distillation)"*, y §4.2(2) te asigna la propiedad de los outputs. **Cero cláusula anti-distillation.** Vía preferida. (Sin batch API; off-peak 50–75% en 16:30–00:30 UTC ≈ 13:30–21:30 AR + context caching.)
+- **OpenRouter** — la `OPENROUTER_API_KEY` ya está en `~/.hermes/.env`. Compliant sólo con el filtro: `enforce_distillable_text: true` en el body (o `?distillable=true` en la web). Un modelo DeepSeek ahí es distilable.
+- **OpenAI** — sus TOS **prohíben** usar outputs para entrenar modelos competidores. **NO usar `OPENAI_API_KEY` para generar datos de entrenamiento.**
+- **Caveat del gateway**: el gateway OpenCode Go (el que usa producción) tiene términos propios y **no hereda** automáticamente la cláusula permisiva de DeepSeek. Para ampararse en ella, pegarle a DeepSeek directo o a OpenRouter-distilable, **no** al gateway.
+
+- [ ] Acción restante: anotar el profesor y modelo exactos del tick 1 en el run log de la recipe 01 al generar el primer batch.
+
+### 5. Data engine ejecutable — mitad de curación ✅ HECHA (`lab/data/scripts/`)
+- [ ] `generate.py`: generación sintética persona-driven (Magpie/PersonaHub) contra el profesor, con cap de gasto por corrida. **Pendiente** (necesita endpoint distilable — ver ítem 4).
+- [x] `curate.py`: voseo → dedup exacto + minhash (LSH) → **exclusión de crisis** (reúsa `detectSafetyFlag` de prod vía `exclude-flagged.ts`) → decontaminación n-gram 8–13 contra el harness → dataset card. Fail-closed: sin etapa de crisis, aborta. Self-check verde.
+- [x] Salida: JSONL + dataset card (hash sha256, git SHA, conteos por etapa). Push a HF Hub pendiente del token (ítem 1).
+- [~] Validación: `curate.py` descarta y cuenta líneas malformadas; safety-mix por batch queda para `generate.py`.
+
+### 6. Eval harness ejecutable — spine determinístico ✅ HECHO (`lab/eval/`, **el gate ya existe**)
+- [ ] Capa 1: `lm-eval-harness` con SpanishBench contra endpoint OpenAI-compatible. **Pendiente** (necesita endpoint).
+- [x] Capa 4 (determinística): `voseo.py` — detección de tuteo, alta precisión, self-check verde. (El LLM-judge de naturalidad queda pendiente del endpoint.)
+- [x] Capa 6: crisis fixtures ejecutables — `run.py` reúsa `pnpm crisis-suite` (72/72). 100% o el gate rechaza.
+- [ ] Capa 7: `conversation-eval` con exit codes (gap G6). **Pendiente** (necesita endpoint + G6).
+- [x] Gate S4 como función pura fail-closed (`gate.py`) — sin LLM decidiendo; umbrales en `thresholds.json` protegido por **CODEOWNERS** (candado #3). Job `model-gate` en CI. Self-check cubre cada modo de falla.
 
 ### 7. Baselines publicados (1 día de corridas; sin baseline, "mejora" no significa nada)
 - [ ] Correr el harness contra: DeepSeek (proveedor actual) + Qwen3-0.6B, SmolLM2-360M y Granite 4.0 Nano 350M crudos (vía endpoint temporal en spot o API).
