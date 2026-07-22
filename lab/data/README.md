@@ -26,6 +26,18 @@ Fuentes, licencias, pipeline sintético y compliance. Evidencia: [`docs/research
 4. **Curación** (en orden): filtro de voseo (heurística `tenés|querés|vos` vs `tienes|quieres|tú`) → dedup exacto + near-dup (minhash) → cascada de moderación de prod como filtro (mismo patrón que producción) → decontaminación n-gram 8–13 contra TODO el harness de eval → muestreo de revisión humana rioplatense.
 5. **Dataset card por versión**: hash de contenido, git SHA del pipeline, config de filtros, conteos por tema/franja etaria, lista de fuentes. Formato JSONL chat-completions (mismo contrato que `training-export.ts`).
 
+## Qué ya corre (sin cuenta, sin GPU)
+
+```sh
+python3 scripts/curate.py --selftest
+python3 scripts/curate.py --in crudo.jsonl --out limpio.jsonl --harness-texts harness.txt
+```
+
+- [`scripts/curate.py`](scripts/curate.py) — curación determinística: voseo → dedup exacto → near-dup (minhash LSH) → **exclusión de crisis** → decontaminación n-gram 8–13 contra el harness → dataset card (conteos por etapa + hash). Fail-closed: si la etapa de crisis no corre, aborta (no emite dataset sin filtrar seguridad).
+- [`scripts/exclude-flagged.ts`](scripts/exclude-flagged.ts) — etapa de exclusión de crisis. **Reúsa** `detectSafetyFlag` de producción (`simon/src/lib/safety.ts`) — no hay segunda copia de la taxonomía de seguridad que pueda divergir.
+
+Pendiente (necesita endpoint del profesor + TOS verificados): `generate.py` (generación sintética persona-driven con cap de gasto). La curación ya está lista para consumir lo que genere.
+
 ## Datos reales (cuando G3 exista)
 
 `simon/scripts/export-training.ts` ya produce JSONL redactado (PII estructural) y filtrado (sin crisis, corte en primer flag). Yield estimado: ~18k–26k ejemplos/año al volumen actual. Pendiente antes de usar: filtro `trainingConsentAt`, limpieza de `DISCLOSURE_TEXT` persistido, señal de calidad (feedback 👍/👎, delta de `MoodEntry`, `responsePath`) — gaps G1/G2/G5 del backlog.
