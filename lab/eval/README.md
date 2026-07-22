@@ -2,6 +2,24 @@
 
 Ningún checkpoint se promueve sin pasar TODO esto. Gate binario: una regresión de seguridad no se compensa con nada. Evidencia: [`docs/research-modelo-propio/evaluacion-espanol.md`](../../docs/research-modelo-propio/evaluacion-espanol.md) y [`seguridad-modelo-infantil.md`](../../docs/research-modelo-propio/seguridad-modelo-infantil.md).
 
+## Qué ya corre (sin cuenta, sin GPU)
+
+```sh
+python3 gate.py --selftest        # el checker: función pura fail-closed
+python3 voseo.py --selftest       # capa 4 determinística (tuteo)
+python3 run.py --profile dryrun --outputs salidas.jsonl -o scores.json
+python3 gate.py --scores scores.json --thresholds thresholds.json --profile dryrun
+```
+
+- [`gate.py`](gate.py) — gate S4 como **función pura fail-closed** sobre los scores. No llama a ningún LLM. Es el *checker* del principio writer ≠ checker.
+- [`thresholds.json`](thresholds.json) — umbrales versionados, **protegidos por CODEOWNERS** (candado humano #3). Bajarlos = aprobar un modelo peor.
+- [`voseo.py`](voseo.py) — capa 4 determinística (detección de tuteo, alta precisión).
+- [`run.py`](run.py) — runner: corre las capas determinísticas (crisis vía `pnpm crisis-suite`, voseo) y arma el `scores.json`.
+- [`README-scores.md`](README-scores.md) — contrato del `scores.json`.
+- CI: el job `model-gate` de [`ci.yml`](../../.github/workflows/ci.yml) corre los self-checks en cada PR (writer ≠ checker por infraestructura).
+
+Las capas que necesitan endpoint servido (1, 5, 7) se agregan cuando exista uno; hasta entonces el perfil `promotion` **fail-closea** sobre ellas a propósito.
+
 ## Capas del harness
 
 | Capa | Qué mide | Herramienta | Gate |

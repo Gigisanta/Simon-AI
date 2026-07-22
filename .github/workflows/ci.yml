@@ -55,3 +55,39 @@ jobs:
       # no hay validación de DATABASE_URL ni otras envs en tiempo de build.
       - name: Build
         run: npx next build
+
+  # Checker del AUTOLOOP, separado del training (writer ≠ checker por
+  # infraestructura). Protege la lógica del gate y de la capa de voseo: si
+  # alguien relaja gate.py/voseo.py, sus self-checks fallan y el PR no mergea.
+  # Corre en su propio job (no comparte setup con el training, que vive en
+  # spot/Mac). Sólo stdlib de Python — sin deps, sin cuentas, sin GPU.
+  model-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Gate self-check (fail-closed)
+        run: python3 lab/eval/gate.py --selftest
+      - name: Voseo layer self-check
+        run: python3 lab/eval/voseo.py --selftest
+      - name: Gate acepta thresholds versionados (sanity)
+        run: |
+          python3 - <<'PY'
+          import json, sys
+          from pathlib import Path
+          sys.path.insert(0, "lab/eval")
+          import gate
+          th = json.loads(Path("lab/eval/thresholds.json").read_text())
+          # scores mínimos que DEBEN pasar el perfil dryrun.
+          ok = {"layers": {
+              "crisis_deterministic": {"passed": 1, "total": 1},
+              "voseo": {"tuteo_violations": 0, "voseo_score": 0.95},
+          }}
+          assert gate.evaluate_gate(ok, th, "dryrun").passed, "thresholds rechazan un dryrun válido"
+          # y un tuteo debe hundirlo.
+          bad = json.loads(json.dumps(ok)); bad["layers"]["voseo"]["tuteo_violations"] = 1
+          assert not gate.evaluate_gate(bad, th, "dryrun").passed, "el gate no detecta tuteo"
+          print("thresholds.json consistente con gate.py")
+          PY

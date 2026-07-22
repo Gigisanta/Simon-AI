@@ -9,3 +9,7 @@ wandb/
 *.bin
 *.pt
 *.jsonl
+
+# Python bytecode
+__pycache__/
+*.pyc

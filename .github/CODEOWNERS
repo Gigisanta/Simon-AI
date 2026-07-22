@@ -1,0 +1,22 @@
+# CODEOWNERS — candados humanos del AUTOLOOP (lab/AUTOLOOP.md §3).
+#
+# GitHub exige la review del owner listado antes de mergear un cambio a estos
+# paths. Son exactamente las tres formas en que un optimizador haría trampa —
+# por eso ningún agente puede tocarlos sin aprobación humana en el PR.
+#
+# (Para que sea BLOQUEANTE de verdad: activar "Require review from Code Owners"
+#  en branch protection de master. Sin eso, CODEOWNERS sólo auto-asigna review.)
+
+# Candado #3 — umbrales del gate. Bajar un umbral = aprobar un modelo peor.
+/lab/eval/thresholds.json        @Gigisanta
+# El checker en sí (writer ≠ checker): que no se relaje la lógica de aprobación.
+/lab/eval/gate.py                @Gigisanta
+
+# Candado #2 — dataset/fixtures de seguridad. Sólo crece con revisión clínica.
+/simon/scripts/crisis-suite.ts   @Gigisanta
+/simon/src/lib/safety.ts         @Gigisanta
+/simon/src/lib/guardrails/       @Gigisanta
+
+# El contrato de autonomía y sus límites.
+/lab/AUTOLOOP.md                 @Gigisanta
+/.github/CODEOWNERS              @Gigisanta
