@@ -1,0 +1,42 @@
+# maat-micro (~250M) — EL MODELO PRINCIPAL on-device
+# Sweet-spot calidad/RAM para browser WebGPU y Android 3-4GB.
+# Evidencia de cada decisión: docs/research-modelo-propio/arquitecturas-eficientes.md
+# Estado: DISEÑO (etapa 3 del plan). Cambios acá requieren re-correr el bake-off.
+
+model:
+  name: maat-micro
+  params_approx: 250M
+  layers: 30            # deep-narrow (MobileLLM, ICML 2024)
+  d_model: 768
+  heads: 12
+  kv_heads: 3           # GQA 4:1
+  ffn: swiglu
+  norm: rmsnorm + qk-norm
+
+attention:
+  pattern: sliding_window_5to1   # 5 capas locales (ventana 1024) : 1 global — receta Gemma 3
+  window: 1024
+  rope_local_base: 10000
+  rope_global_base: 1000000
+  sink_token: true               # robustez de cuantización y streaming
+
+tokenizer:
+  type: bpe_sentencepiece
+  vocab: 49152
+  corpus: espanol-rioplatense-first   # FineWeb2-es filtrado AR + sintético propio + 10% en/code
+  embedding_tying: true               # obligatorio a esta escala (el embedding domina los params)
+
+context: 8192            # el producto usa ~5-6k tokens de contexto (ADR-7); margen 8k alcanza
+
+training:
+  regime: overtrained          # estilo SmolLM2: tokens >> Chinchilla para inferencia barata
+  tokens_target: 100B-400B     # según presupuesto spot disponible
+  precision: bf16
+  qat:
+    enabled: true              # últimos ~5k pasos, target int4 per-channel (receta Gemma 3 QAT)
+    embedding_precision: int8  # los embeddings toleran mal int4
+
+deploy:
+  quant_default: Q4_K_M        # GGUF; Q8_0 para server
+  ram_estimada_movil: 250-350MB
+  targets: [browser-webgpu, android-3gb+, server-cpu]

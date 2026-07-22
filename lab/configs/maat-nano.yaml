@@ -1,0 +1,41 @@
+# maat-nano (~150M) — fallback universal ultra-liviano
+# Target: browser WASM puro (sin WebGPU) y Android 2-3GB. Hermano chico de maat-micro:
+# mismas decisiones de arquitectura, presupuesto de parámetros menor.
+# Estado: DISEÑO. Ver maat-micro.yaml para el racional de cada campo.
+
+model:
+  name: maat-nano
+  params_approx: 150M
+  layers: 32            # MobileLLM-125M usa 30; deep-narrow al límite
+  d_model: 576
+  heads: 9
+  kv_heads: 3           # GQA 3:1
+  ffn: swiglu
+  norm: rmsnorm + qk-norm
+
+attention:
+  pattern: sliding_window_5to1
+  window: 1024
+  rope_local_base: 10000
+  rope_global_base: 1000000
+  sink_token: true
+
+tokenizer:
+  type: bpe_sentencepiece
+  vocab: 32768                 # vocab más chico que micro: modelos chicos merecen vocabularios chicos
+  corpus: espanol-rioplatense-first
+  embedding_tying: true
+
+context: 4096
+
+training:
+  regime: overtrained
+  tokens_target: 100B-200B
+  precision: bf16
+  qat: { enabled: true, embedding_precision: int8 }
+  layer_sharing: optional      # MobileLLM-LS: +calidad sin RAM extra (+2.6% latencia); evaluar en ablation
+
+deploy:
+  quant_default: Q4_K_M
+  ram_estimada_movil: 150-200MB
+  targets: [browser-wasm, android-2gb+]

@@ -1,5 +1,6 @@
 # Plan I+D — Modelo propio en español (laboratorio, borrador 2026-07)
 
+> **v2 disponible (2026-07-22)**: [`plan-lab-maatwork-2026-07.md`](plan-lab-maatwork-2026-07.md) extiende este plan con la familia de modelos propios "Maat" (sub-500M, on-device/browser), fundamentado en el research de [`research-modelo-propio-2026-07.md`](research-modelo-propio-2026-07.md). Este v1 sigue siendo el compromiso externo del lab (clasificador + evaluación + dataset clínico); sus etapas 0–1 y su regla de gate binario quedan intactas y son la base del v2. La etapa 2 de este plan (destilación QLoRA sobre 7–9B) queda reemplazada en v2 por la estrategia de modelos ultra-pequeños.
 > Especifica el laboratorio de USD 10.000 de `docs/propuesta-financiamiento-2026-07.md` §4.2 y el diferido de ADR-10: *"Clasificador de riesgo español propio como capa de ruteo: entregable del lab, no de esta rearquitectura"* (`docs/adr-rearquitectura-2026-07.md`).
 > Fuente de contexto: `docs/research-briefing-gov-2026-07.md` §6 (staged roadmap, cloud vs local).
 > Estado: BORRADOR — plan de trabajo, no compromiso de resultado. Sin humo: cifras y plazos son estimaciones con supuestos explícitos.

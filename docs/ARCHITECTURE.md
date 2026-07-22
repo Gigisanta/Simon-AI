@@ -2,7 +2,7 @@
 
 > Fecha: 2026-07-15 · Estado: **EN PRODUCCIÓN** en `https://simon.maat.work` (alias Vercel: `simon-ai-sigma.vercel.app`) — ver "Estado de implementación" al final
 > LLM en producción: DeepSeek V4 Flash REAL vía gateway OpenCode Go (`https://opencode.ai/zen/go/v1`, suscripción $0/token) con `AI_EXTRA_BODY={"thinking":{"type":"disabled"}}` (sin ese param el modelo quema el presupuesto en reasoning y devuelve content vacío)
-> Docs complementarios: [research-architecture.md](research-architecture.md) (LLM/RAG/moderación), [research-safety.md](research-safety.md) (protocolo de crisis, regulación, UX para menores — **lectura obligatoria antes de tocar el chat**), [adr-rearquitectura-2026-07.md](adr-rearquitectura-2026-07.md) (decisiones ADR-1..10 de la rearquitectura, quirúrgica sobre este mismo diseño)
+> Docs complementarios: [research-architecture.md](research-architecture.md) (LLM/RAG/moderación), [research-safety.md](research-safety.md) (protocolo de crisis, regulación, UX para menores — **lectura obligatoria antes de tocar el chat**), [adr-rearquitectura-2026-07.md](adr-rearquitectura-2026-07.md) (decisiones ADR-1..10 de la rearquitectura, quirúrgica sobre este mismo diseño), [research-modelo-propio-2026-07.md](research-modelo-propio-2026-07.md) + [plan-lab-maatwork-2026-07.md](plan-lab-maatwork-2026-07.md) (modelo propio ultra-pequeño y laboratorio `lab/`), [mejoras-arquitectura-2026-07.md](mejoras-arquitectura-2026-07.md) (backlog priorizado post-ADR)
 
 Simón: acompañante emocional con IA para niños y adolescentes (6–18, con y sin discapacidad), español rioplatense, Argentina-first. **No es un terapeuta ni lo simula.** Toda decisión de diseño está subordinada al protocolo de seguridad de `research-safety.md`.
 

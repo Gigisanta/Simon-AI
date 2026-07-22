@@ -1,0 +1,44 @@
+# maat-mini (~400M) — techo de calidad on-device
+# Target: desktop, Android >=4GB con WebGPU, server CPU. Se entrena solo si micro pasa su gate.
+# Estado: DISEÑO. Ver maat-micro.yaml para el racional de cada campo.
+
+model:
+  name: maat-mini
+  params_approx: 400M
+  layers: 36
+  d_model: 896
+  heads: 14
+  kv_heads: 2           # GQA 7:1 — KV-cache mínimo
+  ffn: swiglu
+  norm: rmsnorm + qk-norm
+
+attention:
+  pattern: sliding_window_5to1
+  window: 1024
+  rope_local_base: 10000
+  rope_global_base: 1000000
+  sink_token: true
+
+tokenizer:
+  type: bpe_sentencepiece
+  vocab: 49152                 # comparte tokenizer con maat-micro (mismo artefacto)
+  corpus: espanol-rioplatense-first
+  embedding_tying: true
+
+context: 8192
+
+training:
+  regime: overtrained
+  tokens_target: 200B-400B
+  precision: bf16
+  qat: { enabled: true, embedding_precision: int8 }
+
+deploy:
+  quant_default: Q4_K_M
+  ram_estimada_movil: 400-550MB
+  targets: [desktop, android-4gb+, server-cpu]
+
+# Track experimental paralelo (NO es maat-mini; decidir por benchmark calidad-por-RAM):
+#   hibrido-lfm2like: 16 bloques (10 conv gated + 6 GQA), d_model 640-768, vocab 49152.
+#   Mejor latencia CPU esperada y KV-cache menor; peor soporte en runtimes browser.
+#   Piloto BitNet ternario (1.58-bit) solo a escala 100-360M, nunca el modelo principal sin validar.

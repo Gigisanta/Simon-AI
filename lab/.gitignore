@@ -1,0 +1,11 @@
+# Pesos, datasets y runs NO se versionan acá (van a HF Hub privado + B2)
+checkpoints/
+datasets/
+runs/
+wandb/
+*.gguf
+*.onnx
+*.safetensors
+*.bin
+*.pt
+*.jsonl
