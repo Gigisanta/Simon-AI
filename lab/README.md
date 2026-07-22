@@ -8,10 +8,11 @@ Sistema de entrenamiento, evaluación y despliegue de la familia **Maat** (model
 
 ```
 lab/
+  AUTOLOOP.md  Workflow de automejora: tick de 7 estados, niveles L0-L4, candados humanos
   configs/     Arquitecturas de la familia Maat (YAML declarativo, fuente de verdad)
   data/        Data engine: fuentes, licencias, pipeline sintético, curación, compliance
   eval/        Harness de evaluación y gates por checkpoint
-  recipes/     Recetas ejecutables por etapa (comandos exactos, hardware, costos)
+  recipes/     Recetas ejecutables por etapa (00-bootstrap = qué falta para el primer tick)
 ```
 
 ## Principios (no negociables)
