@@ -33,10 +33,11 @@ python3 scripts/curate.py --selftest
 python3 scripts/curate.py --in crudo.jsonl --out limpio.jsonl --harness-texts harness.txt
 ```
 
+- [`scripts/generate.py`](scripts/generate.py) — generación sintética persona-driven contra el profesor OpenAI-compatible. **Cap de gasto duro** (`--budget-usd`, proyección de peor caso antes de cada llamada, fail-closed sin usage), key desde env (nunca argv), validación de esquema del ejemplo, endpoint inyectable (testeado offline sin gastar). Para OpenRouter, `--distillable` exige modelos distilables (TOS, recipe 00 §4).
 - [`scripts/curate.py`](scripts/curate.py) — curación determinística: voseo → dedup exacto → near-dup (minhash LSH) → **exclusión de crisis** → decontaminación n-gram 8–13 contra el harness → dataset card (conteos por etapa + hash). Fail-closed: si la etapa de crisis no corre, aborta (no emite dataset sin filtrar seguridad).
 - [`scripts/exclude-flagged.ts`](scripts/exclude-flagged.ts) — etapa de exclusión de crisis. **Reúsa** `detectSafetyFlag` de producción (`simon/src/lib/safety.ts`) — no hay segunda copia de la taxonomía de seguridad que pueda divergir.
 
-Pendiente (necesita endpoint del profesor + TOS verificados): `generate.py` (generación sintética persona-driven con cap de gasto). La curación ya está lista para consumir lo que genere.
+Flujo: `generate.py` → JSONL crudo → `curate.py` → JSONL limpio + card → push a HF. `generate.py` corre de punta a punta apenas haya un endpoint de profesor configurado por env (AI_BASE_URL/AI_API_KEY/AI_MODEL); su lógica ya está verificada offline.
 
 ## Datos reales (cuando G3 exista)
 
