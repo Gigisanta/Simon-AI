@@ -73,10 +73,10 @@ uv tool install "skypilot[runpod]"        # orquestador spot (recovery+cleanup n
 - [ ] Validarlo contra un muestreo humano rioplatense antes de confiar en su score para promover (regla del eval README). Juez sin validar = `judge_unvalidated` = stop condition.
 
 ### 10. Orquestador del tick (cierra el loop L0→L1)
-- [ ] `tick.sh` idempotente con `--dry-run` (dataset chico + ~100 steps + capas baratas; no promueve, no toca prod, no sube tags).
-- [ ] `agent.json` con `autonomy_level: L1` + `stop_condition` (ver AUTOLOOP §5); lint: `scripts/standardize.py manifest`.
-- [ ] Kill-switches: tope por tick (USD 30 train+eval / USD 20 generación), barrido de pods huérfanos, detector de doom-loop.
-- [ ] Runner de eval separado del de training: job `model-gate` en `ci.yml` (capa 8) + Mac/pod aparte para el resto — writer ≠ checker por infraestructura desde el tick 1.
+- [x] `tick.sh --dry-run` (`lab/tick.sh`): encadena S1 generación fake (offline) → curación → S3 eval → S4 gate, fail-closed. **No entrena** (S2 es stub hasta tener GPU), no promueve, no sube tags, no toca prod. Verde end-to-end sin cuentas.
+- [x] `agent.json` (`lab/agent.json`): `autonomy_level: L1` + `stop_condition` + `loop_contract`. **Pasa el lint** `standardize.py manifest` (verificado con `lint_manifest`).
+- [~] Kill-switches: cap de gasto por tick ya en `generate.py` (`--budget-usd`, techo duro) y en `agent.json` (`max_cost_usd`, `max_consecutive_failures: 2`). Barrido de pods huérfanos (`pod-sweep.sh`) y doom-loop quedan para el tick real con GPU.
+- [x] Runner de eval separado del de training: job `model-gate` en `ci.yml` + tick S2/S3 en procesos distintos — writer ≠ checker por infraestructura desde el dry-run.
 
 ## Definición de "listo para el tick 1"
 

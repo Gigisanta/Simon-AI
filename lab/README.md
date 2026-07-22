@@ -9,10 +9,18 @@ Sistema de entrenamiento, evaluación y despliegue de la familia **Maat** (model
 ```
 lab/
   AUTOLOOP.md  Workflow de automejora: tick de 7 estados, niveles L0-L4, candados humanos
+  agent.json   Manifiesto del loop: autonomy_level L1 + stop_condition + loop_contract (pasa el lint)
+  tick.sh      Orquestador de un tick; --dry-run corre el spine determinístico offline
   configs/     Arquitecturas de la familia Maat (YAML declarativo, fuente de verdad)
-  data/        Data engine: fuentes, licencias, pipeline sintético, curación, compliance
-  eval/        Harness de evaluación y gates por checkpoint
+  data/        Data engine: generate.py (cap de gasto) + curate.py (curación) — ejecutables
+  eval/        Harness: gate.py (fail-closed) + voseo.py + run.py + thresholds.json (CODEOWNERS)
   recipes/     Recetas ejecutables por etapa (00-bootstrap = qué falta para el primer tick)
+```
+
+**Prueba rápida sin cuentas** (todo el spine determinístico de un tick, offline):
+
+```sh
+bash lab/tick.sh --dry-run   # generación fake -> curación -> eval -> gate PASS
 ```
 
 ## Principios (no negociables)

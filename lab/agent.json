@@ -1,0 +1,49 @@
+{
+  "name": "MaatAutoloop",
+  "purpose": "CI/CD de modelos: cada tick genera datos, entrena un candidato maat-*, lo evalúa y lo aprueba/descarta contra un gate binario. Autónomo hasta shadow; nunca promueve a producción ni toca seguridad sin humano.",
+  "status": "experimental",
+  "autonomy_level": "L1",
+  "stop_condition": "Gate S4 fail-closed (lab/eval/gate.py) rechaza cualquier candidato que no chequee TODO; kill-switches del tick (tope USD 30 train+eval / USD 20 generación por tick vía --budget-usd, doom-loop 3 ticks Δ<ε, mismo FAIL 2x, barrido de pods huérfanos); los tres candados humanos (promoción a prod, dataset/fixtures de seguridad, umbrales del gate) están protegidos por .github/CODEOWNERS; en L1 un humano aprueba cada transición del tick",
+  "owner": "HerMaat",
+  "interpreter": "/bin/bash",
+  "entrypoint": "tick.sh",
+  "credentials": ".env (HF_TOKEN, RUNPOD_API_KEY, B2 keys; teacher AI_API_KEY desde ~/.hermes/.env — NUNCA en el repo)",
+  "created": "2026-07-22",
+  "loop_contract": {
+    "goal": "Mejorar el modelo conversacional maat-* tick a tick vía destilación on-policy + gate binario, sin regresión de seguridad y sin colapso",
+    "type": "producer",
+    "cadence": "cron",
+    "deployment_state": "pre_dry_run",
+    "inputs": [
+      "lab/configs/maat-*.yaml",
+      "lab/data/scripts/ (generate.py + curate.py)",
+      "teacher endpoint (OpenAI-compatible, distilable)",
+      "lab/eval/thresholds.json (CODEOWNERS)"
+    ],
+    "outputs": [
+      "checkpoint candidato (HF Hub, tag candidate)",
+      "scores.json + dataset card",
+      "shadow deploy (nunca sirviendo a un chico) o descarte"
+    ],
+    "artifact_homes": {
+      "working_data": "lab/data/",
+      "runtime_state": "lab/runs/state.json",
+      "diagnostics": "lab/runs/logs/",
+      "learnings": "lab/runs/telemetria/",
+      "deliverables": "checkpoints en HF Hub privado (maatwork-lab)"
+    },
+    "verification": {
+      "objective_gate": "python3 lab/eval/gate.py --scores lab/runs/scores.json --thresholds lab/eval/thresholds.json --profile promotion",
+      "dry_run_smoke": "bash lab/tick.sh --dry-run",
+      "subjective_checker": "Juez LLM de familia distinta, validado contra muestreo humano rioplatense (candado: judge_unvalidated = stop). Promoción shadow->prod SIEMPRE humana."
+    },
+    "budget": {
+      "max_runtime_min": 120,
+      "max_iterations_per_tick": 1,
+      "max_cost_usd": 50,
+      "max_consecutive_failures": 2
+    },
+    "lock_key": "lab:maat-autoloop",
+    "rollback": "resolveProvider (ADR-3) cae al proveedor comercial; el shadow nunca sirve a un chico, así que un candidato malo no llega a producción; teardown de pods spot; restaurar state.json previo"
+  }
+}

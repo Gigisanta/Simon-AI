@@ -200,6 +200,21 @@ def parse_and_validate(text: str, min_turns: int) -> dict | None:
     return {"messages": norm}
 
 
+def _dry_run_teacher(messages: list[dict], *, max_tokens: int, extra_body: dict | None = None) -> dict:
+    """Profesor fake para --dry-run: conversaciones válidas y VARIADAS (derivadas
+    del prompt, sin red ni gasto). Rioplatense, para ejercitar todo el flujo."""
+    prompt = messages[-1]["content"] if messages else ""
+    tag = str(abs(hash(prompt)) % 100000)
+    convo = {"messages": [
+        {"role": "child", "content": f"che, hoy me pasó algo (caso {tag})"},
+        {"role": "assistant", "content": f"Dale, contame tranqui qué te pasó, che. Te escucho ({tag})."},
+        {"role": "child", "content": f"nada, me quedé pensando en eso {tag}"},
+        {"role": "assistant", "content": f"Tenés todo el tiempo para contarme. ¿Querés seguir? ({tag})"},
+    ]}
+    return {"text": json.dumps(convo, ensure_ascii=False),
+            "prompt_tokens": est_tokens(prompt), "completion_tokens": 60}
+
+
 def generate(n: int, budget: Budget, teacher, *, seed: int, turns: int, max_tokens: int,
              extra_body: dict | None = None, log=print) -> tuple[list[dict], dict]:
     """Genera hasta n ejemplos o hasta agotar el presupuesto. teacher(messages,
@@ -249,12 +264,28 @@ def main(argv=None) -> int:
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--out", default="crudo.jsonl")
     ap.add_argument("--distillable", action="store_true", help="OpenRouter: exige modelos distilables")
+    ap.add_argument("--dry-run", action="store_true", help="profesor fake local: sin red, sin gasto (para tick.sh --dry-run)")
     ap.add_argument("--selftest", action="store_true")
     args = ap.parse_args(argv)
 
     if args.selftest:
         _selftest()
         print("generate.py selftest OK")
+        return 0
+
+    # Dry-run: profesor fake determinístico, cero red, cero gasto. Permite
+    # ejercitar el flujo completo (generate->curate->eval->gate) sin cuentas.
+    if args.dry_run:
+        budget = Budget(args.budget_usd or 0.01, args.price_in or 0.0, args.price_out or 0.0)
+        examples, stats = generate(
+            args.n, budget, _dry_run_teacher, seed=args.seed, turns=args.turns,
+            max_tokens=args.max_tokens,
+        )
+        with open(args.out, "w", encoding="utf-8") as f:
+            for ex in examples:
+                f.write(json.dumps(ex, ensure_ascii=False) + "\n")
+        print(json.dumps(stats, ensure_ascii=False, indent=2))
+        print(f"[generate --dry-run] {len(examples)} ejemplos FAKE -> {args.out} (sin red, sin gasto)")
         return 0
 
     # Precision: sin techo explícito no se gasta. Nada de default silencioso.
