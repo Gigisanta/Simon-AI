@@ -2,6 +2,7 @@
 
 > Documento de trabajo para la negociación con el Gobierno de la Provincia del Neuquén.
 > Benchmarks y fuentes: ver `docs/research-briefing-gov-2026-07.md` (anexo con comparables citados).
+> Alcance, arquitectura, gates y gaps técnicos: ver [`propuesta-tecnica-2026-07.md`](propuesta-tecnica-2026-07.md), fuente canónica de la oferta técnica.
 > Estado: BORRADOR — cifras de infraestructura a re-verificar al momento de cotizar en contrato.
 
 ## 1. Resumen ejecutivo
@@ -24,9 +25,9 @@ Simón es un acompañante emocional con IA para chicos y adolescentes (6–18) c
 
 **Es**: acompañamiento y bienestar emocional, psicoeducación, detección temprana de señales de crisis con escalación a humanos, y puente con los recursos reales de la provincia (directorio georreferenciado "Cerca tuyo", guías de trámites, fichas revisables por profesionales).
 
-**No es**: terapia, diagnóstico ni tratamiento. Este posicionamiento es deliberado: (a) mantiene a Simón fuera del régimen de producto médico de ANMAT (Disp. 64/2025); (b) evita el camino que quebró a los jugadores más validados del mundo (Woebot: 14 RCTs, US$124M quemados persiguiendo una vía regulatoria que no existe para LLMs); (c) es lo que exige la dirección regulatoria global (Illinois, Nevada, California SB-243, EU AI Act).
+**No es**: terapia, diagnóstico ni tratamiento. Este posicionamiento reduce el riesgo de encuadre como producto médico, pero no lo resuelve por declaración: alcance, claims, flujos y evidencia deben ser revisados por asesoría argentina antes del piloto. Simón se limita a acompañamiento, orientación y derivación humana.
 
-**Compliance nativo argentino**: consentimiento por tramos etarios (CCyCN art. 26, autonomía progresiva; tutores <13, asistido 13–16), datos sensibles bajo Ley 25.326 (consentimiento expreso, minimización, cifrado, TTL de retención con purga diaria automática), visibilidad del tutor como *alertas — no transcripciones*, y mapeo explícito a los marcos del propio Estado: Disp. JGM 2/2023 "IA Fiable", guía AAIP de IA responsable y guía CIPPEC de IA para el sector público. Compatible además con Ley 26.657 (Salud Mental): régimen *rights-based*, presunción de capacidad, atención por equipos interdisciplinarios — Simón se posiciona como apoyo al sistema (triage, psicoeducación, puente a recursos), nunca como sustituto que diagnostica o trata de forma autónoma; ese límite es lo que evita la colisión con la ley.
+**Diseño de cumplimiento argentino propuesto**: consentimiento y autonomía progresiva sujetos a revisión legal, datos sensibles bajo Ley 25.326, minimización, cifrado, retención limitada, visibilidad del tutor como *alertas — no transcripciones* y evaluación de impacto. Los gaps técnicos previos al piloto están declarados en la propuesta técnica canónica; no se afirma cumplimiento completo antes de cerrarlos y obtener validación jurídica. Compatible además con Ley 26.657 (Salud Mental): régimen *rights-based*, presunción de capacidad, atención por equipos interdisciplinarios — Simón se posiciona como apoyo al sistema (triage, psicoeducación, puente a recursos), nunca como sustituto que diagnostica o trata de forma autónoma; ese límite es lo que evita la colisión con la ley.
 
 **Seguridad por construcción** (arquitectura tipo Wysa/NHS, no tipo Character.AI): capa de crisis determinística sin LLM (~35ms, plantillas exactas con 135 / 0800-345-1435 / 102 / 137 / 911), doble moderación de todo lo que entra y sale del modelo, fail-closed (si algo falla, la respuesta segura sale igual), alertas de crisis al tutor, y gate de tests determinístico de 35+ suites que corre antes de cada deploy.
 
@@ -51,8 +52,8 @@ Supuestos declarados (conservadores — ver riesgo #4 en §6):
 
 - ~25 turnos (intercambio usuario↔Simón) por usuario activo mensual (uso moderado, no diario intensivo).
 - Contexto por turno acotado por el presupuesto de tokens (ADR-7): ~1.400 tokens de entrada "frescos" (resumen + últimos mensajes) + ~2.500 tokens de system prompt/persona/fichas con cache-hit (estable entre turnos) + ~220 tokens de salida.
-- +15% de overhead por la cascada de guardrails (ADR-2 — regex y OpenAI Moderation son gratis; solo escala a un check LLM en una minoría de turnos) y por tareas del modelo chico (`AI_SMALL_MODEL`: título de conversación, extracción de memoria).
-- Arquitectura ya vigente en producción (ADR-1/2/3/4/7, ver `docs/adr-rearquitectura-2026-07.md`): router de proveedores con fallback, cascada de guardrails, purga diaria por TTL — no son compromisos a futuro.
+- +15% de overhead provisional por cascada de guardrails y tareas auxiliares (`AI_SMALL_MODEL`: título, memoria). La mezcla real entre regex, moderación externa y chequeo LLM debe medirse; no se presupone una API de moderación gratuita ni configurada.
+- Arquitectura base vigente (ADR-1/2/3/4/7, ver `docs/adr-rearquitectura-2026-07.md`): router capaz de fallbacks, cascada de guardrails y purga por TTL. Un segundo proveedor realmente configurado/probado y los gaps declarados en la propuesta técnica siguen siendo prerequisitos del piloto institucional.
 
 | Servicio | 10k MAU | 50k MAU | 100k MAU | Supuesto / fuente |
 |---|---|---|---|---|
@@ -66,25 +67,25 @@ Supuestos declarados (conservadores — ver riesgo #4 en §6):
 
 El margen decrece con la escala (previsible: los tokens LLM son el costo variable dominante) pero se mantiene sano en los tres escenarios, incluso con el 15% de buffer ya cargado en el supuesto de tokens.
 
-**ROI para la provincia**: costo por interacción de IA USD 0,50–2 vs USD 8–15 de atención humana equivalente de primer contacto; cada triage temprano descomprime un sistema con lista de espera. (Wysa-NHS reporta ~£105 y 97 minutos clínicos ahorrados por triage.)
+**Hipótesis de ROI para validar en piloto**: costo unitario, derivaciones efectivas, tiempo profesional evitado y costo total por menor activo. Los comparables internacionales sirven para diseñar la medición, no para prometer ahorro local ni equivalencia con atención humana.
 
-### 4.2 Laboratorio de IA: USD 10.000 (única vez) — capex de soberanía
+### 4.2 Laboratorio de IA: USD 10.000 (única vez) — capex de capacidad
 
-**Qué se compromete honestamente**: NO es "entrenar un LLM propio desde cero" — es un **laboratorio de evaluación y modelos de seguridad en español**, el primer activo de este tipo del país:
+**Qué se compromete honestamente**: NO es "entrenar un LLM propio desde cero". Es un **laboratorio de evaluación y modelos de seguridad en español rioplatense**, con entregables y gates detallados en `docs/propuesta-tecnica-2026-07.md`:
 
-1. **Suite de evaluación de riesgo suicida en español** (adaptación de VERA-MH, el estándar abierto internacional): hoy no existe en español en ningún lado. Publicable — diferenciación instantánea frente a cualquier producto importado.
-2. **Clasificadores propios en español rioplatense** (detección de crisis, ruteo, filtros): modelos chicos, entrenables con QLoRA por decenas de dólares por corrida, que además **reducen el gasto mensual de LLM** (el lab se paga parcialmente solo).
-3. **Dataset argentino revisado por clínicos** (partnership con psicólogos locales / UNCo): el recurso genuinamente escaso a nivel mundial no son las GPUs — son datos de counseling en español validados profesionalmente.
-4. Workstation local (GPU 24GB) para iteración diaria e inferencia privada sobre datos sensibles en territorio argentino — aranceles de componentes al 0% desde 2025 y energía barata hacen viable el fierro local.
+1. **Suite de evaluación de conversaciones de riesgo en español**: adaptación documentada de benchmarks abiertos como VERA-MH, más fixtures argentinos revisados profesionalmente. Se entrega con licencias, procedencia y baseline; no se promete exclusividad ni primacía nacional sin una búsqueda independiente.
+2. **Clasificadores propios en español rioplatense** (`maat-guard`): detección/ruteo de crisis y abuso, evaluados en shadow mode antes de participar en decisiones productivas. El ahorro de LLM es una hipótesis a medir, no ingreso comprometido.
+3. **Dataset sintético y revisado por profesionales**: los datos reales de menores quedan excluidos hasta contar con consentimiento de entrenamiento separado, finalidad, revocación y supresión verificables. La vinculación clínica/UNCo es una dependencia a contratar, no un hecho consumado.
+4. **Cómputo reproducible y bajo demanda**: spot cloud con cap de gasto para entrenamiento; CPU/GPU existente para harness, cuantización y evaluación. Comprar workstation se decide solamente después de medir utilización y TCO.
 
-**Narrativa**: modelo argentino, datos argentinos, cómputo argentino. Para un gobierno con ambición nacional, es un activo político-estratégico, no un gasto.
+**Narrativa defendible**: capacidad argentina para evaluar y controlar seguridad en español, con activos transferibles y menor dependencia de un proveedor. La familia generativa Maat permanece como I+D condicionada a gates; no forma parte del compromiso de USD 10.000.
 
 ### 4.3 Estructura contractual sugerida
 
 - Fee SaaS flat mensual (no per cápita) + tier per cápita/por escuela opcional al escalar.
-- Contrato multi-año con descuento (norma en NHS/distritos EEUU).
+- Contrato inicial por piloto con opción de continuidad; plazo y descuento se definen después de medir operación y resultados.
 - Lab itemizado por separado como inversión de capacidad (así separan licencia de implementación los deals de referencia).
-- Cláusula de evaluación de resultados: piloto con medición independiente (UNCo/ministerio) — Simón genera la evidencia argentina que hoy no existe en el mundo para esta población.
+- Cláusula de evaluación de resultados: piloto con medición independiente por una institución contratada (por ejemplo UNCo/ministerio), orientado a generar evidencia local sin anticipar conclusiones.
 
 ## 5. Roadmap comprometido (alto nivel)
 
@@ -98,6 +99,6 @@ El margen decrece con la escala (previsible: los tokens LLM son el costo variabl
 ## 6. Riesgos declarados (transparencia ante el comprador)
 
 1. La evidencia mundial de eficacia de chatbots generativos **en adolescentes** es aún débil — por eso Simón no claimea eficacia clínica: claimea acompañamiento seguro + plan de generación de evidencia local.
-2. Ningún regulador del mundo autorizó todavía un dispositivo LLM de salud mental — por eso el posicionamiento bienestar/acompañamiento.
+2. La clasificación regulatoria de sistemas LLM orientados a bienestar/salud evoluciona; el contrato no debe afirmar aprobación, exención ni equivalencia clínica sin dictamen actualizado.
 3. Benchmarks de contratos gov LatAm son opacos; los comparables citados son proxies US/UK (declarado en el anexo).
 4. Cifras de infraestructura (§4.1.1: Vercel/Neon/Upstash/Resend/LLM) son estimaciones a partir de pricing público vigente a jul-2026 y de supuestos de uso declarados (25 turnos/MAU/mes) — no de tráfico real medido. Re-verificar contra telemetría de producción antes de fijar en contrato multi-año.

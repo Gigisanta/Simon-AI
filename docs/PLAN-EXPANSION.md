@@ -1,6 +1,6 @@
 # Simón AI — Plan de expansión (4 features de alto impacto social)
 
-> Fecha: 2026-07-09 · Estado: **PROPUESTA** (aún no implementada)
+> Fecha: 2026-07-09 · Estado: **PROPUESTA HISTÓRICA, IMPLEMENTADA EN 4 FASES** (`23ccd5f`, `32eb14d`, `851924d`, `da6046d`). Usar [`propuesta-tecnica-2026-07.md`](propuesta-tecnica-2026-07.md) para alcance institucional y gaps vigentes.
 > Basado en: [ARCHITECTURE.md](ARCHITECTURE.md), [research-safety.md](research-safety.md), [research-guardian.md](research-guardian.md)
 > Contexto regional (investigado 2026-07): el Servicio de Salud Mental del Hospital Provincial de Neuquén **no toma nuevos pacientes ambulatorios desde ~10 meses** por falta de personal; Río Negro está desbordado (257 psicólogos / 65 psiquiatras para toda la provincia). Las apps para adolescentes son casi todas extranjeras (Woebot cerró, Wysa, Character.AI). **No existe en Neuquén/Río Negro un producto tutor-first, con eje discapacidad y seguridad multicapa como Simón.**
 
