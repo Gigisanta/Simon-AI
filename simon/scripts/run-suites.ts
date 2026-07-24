@@ -59,6 +59,7 @@ const SUITES = [
   "site-lock",
   "provider-health-shared",
   "health",
+  "redteam",
 ] as const;
 
 const here = dirname(fileURLToPath(import.meta.url));
