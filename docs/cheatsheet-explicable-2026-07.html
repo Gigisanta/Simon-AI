@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>Simón · Cheatsheet ANIDE + Neuquén — v3</title>
+<style>
+:root{--cream:#f8f3e8;--paper:#fefcf5;--ink:#393529;--muted:#6d6958;--line:#ddd6c6;--sage:#5a7f61;--sage-d:#405d47;--sage-soft:#d9eede;--terra:#a85a28;--peach:#fbe7d8;--sky:#c2e0f2;--blue:#2b3e4c;--red:#a5322b;--red-soft:#f8dfdc;--shadow:0 20px 60px -38px rgba(57,53,41,.45);--sans:ui-rounded,"SF Pro Rounded","Nunito",system-ui,sans-serif;--serif:ui-serif,Georgia,"Times New Roman",serif;--mono:ui-monospace,"SF Mono",Menlo,monospace}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(140deg,#f5efdf,var(--cream));color:var(--ink);font-family:var(--sans);font-size:14.5px;line-height:1.5}button{font:inherit}
+.toolbar{position:sticky;top:0;z-index:10;display:flex;justify-content:space-between;align-items:center;padding:10px 18px;background:rgba(57,53,41,.94);color:white;backdrop-filter:blur(12px)}.toolbar strong{font-family:var(--serif);font-size:17px}.actions{display:flex;gap:7px}.actions button{border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.08);color:white;border-radius:999px;padding:7px 11px;cursor:pointer}.actions button:hover{background:rgba(255,255,255,.16)}
+main{padding:24px}.sheet{width:min(1120px,100%);margin:0 auto 26px;background:var(--paper);border:1px solid var(--line);border-radius:24px;box-shadow:var(--shadow);padding:32px;position:relative;overflow:hidden}.sheet::after{content:"";position:absolute;width:260px;height:260px;border-radius:50%;right:-110px;top:-120px;background:radial-gradient(circle,var(--sage-soft),transparent 70%);pointer-events:none}
+.head{display:grid;grid-template-columns:1fr auto;gap:20px;border-bottom:2px solid var(--ink);padding-bottom:16px;margin-bottom:20px;position:relative;z-index:1}.head h1{font:700 32px/.96 var(--serif);letter-spacing:-.035em;margin:0 0 7px}.head p{margin:0;color:var(--muted);max-width:640px}.date{text-align:right;font:700 11px/1.5 var(--mono);text-transform:uppercase;letter-spacing:.08em}
+.badge{display:inline-flex;padding:5px 9px;border-radius:999px;background:var(--peach);color:var(--terra);font:700 10px var(--mono);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px}
+.grid{display:grid;grid-template-columns:repeat(12,1fr);gap:16px;position:relative;z-index:1}
+.box{border:1px solid var(--line);border-radius:18px;padding:20px;background:white;break-inside:avoid}.box.green{background:var(--sage-d);color:white;border-color:transparent}.box.blue{background:var(--blue);color:white;border-color:transparent}.box.warn{background:var(--red-soft);border-color:#e8bbb6}.box.soft{background:#faf7ee}
+.span4{grid-column:span 4}.span5{grid-column:span 5}.span6{grid-column:span 6}.span7{grid-column:span 7}.span8{grid-column:span 8}.span12{grid-column:1/-1}
+h2{font:700 20px/1.1 var(--serif);margin:0 0 10px}h3{font-size:14px;margin:0 0 7px}
+.k{font:700 9px/1 var(--mono);text-transform:uppercase;letter-spacing:.12em;color:var(--terra);margin-bottom:10px}.green .k,.blue .k{color:var(--sky)}
+p{margin:8px 0}.big{font:700 24px/1.2 var(--serif);letter-spacing:-.015em}.small{font-size:12px;color:var(--muted)}.green .small,.blue .small{color:rgba(255,255,255,.7)}
+ul{padding-left:20px;margin:8px 0}li{margin:6px 0}
+.ticks{list-style:none;padding:0}.ticks li{padding-left:22px;position:relative}.ticks li::before{content:"✓";position:absolute;left:0;color:var(--sage);font-weight:800}.green .ticks li::before,.blue .ticks li::before{color:var(--sky)}
+.no{list-style:none;padding:0}.no li{padding-left:22px;position:relative}.no li::before{content:"×";position:absolute;left:0;color:var(--red);font-weight:900}
+.quote{font:700 20px/1.35 var(--serif);border-left:4px solid var(--terra);padding-left:16px;margin:12px 0}
+.q{padding:12px 0;border-bottom:1px dashed var(--line)}.q:last-child{border:0}.q strong{display:block;margin-bottom:4px;font-size:15px}.answer{color:var(--muted);font-size:13.5px}
+.flow{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.flow div{padding:12px;border-radius:12px;background:var(--sage-soft);text-align:center;font:700 11px var(--mono)}
+.analogy{background:var(--sage-soft);border-radius:14px;padding:16px;margin:12px 0}.analogy p{margin:0;font-style:italic}
+.checkbox{display:inline-block;width:14px;height:14px;border:1.5px solid var(--muted);border-radius:3px;margin-right:8px;vertical-align:-2px}
+.foot{display:flex;justify-content:space-between;align-items:center;margin-top:16px;padding-top:14px;border-top:1px solid var(--line);font:700 9px var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.matrix{width:100%;border-collapse:separate;border-spacing:0;font-size:13px;margin:12px 0}.matrix th,.matrix td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}.matrix th{font:700 10px var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--terra);background:#faf7ee}.matrix td:first-child{font-weight:700}.matrix tr:last-child td{border-bottom:0}
+.scenario{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0}.scenario div{padding:10px;border-radius:10px;background:#faf7ee}.scenario .fail{background:var(--red-soft)}
+@media print{@page{size:A4 portrait;margin:8mm}body{background:white;font-size:9.5px;line-height:1.3}.toolbar{display:none}main{padding:0}.sheet{width:100%;margin:0;border:0;border-radius:0;box-shadow:none;padding:8mm;page-break-after:always;overflow:hidden}.sheet:last-child{page-break-after:auto}.head{padding-bottom:10px;margin-bottom:10px}.head h1{font-size:22px}.badge{padding:3px 6px;margin-bottom:6px}.grid{gap:8px}.box{padding:10px;border-radius:10px}h2{font-size:13px;margin-bottom:5px}h3{font-size:10px}.k{font-size:7px;margin-bottom:5px}.big{font-size:15px}.small{font-size:8px}p{margin:4px 0}li{margin:2px 0}.q{padding:6px 0}.quote{font-size:13px}.flow div{font-size:7px;padding:6px}.foot{margin-top:8px;padding-top:7px;font-size:7px}.sheet::after{display:none}.matrix{font-size:8px}.matrix th,.matrix td{padding:4px 5px}}
+</style>
+</head>
+<body>
+<div class="toolbar"><strong>Simón · cheatsheet ANIDE + Neuquén · v3</strong><div class="actions"><button onclick="window.print()">Imprimir / PDF</button></div></div>
+<main>
+
+<!-- ==================== HOJA 1: LA IDEA ==================== -->
+<article class="sheet">
+<header class="head"><div><span class="badge">Hoja 1 de 5 · la idea</span><h1>Qué es Simón</h1><p>Idea dominante: la seguridad no depende de la IA. La IA genera texto; el código decide qué llega al menor.</p></div><div class="date">24.07.2026<br>ANIDE + Neuquén</div></header>
+<div class="grid">
+<section class="box green span7"><div class="k">Apertura — leer en voz alta (30 segundos)</div><p class="big">"Simón es un acompañante digital para chicos y adolescentes. No es un terapeuta. Es una app donde un menor puede hablar de cómo se siente, recibir orientación y encontrar recursos reales. La seguridad no es un feature que agregamos después: es la arquitectura."</p><p class="small">Si solo recordás una frase: <strong>"La IA propone, el código decide."</strong></p></section>
+<section class="box span5"><div class="k">El problema real en Neuquén</div><ul class="ticks"><li><strong>86 suicidios</strong> en 2023.</li><li><strong>&lt;2 psiquiatras</strong> cada 100.000 habitantes.</li><li>1 de cada 8 jóvenes ya habla de salud mental con <strong>Character.AI sin protecciones</strong>.</li><li>La alternativa a Simón no es "nada": es un chatbot sin filtros.</li></ul></section>
+
+<section class="box blue span12"><div class="k">Cómo funciona — la analogía del edificio</div><p>Imaginate un edificio con tres pisos. Cada piso tiene una función clara y <strong>no depende del de arriba para estar seguro</strong>:</p><div class="flow"><div><strong>Piso 3: La conversación</strong><br><span class="small">El menor escribe. Una IA genera una respuesta.</span></div><div><strong>Piso 2: El filtro</strong><br><span class="small">Reglas fijas revisan la respuesta. Si hay riesgo, la reemplazan.</span></div><div><strong>Piso 1: La base de datos</strong><br><span class="small">Todo se guarda con reglas de retención. Nada "por si acaso".</span></div><div><strong>Planta baja: El tutor</strong><br><span class="small">Sin consentimiento del tutor, no hay chat.</span></div></div><p class="small">Si el Piso 3 falla, el Piso 2 sigue. <strong>La seguridad no depende de la IA.</strong></p></section>
+
+<section class="box span6"><div class="k">"Determinístico" — explicado fácil</div><p><strong>Determinístico = una regla fija, escrita por humanos, que siempre hace lo mismo.</strong></p><p>Si un menor escribe "me quiero morir", no le pedimos a la IA que decida qué decir. Le mostramos una plantilla exacta, escrita por profesionales, con teléfonos reales verificados.</p><div class="analogy"><p><strong>Analogía:</strong> es como un extintor. No le pedís al extintor que "decida" si hay fuego. Lo usás cuando hay fuego.</p></div></section>
+<section class="box span6"><div class="k">"Fail-closed" — explicado fácil</div><p><strong>Fail-closed = si algo falla, se cierra, no se abre.</strong></p><p>Si el sistema de moderación no puede concluir si un mensaje es seguro, no se muestra. No es "mejor mostrar algo que nada".</p><div class="analogy"><p><strong>Analogía:</strong> es como una puerta con cerradura eléctrica. Si se corta la luz, la puerta se queda cerrada.</p></div></section>
+
+<section class="box span12"><div class="k">Datos mínimos — qué guardamos y qué NO</div><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px"><div><strong>Identidad</strong><p class="small">Email del tutor, año de nacimiento (no fecha completa), vínculo, consentimiento. <em>Retención: vida de cuenta.</em></p></div><div><strong>Conversación</strong><p class="small">Mensajes y resumen. <em>Default 365 días, configurable.</em></p></div><div><strong>Safety + telemetría</strong><p class="small">Categoría, capa, IDs, latencia, tokens, modelo y ruta. Nunca texto. <em>730 / 180 días.</em></p></div><div><strong>Lo que NO guardamos</strong><p class="small">No dirección, no escuela, no fotos, no geolocalización, no biométricos.</p></div></div></section>
+</div>
+<footer class="foot"><span>Hoja 1 · la idea</span><span>Simón · uso interno</span></footer>
+</article>
+
+<!-- ==================== HOJA 2: SEGURIDAD + TESTS ==================== -->
+<article class="sheet">
+<header class="head"><div><span class="badge">Hoja 2 de 5 · seguridad</span><h1>Cómo funciona la seguridad</h1><p>Idea dominante: defensa en capas. Nunca una sola capa decide. Backup de números incluido.</p></div><div class="date">24.07.2026<br>ANIDE + Neuquén</div></header>
+<div class="grid">
+<section class="box span12"><div class="k">Pipeline de seguridad — cada mensaje pasa por esto</div><div class="flow"><div><strong>1 · Sesión +<br>consentimiento</strong><br><span class="small">Sin tutor autorizado, no hay chat</span></div><div><strong>2 · Crisis<br>precheck</strong><br><span class="small">Regex + fixtures, sin LLM</span></div><div><strong>3 · Moderación<br>entrada</strong><br><span class="small">Filtro antes de la IA</span></div><div><strong>4 · Generación<br>+ timeout</strong><br><span class="small">La IA propone</span></div></div><div class="flow" style="margin-top:10px"><div><strong>5 · Moderación<br>salida</strong><br><span class="small">Filtro sobre lo generado</span></div><div><strong>6 · Precedencia<br>determinística</strong><br><span class="small">Código decide cuál se entrega</span></div><div><strong>7 · Persistencia<br>atómica</strong><br><span class="small">Mensaje + evento juntos</span></div><div><strong>8 · Alerta al<br>tutor</strong><br><span class="small">Outbox con retry</span></div></div></section>
+
+<section class="box span6"><div class="k">Cobertura de tests — backup para los números</div><p><strong>37 suites · 1198 casos · 72/72 baseline crítico</strong></p><p class="small">Desglose:</p><ul class="ticks"><li><strong>~60% unitarios:</strong> funciones puras de seguridad (regex, precedencia, context builder).</li><li><strong>~30% integración:</strong> pipeline completo de chat, auth, persistencia, alertas.</li><li><strong>~10% E2E:</strong> flujos reales de usuario (registro → consentimiento → chat → alerta).</li><li><strong>Crisis suite:</strong> 72 fixtures T1–T7 (suicidio, autolesión, abuso, alimentario, bullying, sustancias, grooming) con variaciones: directas, indirectas, eufemismos, emojis, role-play, faltas.</li><li><strong>Adversarial:</strong> prompt injection, jailbreak, bypass por idioma, encoding tricks.</li></ul><p class="small"><strong>Qué NO está testeado todavía:</strong> calibración FPR/FNR por edad/dialecto, tests de carga 100+ simultáneos, cobertura dialectal completa. Son P1 del piloto.</p></section>
+
+<section class="box span6"><div class="k">Resiliencia — qué pasa cuando algo falla</div>
+<div class="scenario"><div class="fail"><strong>Si cae el proveedor de IA</strong><p class="small">Timeout + fallback a segundo proveedor. Las crisis siguen funcionando. Si ambos fallan: chat libre se pausa, plantillas activas.</p></div><div><strong>Si cae Neon (base de datos)</strong><p class="small">Error 503. No hay escritura parcial. PITR permite restaurar.</p></div></div>
+<div class="scenario"><div><strong>Si cae Vercel</strong><p class="small">App no disponible. Datos seguros en Neon.</p></div><div><strong>Si falla el email al tutor</strong><p class="small">Outbox: evento pendiente con reintento. Reconciliación diaria.</p></div></div>
+<p class="small"><strong>Principio:</strong> degradar funcionalidad, nunca seguridad.</p>
+</section>
+
+<section class="box green span12"><div class="k">Los 7 gates — qué falta antes de datos reales</div><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px"><div style="padding:10px;background:rgba(255,255,255,.15);border-radius:10px"><strong>1. Consentimiento separado</strong><p class="small">Producto ≠ entrenamiento.</p></div><div style="padding:10px;background:rgba(255,255,255,.15);border-radius:10px"><strong>2. Rate limit compartido</strong><p class="small">Sin fallback memory en prod.</p></div><div style="padding:10px;background:rgba(255,255,255,.15);border-radius:10px"><strong>3. Alertas no perdidas</strong><p class="small">Outbox + retry + dedupe.</p></div><div style="padding:10px;background:rgba(255,255,255,.15);border-radius:10px"><strong>4. TTL del mood</strong><p class="small">Finalidad y retención.</p></div><div style="padding:10px;background:rgba(255,255,255,.15);border-radius:10px"><strong>5. Proveedor aprobado</strong><p class="small">SLA, no-training, fallback.</p></div><div style="padding:10px;background:rgba(255,255,255,.15);border-radius:10px"><strong>6. Restore drill</strong><p class="small">Recuperación probada.</p></div><div style="padding:10px;background:rgba(255,255,255,.15);border-radius:10px"><strong>7. Canal tutor</strong><p class="small">Dominio/remitente verificado.</p></div><div style="padding:10px;background:rgba(255,50,50,.25);border-radius:10px"><strong>NO-GO</strong><p class="small">Si uno queda abierto, no hay cohorte real.</p></div></div></section>
+</div>
+<footer class="foot"><span>Hoja 2 · seguridad</span><span>Simón · uso interno</span></footer>
+</article>
+
+<!-- ==================== HOJA 3: EL LABORATORIO ==================== -->
+<article class="sheet">
+<header class="head"><div><span class="badge">Hoja 3 de 5 · laboratorio</span><h1>El laboratorio — por qué construimos nuestro modelo</h1><p>Idea dominante: soberanía, offline, innovación. Nicho vacío verificado a nivel mundial.</p></div><div class="date">ANIDE + Neuquén<br>24.07.2026</div></header>
+<div class="grid">
+<section class="box blue span12"><div class="k">La idea central — por qué hacerlo</div><p class="big">"No existe en el mundo un modelo español-first sub-1B, ni un dataset conversacional rioplatense, ni un eval de seguridad infantil en español, ni un laboratorio argentino de LLM propio. Los cuatro huecos son oportunidades de ser primeros — y publicables."</p><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:16px"><div><strong>Soberanía</strong><p class="small">Datos de menores argentinos procesados por modelo propio auditable.</p></div><div><strong>Continuidad</strong><p class="small">OpenCode Go es un gateway sin SLA — indefendible como proveedor estatal.</p></div><div><strong>Offline</strong><p class="small">Conectividad argentina real: modelo en dispositivo en escuela rural sin señal.</p></div><div><strong>Innovación</strong><p class="small">Nicho vacío verificado. Ser primeros es diferenciación y publicable.</p></div></div><p class="small" style="margin-top:10px">La razón <strong>NO es ahorro</strong>: DeepSeek cuesta ~USD 7/mes. La razón es soberanía, control de guardrails y funcionamiento offline.</p></section>
+
+<section class="box span12"><div class="k">La familia Maat — escalera de desriesgo</div>
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+<div style="padding:14px;background:#faf7ee;border-radius:14px"><strong>maat-nano</strong><p class="small">~150M · Browser WASM puro, Android 2–3GB. ~150–200MB RAM. Fallback universal offline.</p></div>
+<div style="padding:14px;background:#faf7ee;border-radius:14px"><strong>maat-micro</strong><p class="small">~250M · Candidato principal on-device. ~250–350MB RAM. Check-ins, psicoeducación.</p></div>
+<div style="padding:14px;background:#faf7ee;border-radius:14px"><strong>maat-mini</strong><p class="small">~400M · Mayor calidad on-device. ~400–550MB RAM. Conversación empática.</p></div>
+<div style="padding:14px;background:var(--blue);color:white;border-radius:14px"><strong style="color:var(--sky)">maat-1b</strong><p class="small" style="color:rgba(255,255,255,.7)">Solo si los menores no alcanzan. Server-side.</p></div>
+</div>
+<p class="small" style="margin-top:10px"><strong>Escalera:</strong> cada etapa entrega valor por sí sola. El proveedor comercial queda siempre como fallback. Si una etapa falla, se conserva lo logrado.</p></section>
+
+<section class="box span7"><div class="k">Gates del laboratorio — E0 a E5</div>
+<div class="flow" style="grid-template-columns:repeat(6,1fr)"><div><strong>E0</strong><br>Harness</div><div style="background:var(--sage-d);color:white"><strong>E1</strong><br>maat-guard</div><div><strong>E2</strong><br>Destilado</div><div><strong>E3</strong><br>Pretraining</div><div><strong>E4</strong><br>On-device</div><div style="background:var(--sage-d);color:white"><strong>E5</strong><br>Prod</div></div>
+<ul class="ticks" style="margin-top:12px"><li><strong>E0:</strong> determinismo, datasets versionados, crisis 100%, evaluator ≠ writer.</li><li><strong>E1:</strong> recall crítico ≥ baseline, FPR presupuestado, calibración por edad/dialecto.</li><li><strong>E2:</strong> seguridad sin regresión, calidad/latencia/RAM alcanzan target.</li><li><strong>E3:</strong> solo si E2 demuestra techo del modelo base.</li><li><strong>E4:</strong> matriz real de dispositivos, descarga, memoria, tok/s, batería.</li><li><strong>E5:</strong> canary, kill switch, fallback contratado, revisión humana.</li></ul>
+<p class="small"><strong>Regla binaria:</strong> costo o velocidad nunca compensan una regresión de seguridad.</p></section>
+
+<section class="box span5"><div class="k">Entregables del lab (incluso si el modelo falla)</div><ul class="ticks"><li>Harness reproducible de evaluación.</li><li>Taxonomía de riesgo T1–T7 documentada.</li><li>Corpus de evaluación infantil en español rioplatense.</li><li>Dataset sintético/revisado con procedencia y licencias.</li><li>Clasificador <code>maat-guard</code> con model card y dataset card.</li><li>Runbooks de promoción, rollback e incidentes.</li></ul>
+<p class="small"><strong>Costo:</strong> USD 10.000 lab + USD 1.000 herramientas (Claude Code, ChatGPT Codex) = USD 11.000 (única vez). Compute: ~USD 2.000–4.700/año (H100 spot). El clasificador de riesgo es el entregable de mayor valor y menor riesgo.</p></section>
+</div>
+<footer class="foot"><span>Hoja 3 · laboratorio</span><span>Simón · uso interno</span></footer>
+</article>
+
+<!-- ==================== HOJA 4: PREGUNTAS DIFÍCILES ==================== -->
+<article class="sheet">
+<header class="head"><div><span class="badge">Hoja 4 de 5 · preguntas difíciles</span><h1>Preguntas que pueden hacernos</h1><p>Cada respuesta está pensada para ser dicha en voz alta, en 2–3 oraciones. Backup extendido si insisten.</p></div><div class="date">ANIDE + Neuquén<br>24.07.2026</div></header>
+<div class="grid">
+<section class="box span6"><div class="k">IA y seguridad</div>
+<div class="q"><strong>"¿La IA puede decir algo dañino?"</strong><span class="answer">Puede generar texto imperfecto, pero nunca llega al menor sin pasar por un filtro de reglas. Si el filtro detecta riesgo, reemplaza la respuesta con una plantilla escrita por profesionales. La IA propone, el código decide.</span></div>
+<div class="q"><strong>"¿Qué pasa si la IA no detecta una crisis?"</strong><span class="answer">Tenemos una capa de reglas fijas que busca patrones de crisis antes de que la IA genere nada. Si detecta algo, la respuesta es automática y no pasa por la IA. Como un detector de humo.</span></div>
+<div class="q"><strong>"¿Por qué no ChatGPT directamente?"</strong><span class="answer">ChatGPT no fue diseñado para menores. No tiene consentimiento parental, no tiene filtros de crisis específicos, y guarda datos para entrenar. Simón usa IA con reglas de seguridad propias y control total.</span></div>
+<div class="q"><strong>"¿La IA 'aprende' de los chicos?"</strong><span class="answer">No. Los datos de menores no se usan para entrenar. La IA es un servicio externo: procesa y olvida. Hay consentimiento separado para entrenamiento, y hoy está prohibido.</span></div>
+</section>
+<section class="box span6"><div class="k">Datos y privacidad</div>
+<div class="q"><strong>"¿Qué datos guardan?"</strong><span class="answer">Lo mínimo: email del tutor, año de nacimiento (no fecha completa), la conversación con retención configurable. No dirección, no escuela, no fotos. Todo se borra según calendario.</span></div>
+<div class="q"><strong>"¿El tutor lee las conversaciones?"</strong><span class="answer">No. Recibe alertas si hay riesgo y un resumen semanal de temas. No transcripciones. Protegemos al menor sin convertir la app en vigilancia.</span></div>
+<div class="q"><strong>"¿Dónde están los datos?"</strong><span class="answer">Servidores de EEUU (Vercel y Neon). Cumplimos Ley 25.326: cifrado, contratos con cada proveedor, consentimiento informado. Si exigen residencia en Argentina, es una decisión de costo.</span></div>
+<div class="q"><strong>"¿Qué pasa si hay una brecha?"</strong><span class="answer">Plan de incidentes documentado. Datos cifrados, acceso nominativo, logs sin texto. Como guardamos poco, el impacto es limitado.</span></div>
+</section>
+
+<section class="box span6"><div class="k">Negocio y operación</div>
+<div class="q"><strong>"¿USD 3.000/mes? ¿No es caro?"</strong><span class="answer">Hosting, soporte, seguridad, contenido y evolución. Benchmarks: USD 3,50–12/estudiante/año en EEUU. Simón a USD 36.000/año para toda la provincia es el piso del rango.</span></div>
+<div class="q"><strong>"¿Qué pasa si desaparece la empresa?"</strong><span class="answer">Código estándar (Next.js, Postgres), no tecnología propietaria. Contrato con cláusulas de continuidad y escrow de código.</span></div>
+<div class="q"><strong>"¿Reemplaza psicólogos?"</strong><span class="answer">No. No diagnostica, no prescribe, no reemplaza. Es acompañamiento y derivación. La provincia tiene &lt;2 psiquiatras cada 100k. Simón llega donde no hay.</span></div>
+<div class="q"><strong>"¿Por qué no hacerlo internamente?"</strong><span class="answer">Mantener una plataforma de IA para menores requiere especialización en seguridad infantil, IA y cumplimiento normativo. Simón ya existe y está en producción.</span></div>
+</section>
+<section class="box span6"><div class="k">Técnicas</div>
+<div class="q"><strong>"¿Por qué monolito?"</strong><span class="answer">Más simple de operar, auditar y asegurar. Para un piloto con una jurisdicción, no necesitamos la complejidad de microservicios. Si crecemos, evaluamos separar — solo cuando una métrica lo justifique.</span></div>
+<div class="q"><strong>"¿Qué pasa si cae el proveedor de IA?"</strong><span class="answer">Fallback a otro proveedor. Si ambos fallan, chat se pausa pero plantillas de crisis siguen activas. La seguridad nunca depende de un solo proveedor.</span></div>
+<div class="q"><strong>"¿Por qué construir su propio modelo?"</strong><span class="answer">No es ahorro (DeepSeek cuesta USD 7/mes). Es soberanía de datos de menores, funcionamiento offline en escuelas rurales, y un nicho vacío verificado: no existe ningún modelo español-first sub-1B en el mundo.</span></div>
+<div class="q"><strong>"¿Tienen backup?"</strong><span class="answer">PITR + backups de config en Git. No afirmamos RPO/RTO hasta hacer un restore drill real. Eso es uno de los 7 gates.</span></div>
+</section>
+
+<section class="box span6"><div class="k">Amenazas — para arquitectos de seguridad</div>
+<div class="q"><strong>"¿OWASP LLM Top 10?"</strong><span class="answer">Controles mapeados: LLM01 (prompt injection) → precedencia + moderación. LLM02 (data leakage) → minimización + logs sin texto. LLM06 (excessive agency) → sin herramientas con efectos laterales.</span></div>
+<div class="q"><strong>"¿SBOM y supply chain?"</strong><span class="answer">Lockfile (pnpm-lock.yaml) + dependencias auditadas. SBOM genera en build. Model ID y hashes verificados. Kill switch por proveedor/modelo.</span></div>
+<div class="q"><strong>"¿Gestión de secretos?"</strong><span class="answer">Vercel env vars con acceso nominativo. No en Git. Rotación/revocación documentada. Escaneo de repositorio.</span></div>
+<div class="q"><strong>"¿Secreto de prompts?"</strong><span class="answer">System prompt en código, versionado en Git, no en el cliente. Rotación por deploy.</span></div>
+</section>
+
+<section class="box span6"><div class="k">Proveedores — matriz comparativa</div>
+<table class="matrix">
+<tr><th>Criterio</th><th>OpenAI</th><th>Anthropic</th><th>Azure</th><th>DeepSeek</th></tr>
+<tr><td>DPA / no-training</td><td>✓</td><td>✓</td><td>✓</td><td>✗</td></tr>
+<tr><td>Retención</td><td>30d</td><td>30d</td><td>0d</td><td>?</td></tr>
+<tr><td>SLA</td><td>99,9%</td><td>99,9%</td><td>99,99%</td><td>Sin SLA</td></tr>
+<tr><td>Región</td><td>US/EU</td><td>US/EU</td><td>Seleccionable</td><td>US</td></tr>
+<tr><td>Incident response</td><td>✓</td><td>✓</td><td>✓</td><td>✗</td></tr>
+<tr><td>Costo</td><td>Alto</td><td>Alto</td><td>Alto</td><td>Bajo</td></tr>
+</table>
+<p class="small"><strong>Decisión:</strong> se elige en la mesa según SLA, residencia y costo. Se cambia con 2 variables de entorno.</p></section>
+</div>
+<footer class="foot"><span>Hoja 4 · preguntas difíciles</span><span>Simón · uso interno</span></footer>
+</article>
+
+<!-- ==================== HOJA 5: NARRATIVA Y CIERRE ==================== -->
+<article class="sheet">
+<header class="head"><div><span class="badge">Hoja 5 de 5 · narrativa</span><h1>Cómo contarlo — guía de exposición</h1><p>Orden sugerido, frases listas, qué evitar, y decisiones que necesitamos de ellos.</p></div><div class="date">Salir con:<br>Owner técnico · Fecha workshop</div></header>
+<div class="grid">
+<section class="box green span7"><div class="k">Apertura — leer en voz alta</div><p class="quote">"Simón es un acompañante digital para chicos y adolescentes. No es un terapeuta. La seguridad no es un feature que agregamos: es la arquitectura. Además, estamos construyendo un laboratorio propio de modelos en español — no existe nada igual en el mundo. Hoy les vamos a mostrar cómo funciona, qué falta cerrar, y qué decisiones necesitamos tomar juntos."</p></section>
+<section class="box span5"><div class="k">Orden de la reunión</div><ol style="padding-left:20px;margin:0"><li><strong>Resumen ejecutivo</strong> (2 min)</li><li><strong>Demo en vivo</strong> (5 min)</li><li><strong>Presentación técnica</strong> (15 min)</li><li><strong>Cheatsheet</strong> — backup para preguntas</li><li><strong>Decisiones</strong> (10 min)</li><li><strong>Cierre</strong> (3 min) — workshop de 90 min</li></ol></section>
+
+<section class="box span6"><div class="k">Frases que sí funcionan</div><ul class="ticks"><li>"La IA propone, el código decide."</li><li>"Fail-closed: si no sabemos si es seguro, no se muestra."</li><li>"No guardamos datos 'por si acaso'."</li><li>"El tutor recibe alertas, no transcripciones."</li><li>"La alternativa no es 'nada': es Character.AI sin protecciones."</li><li>"No existe un modelo español-first sub-1B en el mundo."</li><li>"Cada etapa del lab entrega valor por sí sola."</li></ul></section>
+<section class="box warn span6"><div class="k">Frases que NO hay que decir</div><ul class="no"><li>"Previene suicidios" — no hay evidencia.</li><li>"Es como hablar con un psicólogo" — no lo es.</li><li>"La IA aprende de los chicos" — no se usa para entrenar.</li><li>"Es 100% seguro" — nada lo es; genera liability.</li><li>"Podemos tenerlo listo en 2 semanas" — los 7 gates toman tiempo.</li><li>"El costo es fijo para siempre" — depende del uso.</li></ul></section>
+
+<section class="box blue span12"><div class="k">Decisiones que necesitamos de ellos</div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px"><div><strong>1. Datos</strong><p class="small">¿Responsable de datos? ¿Retención aprobada? ¿Residencia EEUU o Argentina?</p></div><div><strong>2. Cohorte</strong><p class="small">¿Cuántos usuarios? ¿Qué edades? ¿Qué territorio? ¿Qué recursos locales?</p></div><div><strong>3. Operación</strong><p class="small">¿Owner técnico? ¿Quién firma los gates? ¿Cuándo el workshop de 90 min?</p></div></div></section>
+
+<section class="box soft span8"><div class="k">Cierre — leer en voz alta</div><p class="quote">"Si acordamos quién es el responsable de datos, qué proveedores aprobamos, y cuándo hacemos el workshop técnico, convertimos los siete gates en un backlog con owner y fecha. Sin ese acuerdo, no proponemos habilitar datos reales. La seguridad no se negocia."</p></section>
+<section class="box span4"><div class="k">Salir con esto</div><p><span class="checkbox"></span>Arquitecto/owner técnico</p><p><span class="checkbox"></span>Responsable de datos</p><p><span class="checkbox"></span>Owner de safety</p><p><span class="checkbox"></span>Fecha de workshop</p></section>
+
+<section class="box soft span12"><div class="k">Notas de la reunión</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:20px"><div><strong>Restricciones / integraciones:</strong><div style="border-bottom:1px solid var(--line);height:28px"></div><div style="border-bottom:1px solid var(--line);height:28px"></div></div><div><strong>Decisiones / owners / fechas:</strong><div style="border-bottom:1px solid var(--line);height:28px"></div><div style="border-bottom:1px solid var(--line);height:28px"></div></div></div></section>
+</div>
+<footer class="foot"><span>Hoja 5 · narrativa y cierre</span><span>Simón · uso interno</span></footer>
+</article>
+
+</main>
+</body>
+</html>

@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Simón · Quick ref</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,system-ui,sans-serif;background:#1a1a1a;color:#fff;padding:16px;-webkit-font-smoothing:antialiased}
+.card{background:#222;border-radius:16px;padding:20px;margin-bottom:14px;border-left:4px solid #5a7f61}
+.card.warn{border-left-color:#e74c3c}
+.card.blue{border-left-color:#3498db}
+.card.gold{border-left-color:#f1c40f}
+h1{font-size:28px;margin-bottom:6px}
+h2{font-size:22px;color:#5a7f61;margin-bottom:12px}
+h3{font-size:18px;color:#ccc;margin-bottom:8px}
+.tag{display:inline-block;background:#5a7f61;color:#fff;font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em}
+.tag.red{background:#c0392b}
+.tag.blue{background:#2980b9}
+.tag.gold{background:#d4a017;color:#1a1a1a}
+.big{font-size:20px;line-height:1.35;font-weight:700;margin:10px 0}
+.quote{font-size:18px;line-height:1.4;font-style:italic;border-left:3px solid #5a7f61;padding-left:14px;margin:10px 0;color:#ddd}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:8px 0}
+.cell{background:#2a2a2a;border-radius:10px;padding:12px}
+.cell strong{display:block;font-size:24px;color:#5a7f61}
+.cell span{font-size:13px;color:#999}
+.q{padding:10px 0;border-bottom:1px solid #333}
+.q:last-child{border:0}
+.q strong{display:block;font-size:15px;color:#fff;margin-bottom:4px}
+.q p{font-size:14px;color:#aaa;line-height:1.4}
+.ok{color:#5a7f61;font-weight:700}
+.no{color:#e74c3c;font-weight:700}
+li{margin:6px 0;font-size:15px;line-height:1.4}
+ul{padding-left:20px}
+.foot{text-align:center;color:#555;font-size:12px;margin-top:20px;padding-top:14px;border-top:1px solid #333}
+@media(max-width:500px){.row{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<h1>Simón · Quick Ref</h1>
+<p style="color:#999;margin-bottom:20px">Mirá esto antes de hablar. Son las 5 ideas + las preguntas trampa.</p>
+
+<div class="card">
+<div class="tag">Apertura</div>
+<div class="quote">"Simón es un acompañante digital para chicos y adolescentes. No es un terapeuta. La seguridad no es un feature que agregamos: es la arquitectura. Además, estamos construyendo un laboratorio propio de modelos en español — no existe nada igual en el mundo."</div>
+</div>
+
+<div class="card blue">
+<div class="tag blue">La frase clave</div>
+<div class="big">"La IA propone, el código decide."</div>
+<p style="color:#aaa;font-size:14px">Repetila cada vez que alguien pregunte por seguridad.</p>
+</div>
+
+<div class="card">
+<div class="tag">5 ideas</div>
+<ol style="padding-left:20px">
+<li><strong>Seguridad = código, no IA.</strong> Crisis son plantillas fijas. Fail-closed.</li>
+<li><strong>La alternativa es Character.AI sin filtros.</strong> 86 suicidios Neuquén 2023. &lt;2 psiquiatras/100k.</li>
+<li><strong>El lab es central.</strong> No existe modelo español-first sub-1B. Soberanía + offline + innovación.</li>
+<li><strong>Guardamos lo mínimo.</strong> Email tutor + año nacimiento + consentimiento. Nada más.</li>
+<li><strong>La deuda es fortaleza.</strong> 7 gates P0. Si uno queda abierto → NO-GO.</li>
+</ol>
+</div>
+
+<div class="card">
+<div class="tag gold">Números</div>
+<div class="row">
+<div class="cell"><strong>37/1198</strong><span>suites / casos</span></div>
+<div class="cell"><strong>72/72</strong><span>baseline crítico</span></div>
+<div class="cell"><strong>7</strong><span>gates P0</span></div>
+<div class="cell"><strong>USD 3k</strong><span>/mes plataforma</span></div>
+<div class="cell"><strong>USD 10k</strong><span>lab (única vez)</span></div>
+<div class="cell"><strong>86</strong><span>suicidios Neuquén '23</span></div>
+<div class="cell"><strong>150M→1B</strong><span>familia Maat</span></div>
+<div class="cell"><strong>≥99,5%</strong><span>disponibilidad SLO</span></div>
+</div>
+</div>
+
+<div class="card">
+<div class="tag">Resiliencia rápida</div>
+<ul>
+<li><strong>Caé IA →</strong> fallback + crisis siguen</li>
+<li><strong>Caé Neon →</strong> 503, PITR restaura</li>
+<li><strong>Caé Vercel →</strong> app muere, datos seguros</li>
+<li><strong>Falla email →</strong> outbox reintenta</li>
+</ul>
+</div>
+
+<div class="card">
+<div class="tag">Preguntas difíciles</div>
+
+<div class="q"><strong>"¿La IA puede decir algo dañino?"</strong>
+<p>→ Nunca llega al menor sin filtro. Si hay riesgo, se reemplaza con plantilla fija.</p></div>
+
+<div class="q"><strong>"¿Por qué no ChatGPT?"</strong>
+<p>→ No fue diseñado para menores. No tiene consentimiento parental ni filtros de crisis.</p></div>
+
+<div class="q"><strong>"¿La IA aprende de los chicos?"</strong>
+<p>→ No. Los datos no se usan para entrenar. Procesa y olvida.</p></div>
+
+<div class="q"><strong>"¿USD 3.000/mes es caro?"</strong>
+<p>→ USD 0,05/neuquino/año. El piso del rango internacional.</p></div>
+
+<div class="q"><strong>"¿Reemplaza psicólogos?"</strong>
+<p>→ No. Acompañamiento y derivación. Llega donde no hay.</p></div>
+
+<div class="q"><strong>"¿Por qué monolito?"</strong>
+<p>→ Más simple de auditar y asegurar. Separar solo si una métrica lo justifica.</p></div>
+
+<div class="q"><strong>"¿Por qué su propio modelo?"</strong>
+<p>→ No es ahorro. Es soberanía + offline + nicho vacío verificado a nivel mundial.</p></div>
+
+<div class="q"><strong>"¿Qué pasa si cae el proveedor?"</strong>
+<p>→ Fallback automático. Crisis no dependen del modelo.</p></div>
+
+<div class="q"><strong>"¿Dónde están los datos?"</strong>
+<p>→ EEUU (Vercel + Neon). Cumplimos Ley 25.326. Si exigen Argentina, es costo.</p></div>
+
+<div class="q"><strong>"¿El tutor lee las conversaciones?"</strong>
+<p>→ No. Alertas si hay riesgo + resumen semanal. Sin transcripciones.</p></div>
+</div>
+
+<div class="card warn">
+<div class="tag red">NO digas</div>
+<ul>
+<li class="no">"Previene suicidios"</li>
+<li class="no">"Es como un psicólogo"</li>
+<li class="no">"La IA aprende de los chicos"</li>
+<li class="no">"Es 100% seguro"</li>
+<li class="no">"Listo en 2 semanas"</li>
+<li class="no">"DeepSeek es nuestro proveedor"</li>
+</ul>
+</div>
+
+<div class="card">
+<div class="tag blue">Decisiones que necesitamos</div>
+<ol style="padding-left:20px">
+<li><strong>Datos:</strong> ¿Responsable? ¿Retención? ¿Residencia?</li>
+<li><strong>Cohorte:</strong> ¿Usuarios? ¿Edades? ¿Territorio?</li>
+<li><strong>Operación:</strong> ¿Owner técnico? ¿Fecha workshop?</li>
+</ol>
+</div>
+
+<div class="card blue">
+<div class="tag blue">Cierre</div>
+<div class="quote">"Si acordamos roles, proveedores y cohorte, convertimos los siete gates en un backlog con owner y fecha. Sin ese acuerdo, no proponemos habilitar datos reales."</div>
+</div>
+
+<div class="card">
+<div class="tag">Salir con</div>
+<ul>
+<li>☐ Arquitecto / owner técnico</li>
+<li>☐ Responsable de datos</li>
+<li>☐ Owner de safety</li>
+<li>☐ Fecha de workshop</li>
+</ul>
+</div>
+
+<div class="foot">Simón · Quick Ref · 24.07.2026</div>
+</body>
+</html>

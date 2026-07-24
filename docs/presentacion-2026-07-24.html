@@ -1,0 +1,460 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>Simón · ANIDE + Gobierno del Neuquén</title>
+<style>
+:root{--cream:#f8f3e8;--paper:#fefcf5;--ink:#393529;--muted:#6d6958;--line:#e3decf;--sage:#5a7f61;--sage-d:#405d47;--sage-soft:#d9eede;--terra:#a85a28;--peach:#fbe7d8;--sky:#c2e0f2;--blue:#2b3e4c;--gold:#d4b038;--magenta:#bb4381;--red:#a5322b;--red-soft:#f8dfdc;--shadow:0 24px 70px -34px rgba(57,53,41,.35);--radius:28px;--sans:ui-rounded,"SF Pro Rounded","Nunito",system-ui,sans-serif;--serif:ui-serif,Georgia,"Times New Roman",serif;--mono:ui-monospace,"SF Mono",Menlo,monospace}
+*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-snap-type:y mandatory}
+body{margin:0;background:var(--cream);color:var(--ink);font-family:var(--sans);overflow-x:hidden}
+.slide{min-height:100svh;scroll-snap-align:start;scroll-snap-stop:always;position:relative;display:grid;align-items:center;padding:clamp(58px,7vw,108px) clamp(26px,8vw,128px);overflow:hidden;isolation:isolate}
+.slide::before{content:"";position:absolute;inset:0;z-index:-3;background:linear-gradient(145deg,rgba(255,255,255,.6),transparent 55%)}
+.grain{position:absolute;inset:0;z-index:-2;opacity:.18;pointer-events:none;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 160 160' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.75' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.12'/%3E%3C/svg%3E")}
+.orb{position:absolute;border-radius:999px;filter:blur(2px);z-index:-1;opacity:.65;animation:drift 16s ease-in-out infinite}
+.o1{width:430px;height:430px;background:radial-gradient(circle,var(--sage-soft),transparent 68%);right:-120px;top:-100px}
+.o2{width:360px;height:360px;background:radial-gradient(circle,var(--peach),transparent 68%);left:-120px;bottom:-110px;animation-delay:-7s}
+@keyframes drift{50%{transform:translate(25px,-18px) scale(1.06)}}
+.inner{width:min(1180px,100%);margin:auto;position:relative}
+.eyebrow{display:flex;align-items:center;gap:10px;text-transform:uppercase;letter-spacing:.16em;font:700 12px/1 var(--mono);color:var(--sage-d);margin:0 0 22px}
+.eyebrow::before{content:"";width:34px;height:2px;background:var(--terra)}
+h1{font:700 clamp(54px,8.2vw,112px)/.92 var(--serif);letter-spacing:-.055em;margin-bottom:28px;max-width:1080px}
+h2{font:700 clamp(40px,5.7vw,76px)/.98 var(--serif);letter-spacing:-.04em;margin-bottom:24px;max-width:980px}
+h3{font-size:20px;line-height:1.1;margin-bottom:10px}
+.lead{font-size:clamp(20px,2.25vw,31px);line-height:1.35;color:var(--muted);max-width:820px}
+.small{font-size:14px;line-height:1.5;color:var(--muted)}
+.accent{color:var(--sage)}.terra{color:var(--terra)}
+.number{font:700 clamp(58px,7vw,94px)/1 var(--serif);letter-spacing:-.06em}
+.caps{font:700 11px/1.3 var(--mono);letter-spacing:.14em;text-transform:uppercase}
+.topline{position:absolute;top:22px;left:28px;right:28px;display:flex;justify-content:space-between;align-items:center;z-index:3;color:var(--muted);font:700 10px var(--mono);letter-spacing:.12em;text-transform:uppercase}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
+.grid4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.card{background:rgba(254,252,245,.84);border:1px solid rgba(227,222,207,.95);border-radius:var(--radius);padding:clamp(20px,2.6vw,34px);box-shadow:var(--shadow);backdrop-filter:blur(10px)}
+.card.soft{box-shadow:none;background:rgba(255,255,255,.45)}
+.card.dark{background:var(--blue);color:white;border-color:transparent}
+.card.green{background:var(--sage-d);color:white;border-color:transparent}
+.card .kicker{font:700 11px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--terra);margin-bottom:14px}
+.dark .kicker,.green .kicker{color:var(--sky)}
+.checklist{list-style:none;padding:0;margin:18px 0 0}.checklist li{position:relative;padding-left:28px;margin:12px 0;line-height:1.35}.checklist li::before{content:"✓";position:absolute;left:0;color:var(--sage);font-weight:800}
+.pills{display:flex;flex-wrap:wrap;gap:9px}
+.pill{padding:8px 12px;border-radius:999px;background:var(--sage-soft);color:var(--sage-d);font:700 11px var(--mono)}
+.hero-meta{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-top:34px}
+.hero-meta .pill{background:rgba(255,255,255,.65);border:1px solid var(--line)}
+.statement{font:700 clamp(32px,4.6vw,60px)/1.05 var(--serif);letter-spacing:-.035em;max-width:950px}
+.rule{width:72px;height:4px;border-radius:4px;background:var(--terra);margin:26px 0}
+.split{display:grid;grid-template-columns:1.06fr .94fr;gap:clamp(28px,5vw,78px);align-items:center}
+.pipeline{display:grid;gap:7px;align-items:stretch;margin-top:30px}
+.step{position:relative;text-align:center;background:white;border:1px solid var(--line);padding:20px 8px;border-radius:18px;font:700 11px/1.3 var(--mono);display:grid;place-items:center;min-height:88px}
+.step.hot{background:var(--sage-d);color:white;border-color:transparent}
+.step::after{content:"→";position:absolute;right:-11px;top:35%;color:var(--muted);z-index:2}.step:last-child::after{display:none}
+.timeline{display:grid;grid-template-columns:repeat(3,1fr);gap:0;margin-top:32px;border-radius:26px;overflow:hidden;border:1px solid var(--line)}
+.phase{padding:30px;background:rgba(255,255,255,.58);min-height:220px;border-right:1px solid var(--line)}
+.phase:last-child{border:0}.phase .week{font:700 11px var(--mono);color:var(--terra);letter-spacing:.12em;text-transform:uppercase}
+.phase h3{font:700 28px var(--serif);margin:13px 0}
+.metric{border-left:3px solid var(--sage);padding-left:15px;margin:18px 0}.metric strong{display:block;font-size:25px;font-family:var(--serif)}
+.price{font:700 clamp(42px,5vw,70px)/1 var(--serif);letter-spacing:-.05em;margin:14px 0}
+.price small{font:600 15px var(--sans);letter-spacing:0;color:var(--muted)}
+.cta{background:var(--sage-d);color:white}
+.cta::before{background:radial-gradient(circle at 75% 20%,rgba(194,224,242,.22),transparent 36%),radial-gradient(circle at 10% 90%,rgba(226,169,131,.18),transparent 34%),var(--sage-d)}
+.cta .eyebrow{color:var(--sky)}.cta .lead{color:rgba(255,255,255,.75)}
+.cta .card{background:rgba(255,255,255,.09);border-color:rgba(255,255,255,.18);box-shadow:none;color:white}
+.controls{position:fixed;right:18px;bottom:18px;z-index:20;display:flex;align-items:center;gap:6px;background:rgba(57,53,41,.88);color:white;padding:7px;border-radius:999px;backdrop-filter:blur(12px)}
+.controls button{width:38px;height:38px;border:0;border-radius:50%;background:transparent;color:white;cursor:pointer}
+.controls button:hover{background:rgba(255,255,255,.13)}
+.counter{font:700 10px var(--mono);min-width:42px;text-align:center}
+.progress{position:fixed;top:0;left:0;height:3px;background:var(--terra);z-index:50;width:0;transition:width .25s ease}
+.hint{position:fixed;left:18px;bottom:20px;z-index:15;color:var(--muted);font:700 10px var(--mono);letter-spacing:.08em;text-transform:uppercase}
+@media(max-width:850px){.slide{padding:74px 22px 90px}.grid3,.grid4{grid-template-columns:1fr 1fr}.grid2,.split{grid-template-columns:1fr}.pipeline{grid-template-columns:1fr 1fr}.step::after{display:none}.timeline{grid-template-columns:1fr}.phase{border-right:0;border-bottom:1px solid var(--line);min-height:auto}}
+@media print{@page{size:13.333in 7.5in;margin:0}.controls,.progress,.hint{display:none!important}html,body{scroll-snap-type:none;background:white}.slide{break-after:page;page-break-after:always;width:100vw;height:100vh;min-height:0;padding:7vh 7vw;overflow:hidden}.orb,.grain{display:none}.card{box-shadow:none}}
+</style>
+</head>
+<body>
+<div class="progress" id="progress"></div>
+<main class="deck" id="deck">
+
+<!-- S1: TITLE -->
+<section class="slide" id="s1">
+<div class="grain"></div><div class="orb o1"></div><div class="orb o2"></div>
+<div class="topline"><div>Simón</div><div>Revisión técnica · ANIDE + Gobierno del Neuquén</div></div>
+<div class="inner">
+<p class="eyebrow">24 de julio de 2026 · Arquitectura, seguridad y laboratorio propio</p>
+<h1>Operación provincial <span class="accent">segura.</span><br>Arquitectura <span class="terra">verificable.</span><br><span style="font-size:.65em;color:var(--sage-d)">Laboratorio propio.</span></h1>
+<p class="lead">Acompañante digital para menores con seguridad determinística, datos mínimos y un laboratorio propio de modelos en español rioplatense.</p>
+<div class="hero-meta">
+<span class="pill">Monolito modular</span>
+<span class="pill">Safety determinístico</span>
+<span class="pill">Postgres como fuente de verdad</span>
+<span class="pill">Modelo propio Maat</span>
+<span class="pill">Proveedor sustituible</span>
+</div>
+</div>
+</section>
+
+<!-- S2: THE PROBLEM -->
+<section class="slide" id="s2">
+<div class="grain"></div><div class="orb o2"></div>
+<div class="topline"><div>02 · El problema</div><div>La alternativa no es "nada"</div></div>
+<div class="inner">
+<p class="eyebrow">Por qué ahora, por qué Neuquén</p>
+<h2>La alternativa a Simón no es <span class="terra">"nada".</span><br>Es un chatbot sin protecciones.</h2>
+<div class="grid3">
+<div class="card"><div class="kicker">Datos duros</div><div class="number" style="font-size:64px">86</div><p class="small">suicidios en Neuquén en 2023.</p></div>
+<div class="card"><div class="kicker">Brecha</div><div class="number" style="font-size:64px">&lt;2</div><p class="small">psiquiatras cada 100.000 habitantes en la región.</p></div>
+<div class="card dark"><div class="kicker">Realidad</div><h3>1 de cada 8</h3><p class="small">jóvenes ya habla de salud mental con IA no diseñada ni protegida para menores. Character.AI ya tuvo settlements por suicidios adolescentes en EEUU.</p></div>
+</div>
+<div class="card soft" style="margin-top:24px">
+<h3>Lo que queremos evitar</h3>
+<p class="small">Woebot y Wysa no detectaron abuso sexual en menores (2018). Replika fue multada €5M en Italia por exponer menores a contenido sexual. Character.AI enfrentó demandas tras suicidio de un adolescente de 14 años. Cada fallo tiene la misma raíz: sin crisis automática, sin supervisión parental, sin moderación real.</p>
+</div>
+</div>
+</section>
+
+<!-- S3: WHAT IS SIMÓN -->
+<section class="slide" id="s3">
+<div class="grain"></div><div class="orb o1"></div>
+<div class="topline"><div>03 · Qué es Simón</div><div>No es un terapeuta</div></div>
+<div class="inner">
+<p class="eyebrow">La idea central</p>
+<h2>La IA propone.<br><span class="accent">El código decide.</span></h2>
+<div class="rule"></div>
+<p class="lead">Simón es un acompañante digital para chicos y adolescentes de 6 a 18 años. No diagnostica, no prescribe, no reemplaza atención profesional. La seguridad no es un feature que agregamos después: es la arquitectura.</p>
+<div class="grid2" style="margin-top:32px">
+<div class="card">
+<div class="kicker">Diseño</div>
+<ul class="checklist">
+<li>Alta exclusivamente desde cuenta de tutor verificada.</li>
+<li>Consentimiento del tutor previo al chat, revocable.</li>
+<li>Chat en español rioplatense con disclosure de IA.</li>
+<li>Intervención determinística ante crisis y abuso.</li>
+<li>Derivación hacia líneas y recursos reales, versionados.</li>
+<li>Alertas al tutor sin transcripciones.</li>
+<li>Exportación, suspensión y supresión de datos.</li>
+</ul>
+</div>
+<div class="card dark">
+<div class="kicker">Principios</div>
+<ul class="checklist">
+<li>Interés superior del menor: ante conflicto, gana seguridad.</li>
+<li>Tutor-first, no vigilancia-first.</li>
+<li>El LLM no decide la emergencia.</li>
+<li>Minimización: guardar lo mínimo, por tiempo limitado.</li>
+<li>Fallback seguro: degradar funcionalidad, no seguridad.</li>
+<li>Writer ≠ checker: nadie se evalúa a sí mismo.</li>
+<li>Proveedor sustituible: ningún proveedor incrustado.</li>
+<li>Sin infraestructura anticipada: escalar por métrica.</li>
+</ul>
+</div>
+</div>
+</div>
+</section>
+
+<!-- S4: PLATFORM BASELINE -->
+<section class="slide" id="s4">
+<div class="grain"></div><div class="orb o2"></div>
+<div class="topline"><div>04 · Baseline actual</div><div>Implementado ≠ institucionalizado</div></div>
+<div class="inner">
+<p class="eyebrow">Qué existe hoy en código y producción</p>
+<h2>Un núcleo funcional con <span class="accent">evidencia ejecutable.</span></h2>
+<div class="grid4">
+<div class="card"><div class="kicker">Aplicación</div><h3>Next.js 16</h3><p class="small">React 19, Tailwind v4, handlers HTTP y UI en un despliegue.</p></div>
+<div class="card"><div class="kicker">Datos</div><h3>Neon + Prisma 7</h3><p class="small">Auth, tutela, chats, eventos, telemetría, recursos y locks.</p></div>
+<div class="card"><div class="kicker">Identidad</div><h3>better-auth</h3><p class="small">Sesiones y credenciales sobre la base propia.</p></div>
+<div class="card dark"><div class="kicker">Inferencia</div><h3>AI SDK</h3><p class="small">Adaptador OpenAI-compatible y router ordenado de proveedores.</p></div>
+</div>
+<div class="grid3" style="margin-top:24px">
+<div class="card soft">
+<div class="kicker">Suites y casos</div>
+<div class="number" style="font-size:48px">37 / 1198</div>
+<p class="small">37 suites ejecutadas, 1198 casos verdes.</p>
+</div>
+<div class="card soft">
+<div class="kicker">Baseline crítico</div>
+<div class="number" style="font-size:48px">72 / 72</div>
+<p class="small">Baseline crítico actual.</p>
+</div>
+<div class="card soft">
+<div class="kicker">Producción</div>
+<h3>simon.maat.work</h3>
+<p class="small">En producción. DeepSeek V4 Flash vía OpenCode Go como runtime de desarrollo — no como proveedor institucional.</p>
+</div>
+</div>
+<p class="small" style="margin-top:18px"><strong>Desglose de tests:</strong> ~60% unitarios (funciones puras de seguridad), ~30% integración (pipeline completo de chat, auth, alertas), ~10% E2E (flujos reales de usuario). Crisis suite T1–T7 con variaciones directas, indirectas, eufemismos, emojis, role-play. Adversarial: prompt injection, jailbreak, bypass. <strong>Pendiente:</strong> calibración FPR/FNR por edad/dialecto, tests de carga 100+ simultáneos.</p>
+</div>
+</section>
+
+<!-- S5: SAFETY ARCHITECTURE -->
+<section class="slide" id="s5">
+<div class="grain"></div><div class="orb o1"></div>
+<div class="topline"><div>05 · Safety</div><div>Writer ≠ checker</div></div>
+<div class="inner">
+<p class="eyebrow">Defensa multicapa</p>
+<h2>El modelo genera texto. <span class="terra">El código conserva autoridad.</span></h2>
+<div class="pipeline" style="grid-template-columns:repeat(8,1fr)">
+<div class="step">Sesión +<br>consentimiento</div>
+<div class="step">Rate<br>limit</div>
+<div class="step hot">Crisis<br>precheck</div>
+<div class="step">Moderación<br>entrada</div>
+<div class="step">Generación<br>+ timeout</div>
+<div class="step hot">Moderación<br>salida</div>
+<div class="step hot">Precedencia<br>determinística</div>
+<div class="step">Alerta<br>atómica</div>
+</div>
+<div class="grid2" style="margin-top:28px">
+<div class="card soft">
+<h3>Invariantes</h3>
+<ul class="checklist">
+<li>La plantilla crítica nunca pasa por el LLM.</li>
+<li>Una salida no moderada no llega como respuesta normal.</li>
+<li>Un fallo de email no rompe la respuesta al menor.</li>
+<li>Documentos no revisados no entran en contexto.</li>
+</ul>
+</div>
+<div class="card soft">
+<h3>Fail-closed</h3>
+<p class="statement" style="font-size:28px">Si una capa no puede concluir, no se degrada el piso de seguridad.</p>
+<p class="small">Si el proveedor o la moderación fallan, el sistema degrada funcionalidad. No degrada seguridad.</p>
+</div>
+</div>
+</div>
+</section>
+
+<!-- S6: RESILIENCE -->
+<section class="slide" id="s6">
+<div class="grain"></div><div class="orb o2"></div>
+<div class="topline"><div>06 · Resiliencia</div><div>Degradar funcionalidad, nunca seguridad</div></div>
+<div class="inner">
+<p class="eyebrow">Qué pasa cuando algo falla</p>
+<h2>Cada punto de falla tiene <span class="accent">respuesta diseñada.</span></h2>
+<div class="grid2">
+<div class="card">
+<div class="kicker">Proveedor de IA caído</div>
+<h3>Timeout + fallback automático</h3>
+<p class="small">Segundo proveedor configurado y probado. Las crisis siguen funcionando porque no dependen del modelo. Si ambos fallan: chat libre se pausa, plantillas de crisis activas.</p>
+</div>
+<div class="card">
+<div class="kicker">Neon caído</div>
+<h3>Error 503, sin escritura parcial</h3>
+<p class="small">La app devuelve error. No hay escritura parcial posible. PITR permite restaurar a cualquier punto. Backup de config y fichas en Git.</p>
+</div>
+<div class="card">
+<div class="kicker">Vercel con incidencia</div>
+<h3>App no disponible, datos seguros</h3>
+<p class="small">Incidencia regional de hosting. Los datos están en Neon. Sin Vercel no hay app — no hay degradación parcial.</p>
+</div>
+<div class="card dark">
+<div class="kicker">Email al tutor falla</div>
+<h3>Outbox con reintento</h3>
+<p class="small">El evento queda pendiente con reintento automático. Reconciliación diaria de pendientes. Nunca se pierde una alerta de crisis silenciosamente.</p>
+</div>
+</div>
+</div>
+</section>
+
+<!-- S7: TOPOLOGY -->
+<section class="slide" id="s7">
+<div class="grain"></div><div class="orb o1"></div>
+<div class="topline"><div>07 · Topología</div><div>PONYTAIL · escalar por evidencia</div></div>
+<div class="inner">
+<p class="eyebrow">Límites simples y explícitos</p>
+<h2>Escalar por evidencia, <span class="terra">no por anticipación.</span></h2>
+<div class="timeline">
+<div class="phase"><span class="week">Etapa A · piloto</span><h3>Una unidad operativa</h3><p class="small">Vercel + Neon pooled + proveedor primario/fallback + Postgres outbox + selección léxica.</p><span class="pill">baseline primero</span></div>
+<div class="phase"><span class="week">Etapa B · 10k MAU</span><h3>Descargar hotspots</h3><p class="small">Upstash, cola, pgvector o réplica solo si latencia, contención o precisión lo justifican.</p><span class="pill">métrica habilitante</span></div>
+<div class="phase"><span class="week">Etapa C · 100k MAU</span><h3>Multijurisdicción</h3><p class="small">Tenant isolation, cuotas, políticas por contrato, on-call y capacidad por región.</p><span class="pill">ownership + aislamiento</span></div>
+</div>
+<div class="pills" style="justify-content:center;margin-top:24px">
+<span class="pill">Sin microservicios</span>
+<span class="pill">Sin vector DB inicial</span>
+<span class="pill">Sin cola externa inicial</span>
+<span class="pill">Rollback explícito</span>
+</div>
+</div>
+</section>
+
+<!-- S8: DATA -->
+<section class="slide" id="s8">
+<div class="grain"></div><div class="orb o2"></div>
+<div class="topline"><div>08 · Datos</div><div>Minimización · finalidad · TTL</div></div>
+<div class="inner">
+<p class="eyebrow">Modelo de datos y retención</p>
+<h2>Guardar menos también es <span class="accent">arquitectura.</span></h2>
+<div class="grid3">
+<div class="card"><div class="kicker">Cuenta + tutela</div><h3>Identidad mínima</h3><p class="small">Email tutor, año de nacimiento, vínculo y evidencia de consentimiento. Sin fecha completa.</p><span class="pill">vida de cuenta</span></div>
+<div class="card"><div class="kicker">Conversación + memoria</div><h3>Continuidad acotada</h3><p class="small">Mensajes/resumen: 365 días. Memoria sin PII: 90 días.</p><span class="pill">configurable por contrato</span></div>
+<div class="card dark"><div class="kicker">Safety + telemetría</div><h3>Metadatos, no texto</h3><p class="small">Categoría, capa, IDs, latencia, tokens, modelo y ruta.</p><span class="pill">730 / 180 días</span></div>
+</div>
+<div class="grid2" style="margin-top:22px">
+<div class="card soft"><h3>Consentimiento separado</h3><p class="small">Producto y entrenamiento son finalidades distintas. Datos reales excluidos hasta implementar versión, finalidad, revocación y supresión.</p></div>
+<div class="card soft"><h3>Gap explícito</h3><p class="small"><code>MoodEntry</code> todavía no tiene TTL propio; debe cerrarse antes del piloto.</p></div>
+</div>
+</div>
+</section>
+
+<!-- S9: THE LAB — THIS IS THE BIG ONE -->
+<section class="slide" id="s9" style="background:linear-gradient(165deg,var(--blue) 0%,#1a2a38 100%);color:white">
+<div class="grain"></div>
+<div class="topline" style="color:rgba(255,255,255,.5)"><div>09 · Laboratorio Maat</div><div>Soberanía · offline · innovación</div></div>
+<div class="inner">
+<p class="eyebrow" style="color:var(--sky)">La propuesta central</p>
+<h2 style="color:white">No existe en el mundo un modelo español-first<br>sub-1B, ni un eval de seguridad infantil<br>en español. <span style="color:var(--sky)">Seríamos los primeros.</span></h2>
+<div class="grid4" style="margin-top:28px">
+<div class="card" style="background:rgba(255,255,255,.09);border-color:rgba(255,255,255,.18);color:white">
+<div class="kicker" style="color:var(--sky)">Soberanía</div>
+<p class="small" style="color:rgba(255,255,255,.72)">Datos de menores argentinos procesados por modelo propio auditable.</p>
+</div>
+<div class="card" style="background:rgba(255,255,255,.09);border-color:rgba(255,255,255,.18);color:white">
+<div class="kicker" style="color:var(--sky)">Continuidad</div>
+<p class="small" style="color:rgba(255,255,255,.72)">OpenCode Go es un gateway para coding agents sin SLA — indefendible como proveedor de un servicio estatal para menores.</p>
+</div>
+<div class="card" style="background:rgba(255,255,255,.09);border-color:rgba(255,255,255,.18);color:white">
+<div class="kicker" style="color:var(--sky)">Offline / Edge</div>
+<p class="small" style="color:rgba(255,255,255,.72)">Conectividad argentina real: un modelo en el dispositivo funciona en la escuela rural sin señal.</p>
+</div>
+<div class="card" style="background:rgba(255,255,255,.09);border-color:rgba(255,255,255,.18);color:white">
+<div class="kicker" style="color:var(--sky)">Innovación</div>
+<p class="small" style="color:rgba(255,255,255,.72)">Nicho vacío verificado: ni modelo, ni dataset, ni eval, ni lab. Ser primeros es diferenciación y publicable.</p>
+</div>
+</div>
+<p class="small" style="margin-top:20px;color:rgba(255,255,255,.5)">La razón NO es ahorro: DeepSeek cuesta ~USD 7/mes. La razón es soberanía, control de guardrails, funcionamiento offline y salir de una dependencia frágil.</p>
+</div>
+</section>
+
+<!-- S10: THE MAAT FAMILY -->
+<section class="slide" id="s10">
+<div class="grain"></div><div class="orb o1"></div>
+<div class="topline"><div>10 · Familia Maat</div><div>Escalera de desriesgo</div></div>
+<div class="inner">
+<p class="eyebrow">Modelos propios ultra-pequeños</p>
+<h2>Cada modelo entrega valor <span class="accent">por sí solo.</span></h2>
+<div class="grid4">
+<div class="card"><div class="kicker">maat-nano</div><div class="number" style="font-size:42px">~150M</div><p class="small">Browser WASM puro, Android 2–3GB. ~150–200MB RAM. Fallback universal offline.</p></div>
+<div class="card"><div class="kicker">maat-micro</div><div class="number" style="font-size:42px">~250M</div><p class="small">Candidato principal on-device. ~250–350MB RAM. Check-ins, psicoeducación, compañía ligera.</p></div>
+<div class="card"><div class="kicker">maat-mini</div><div class="number" style="font-size:42px">~400M</div><p class="small">Mayor calidad on-device. ~400–550MB RAM. Conversación empática más profunda.</p></div>
+<div class="card dark"><div class="kicker">maat-1b</div><div class="number" style="font-size:42px">1B</div><p class="small">Solo si los modelos menores no alcanzan el umbral. Caso server-side.</p></div>
+</div>
+<div class="card soft" style="margin-top:22px">
+<h3>Escalera de desriesgo</h3>
+<p class="small">Cada etapa entrega valor por sí sola y ninguna apuesta el producto. El proveedor comercial queda siempre como fallback automático. Si una etapa falla, se conserva lo logrado y se detiene la línea generativa. El servicio provincial no depende del experimento.</p>
+</div>
+</div>
+</section>
+
+<!-- S11: LAB GATES -->
+<section class="slide" id="s11">
+<div class="grain"></div><div class="orb o2"></div>
+<div class="topline"><div>11 · Gates del laboratorio</div><div>Go/no-go por etapa</div></div>
+<div class="inner">
+<p class="eyebrow">Cada etapa tiene gate binario</p>
+<h2>Costo o velocidad <span class="terra">nunca compensan</span> una regresión de seguridad.</h2>
+<div class="pipeline" style="grid-template-columns:repeat(6,1fr)">
+<div class="step"><strong>E0</strong><br>Harness</div>
+<div class="step hot"><strong>E1</strong><br>maat-guard</div>
+<div class="step"><strong>E2</strong><br>Destilado</div>
+<div class="step"><strong>E3</strong><br>Pretraining</div>
+<div class="step"><strong>E4</strong><br>On-device</div>
+<div class="step hot"><strong>E5</strong><br>Producción</div>
+</div>
+<div class="grid3" style="margin-top:28px">
+<div class="card"><div class="kicker">E0 · Harness</div><h3>Evaluación reproducible</h3><p class="small">Determinismo, datasets versionados, crisis 100%, evaluator distinto del writer.</p></div>
+<div class="card green"><div class="kicker">E1 · maat-guard</div><h3>Clasificador de riesgo</h3><p class="small">Recall crítico ≥ baseline, FPR presupuestado, calibración por edad/dialecto. El entregable de mayor valor y menor riesgo.</p></div>
+<div class="card"><div class="kicker">E2 · Destilado</div><h3>Solo si E1 pasa</h3><p class="small">Seguridad sin regresión. Target de calidad, latencia y RAM alcanzado.</p></div>
+</div>
+<div class="card soft" style="margin-top:18px">
+<p class="small"><strong>Entregables del lab incluso si el modelo generativo falla:</strong> harness reproducible, taxonomía de riesgo T1–T7, corpus de evaluación infantil en español rioplatense con procedencia y licencias, dataset sintético/revisado, clasificador <code>maat-guard</code> con model card y dataset card, runbooks de promoción y rollback. Todo esto es valor transferible independientemente del modelo.</p>
+</div>
+</div>
+</section>
+
+<!-- S12: SLO + READINESS -->
+<section class="slide" id="s12">
+<div class="grain"></div><div class="orb o2"></div>
+<div class="topline"><div>12 · SLO y readiness</div><div>7 P0 antes de datos reales</div></div>
+<div class="inner">
+<p class="eyebrow">Confiabilidad observable</p>
+<h2>El piloto empieza cuando <span class="terra">cierran estos gates.</span></h2>
+<div class="grid4">
+<div class="card"><div class="kicker">Disponibilidad</div><div class="number" style="font-size:48px">≥99,5%</div><p class="small">núcleo autenticado durante piloto</p></div>
+<div class="card"><div class="kicker">Guardrail salida</div><div class="number" style="font-size:48px">≥99,9%</div><p class="small">respuestas libres concluyentes</p></div>
+<div class="card"><div class="kicker">Alertas críticas</div><div class="number" style="font-size:48px">99% &lt;5m</div><p class="small">reconciliadas en piloto</p></div>
+<div class="card dark"><div class="kicker">Purga</div><div class="number" style="font-size:48px">100%</div><p class="small">ejecución diaria verificada</p></div>
+</div>
+<div class="grid4" style="margin-top:22px">
+<div class="card soft"><div class="kicker">01</div><h3>Training consent</h3><p class="small">Finalidad, versión, revocación y supresión separadas.</p></div>
+<div class="card soft"><div class="kicker">02</div><h3>Rate limit</h3><p class="small">Backend compartido real; sin fallback memory en producción.</p></div>
+<div class="card soft"><div class="kicker">03</div><h3>Alert outbox</h3><p class="small">Callback perdido, retry, dedupe y reconciliación.</p></div>
+<div class="card soft"><div class="kicker">04</div><h3>Mood TTL</h3><p class="small">Finalidad, visibilidad y retención explícitas.</p></div>
+</div>
+<div class="grid4" style="margin-top:8px">
+<div class="card soft"><div class="kicker">05</div><h3>LLM vendor</h3><p class="small">SLA, no-training, retención, incidentes y fallback.</p></div>
+<div class="card soft"><div class="kicker">06</div><h3>Restore drill</h3><p class="small">Recuperación ejercitada y documentada.</p></div>
+<div class="card soft"><div class="kicker">07</div><h3>Canal tutor</h3><p class="small">Dominio/remitente y entrega externa verificadas.</p></div>
+<div class="card" style="background:var(--red-soft);border-color:#e8bbb6"><div class="kicker">NO-GO</div><h3>Sin estos cierres</h3><p class="small">No se habilita una cohorte con datos reales.</p></div>
+</div>
+</div>
+</section>
+
+<!-- S13: THREAT MODEL -->
+<section class="slide" id="s13">
+<div class="grain"></div><div class="orb o1"></div>
+<div class="topline"><div>13 · Amenazas</div><div>Trust boundaries y controles</div></div>
+<div class="inner">
+<p class="eyebrow">Amenazas que diseñan la solución</p>
+<h2>No protegemos "un chat". <span class="terra">Protegemos límites de confianza.</span></h2>
+<div class="grid3">
+<div class="card"><div class="kicker">Entrada hostil</div><h3>Prompt injection / jailbreak</h3><p class="small">Precedencia determinística, contexto revisado, moderación de salida y tests adversariales. OWASP LLM01.</p></div>
+<div class="card"><div class="kicker">Acceso indebido</div><h3>IDOR / tutela</h3><p class="small">Autorización por relación tutor-menor, ownership checks y tests cross-user.</p></div>
+<div class="card"><div class="kicker">Datos</div><h3>PII / exfiltración</h3><p class="small">Redacción, minimización, allowlist, logs sin texto. OWASP LLM02.</p></div>
+<div class="card"><div class="kicker">Operación</div><h3>Alertas perdidas</h3><p class="small">Outbox, idempotencia, dedupe, retry y reconciliación.</p></div>
+<div class="card"><div class="kicker">Contenido</div><h3>Poisoning / vencimiento</h3><p class="small">Provenance, hash, owner, revisión, expiración.</p></div>
+<div class="card dark"><div class="kicker">Supply chain</div><h3>Model swap / dependencia</h3><p class="small">Lockfile, SBOM, model ID, hashes, canary y rollback.</p></div>
+</div>
+</div>
+</section>
+
+<!-- S14: CTA -->
+<section class="slide cta" id="s14">
+<div class="grain"></div>
+<div class="topline"><div>14 · Mesa técnica</div><div>Decisiones para salir con arquitectura acordada</div></div>
+<div class="inner">
+<p class="eyebrow">Lo que necesitamos definir juntos</p>
+<h2>Seis decisiones para convertir la propuesta en <span style="color:var(--sky)">plan ejecutable.</span></h2>
+<div class="grid3">
+<div class="card"><span class="caps">01 · Datos</span><h3 style="margin-top:12px">Roles y finalidades</h3><p class="small" style="color:rgba(255,255,255,.72)">Responsable, encargado, retención y derechos.</p></div>
+<div class="card"><span class="caps">02 · Infra</span><h3 style="margin-top:12px">Región y vendors</h3><p class="small" style="color:rgba(255,255,255,.72)">Vercel, Neon, LLM, email y subprocesadores.</p></div>
+<div class="card"><span class="caps">03 · Cohorte</span><h3 style="margin-top:12px">Carga y límites</h3><p class="small" style="color:rgba(255,255,255,.72)">Usuarios, edades, territorio y canales.</p></div>
+<div class="card"><span class="caps">04 · SRE</span><h3 style="margin-top:12px">SLO e incidentes</h3><p class="small" style="color:rgba(255,255,255,.72)">Severidades, owner, escalamiento y evidencia.</p></div>
+<div class="card"><span class="caps">05 · Safety</span><h3 style="margin-top:12px">Comité y fixtures</h3><p class="small" style="color:rgba(255,255,255,.72)">Quién revisa, firma y acepta cambios.</p></div>
+<div class="card"><span class="caps">06 · Gate</span><h3 style="margin-top:12px">Workshop readiness</h3><p class="small" style="color:rgba(255,255,255,.72)">Backlog P0, responsables y calendario.</p></div>
+</div>
+<div style="margin-top:34px;display:flex;gap:18px;align-items:center;flex-wrap:wrap">
+<span class="pill" style="background:white;color:var(--sage-d)">Próximo paso: workshop técnico de 90 minutos</span>
+<span style="opacity:.72">Arquitectura · datos · safety · laboratorio · operación</span>
+</div>
+</div>
+</section>
+
+</main>
+<div class="hint">← → navegar · F pantalla completa · O imprimir</div>
+<nav class="controls" aria-label="Controles">
+<button id="prev" aria-label="Anterior">←</button>
+<span class="counter" id="counter">1 / 14</span>
+<button id="next" aria-label="Siguiente">→</button>
+<button id="full" aria-label="Pantalla completa">⛶</button>
+<button id="print" aria-label="Imprimir">⌁</button>
+</nav>
+<script>
+(()=>{
+const slides=[...document.querySelectorAll('.slide')],counter=document.getElementById('counter'),bar=document.getElementById('progress');let index=0;
+const clamp=n=>Math.max(0,Math.min(slides.length-1,n));
+const update=i=>{index=clamp(i);counter.textContent=`${index+1} / ${slides.length}`;bar.style.width=`${((index+1)/slides.length)*100}%`;history.replaceState(null,'',`#s${index+1}`)};
+const go=i=>{index=clamp(i);slides[index].scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});update(index)};
+document.getElementById('prev').onclick=()=>go(index-1);document.getElementById('next').onclick=()=>go(index+1);document.getElementById('print').onclick=()=>print();
+document.getElementById('full').onclick=()=>document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen?.();
+addEventListener('keydown',e=>{if(['ArrowRight','ArrowDown','PageDown',' '].includes(e.key)){e.preventDefault();go(index+1)}if(['ArrowLeft','ArrowUp','PageUp'].includes(e.key)){e.preventDefault();go(index-1)}if(e.key==='Home')go(0);if(e.key==='End')go(slides.length-1);if(e.key.toLowerCase()==='f')document.getElementById('full').click();if(e.key.toLowerCase()==='o')print()});
+const obs=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting)update(slides.indexOf(e.target))}),{threshold:.58});slides.forEach(s=>obs.observe(s));
+const hash=location.hash.match(/s(\d+)/);go(hash?+hash[1]-1:0);
+})();
+</script>
+</body>
+</html>
