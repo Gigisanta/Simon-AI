@@ -124,15 +124,21 @@ function tokenizeCards(cards: KnowledgeCard[]): TokenizedCard[] {
   return computed;
 }
 
-/** Selección liviana de fichas relevantes por solapamiento de términos. */
-export function selectRelevantCards(
+/**
+ * Scoring léxico crudo de TODAS las fichas con score > 0, ordenadas de mayor a
+ * menor. Es el núcleo de `selectRelevantCards`, extraído a su propia función
+ * para que el retrieval semántico opcional (lib/ai/retrieval-vector.ts) pueda
+ * MEZCLAR este score con la similaridad coseno sin reimplementar el tokenizador
+ * ni el cache de tokens. `selectRelevantCards` no cambia su comportamiento: es
+ * exactamente `slice(max)` de esta lista.
+ */
+export function scoreRelevantCards(
   cards: KnowledgeCard[],
   query: string,
-  max = 4,
-): KnowledgeCard[] {
+): { card: KnowledgeCard; score: number }[] {
   const queryTokens = new Set(tokenize(query));
   const queryLower = query.toLowerCase();
-  const scored = tokenizeCards(cards)
+  return tokenizeCards(cards)
     .map(({ card, cardTokens, titleTokens, titleLower }) => {
       let score = 0;
       for (const t of cardTokens) if (queryTokens.has(t)) score++;
@@ -146,7 +152,17 @@ export function selectRelevantCards(
     })
     .filter((s) => s.score > 0)
     .sort((a, b) => b.score - a.score);
-  return scored.slice(0, max).map((s) => s.card);
+}
+
+/** Selección liviana de fichas relevantes por solapamiento de términos. */
+export function selectRelevantCards(
+  cards: KnowledgeCard[],
+  query: string,
+  max = 4,
+): KnowledgeCard[] {
+  return scoreRelevantCards(cards, query)
+    .slice(0, max)
+    .map((s) => s.card);
 }
 
 /**
