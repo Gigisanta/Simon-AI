@@ -45,6 +45,7 @@
     "session-limit-suite": "tsx scripts/session-limit-suite.ts",
     "consent-suite": "tsx scripts/consent-suite.ts",
     "single-flight-suite": "tsx scripts/single-flight-suite.ts",
+    "provider-health-shared-suite": "tsx scripts/provider-health-shared-suite.ts",
     "export-training": "tsx scripts/export-training.ts",
     "db:seed": "tsx prisma/seed.ts"
   },

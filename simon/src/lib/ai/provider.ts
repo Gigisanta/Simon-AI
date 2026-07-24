@@ -267,11 +267,19 @@ export function providerUsable(
   return now - unhealthySince >= reprobeMs;
 }
 
-/** Health-tracking en memoria: interfaz inyectable (tests) con default por proceso. */
+/** Health-tracking: interfaz inyectable (tests) con default por proceso. */
 export interface ProviderHealthStore {
   isUsable(name: string, now: number): boolean;
   markUnhealthy(name: string, now: number): void;
   markHealthy(name: string): void;
+  /**
+   * OPCIONAL: sincroniza el estado COMPARTIDO (Upstash) al espejo local antes de
+   * una decisión — UN solo round-trip a Redis (o cero si el espejo está fresco).
+   * El store in-memory NO lo implementa (queda `undefined`): sin este método, el
+   * router se comporta EXACTO como antes (solo espejo por instancia). Nunca
+   * lanza: si Redis está caído, se queda con el espejo local (degradación segura).
+   */
+  refresh?(names: string[], now: number): Promise<void>;
 }
 
 /** Crea un store de health-tracking aislado (default del proceso + tests). */
@@ -292,8 +300,174 @@ export function createProviderHealthStore(
   };
 }
 
-/** Estado de health-tracking del proceso (circuit-breaker real; sin activar hoy). */
-const processProviderHealth = createProviderHealthStore();
+// ---------- Circuit-breaker COMPARTIDO en Upstash Redis (REST) [obj-a] ----------
+//
+// En serverless cada instancia tiene su propio `createProviderHealthStore` en
+// memoria: cuando un proveedor se cae, CADA instancia lo reaprende con su
+// primer fallo (N marcas en vez de una compartida). Este store respalda el
+// mismo circuit-breaker en Upstash para que la marca de "no-sano" sea VISIBLE
+// entre instancias — misma semántica (umbral = 1 fallo, ventana/reprobe =
+// PROVIDER_CIRCUIT_REPROBE_MS), mismo patrón REST que lib/rate-limit.ts (fetch
+// nativo, sin SDK, timeout corto, /pipeline, fallback a memoria).
+//
+// Mapeo a Redis (una clave por proveedor):
+//   - markUnhealthy → SET clave = <since> PX <reprobeMs>: la clave EXPIRA sola
+//     al cumplirse la ventana de reprobe (auto-reprobe, sin sweep). Su mera
+//     existencia = "no-sano dentro de la ventana".
+//   - refresh(names) → un ÚNICO /pipeline de GETs que reconcilia el espejo local
+//     (fuente de las lecturas SYNC `isUsable`). Cacheado unos segundos para no
+//     pegarle a Redis en cada request.
+//   - markHealthy → DEL, pero SOLO si había marca local (transición no-sano→sano):
+//     evita un write por cada request exitosa (el 99% del tráfico).
+//
+// Interfaz SYNC intacta: `isUsable/markUnhealthy/markHealthy` leen/escriben el
+// espejo local al instante; la parte async (compartir con Redis) va por
+// `refresh` (lecturas) y writes best-effort. Así la API pública del router
+// (`resolveProvider`, `ProviderHealthStore`) no cambia de forma.
+
+const UPSTASH_HEALTH_PREFIX = "simon:pcb:"; // provider circuit breaker
+const UPSTASH_HEALTH_TIMEOUT_MS = 2_000;
+/** Frescura del espejo local: dentro de esta ventana, `refresh` NO pega a Redis. */
+export const PROVIDER_HEALTH_CACHE_TTL_MS = 3_000;
+
+/** Comando(s) Upstash REST: valor de `result` por comando, o `null` si falló. */
+type UpstashResult = Array<{ result?: unknown; error?: string }> | null;
+
+export interface UpstashProviderHealthOpts {
+  restUrl: string;
+  restToken: string;
+  reprobeMs?: number;
+  cacheTtlMs?: number;
+  timeoutMs?: number;
+  /** `fetch` inyectable (tests con fake fetch). Default el global. */
+  fetchImpl?: typeof fetch;
+  /** Logger inyectable (tests). Ya viene deduplicado ("log once"). */
+  onError?: (msg: string, err?: unknown) => void;
+}
+
+/**
+ * Store del circuit-breaker respaldado en Upstash REST, con espejo local y
+ * fallback a memoria. Función pura respecto de la red: toda la I/O pasa por
+ * `fetchImpl`, así la suite la testea con fake fetch (Upstash OK / caído /
+ * carreras entre instancias) sin red ni timers reales.
+ */
+export function createUpstashProviderHealthStore(
+  opts: UpstashProviderHealthOpts,
+): ProviderHealthStore {
+  const reprobeMs = opts.reprobeMs ?? PROVIDER_CIRCUIT_REPROBE_MS;
+  const cacheTtlMs = opts.cacheTtlMs ?? PROVIDER_HEALTH_CACHE_TTL_MS;
+  const timeoutMs = opts.timeoutMs ?? UPSTASH_HEALTH_TIMEOUT_MS;
+  const fetchImpl = opts.fetchImpl ?? fetch;
+  const base = opts.restUrl.replace(/\/$/, "");
+
+  // "Log once": un incidente de Redis no debe inundar los logs (se degrada a
+  // memoria en silencio tras el primer aviso accionable).
+  let errorLogged = false;
+  const report = (msg: string, err?: unknown) => {
+    if (errorLogged) return;
+    errorLogged = true;
+    (opts.onError ?? ((m, e) => console.error(m, e instanceof Error ? e.message : (e ?? ""))))(msg, err);
+  };
+
+  // Espejo local: fuente de verdad de las lecturas SYNC entre refresh y refresh.
+  const unhealthySince = new Map<string, number>();
+  let lastRefresh = Number.NEGATIVE_INFINITY;
+  const keyFor = (name: string) => `${UPSTASH_HEALTH_PREFIX}${name}`;
+
+  async function pipeline(commands: unknown[][]): Promise<UpstashResult> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetchImpl(`${base}/pipeline`, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${opts.restToken}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(commands),
+        signal: controller.signal,
+      });
+      if (!res.ok) {
+        report(`[provider-health] Upstash respondió ${res.status}; degradando a espejo local`);
+        return null;
+      }
+      return (await res.json()) as UpstashResult;
+    } catch (err) {
+      report("[provider-health] fallo de red/timeout contra Upstash; degradando a espejo local", err);
+      return null;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  return {
+    isUsable(name, now) {
+      return providerUsable(unhealthySince.get(name) ?? null, now, reprobeMs);
+    },
+    markUnhealthy(name, now) {
+      unhealthySince.set(name, now);
+      // Best-effort: propagar a Redis con TTL = ventana de reprobe (auto-reprobe).
+      // Fire-and-forget para no meter latencia en el camino de fallo; si no
+      // llega, otra instancia lo reaprende con su primer fallo (= hoy).
+      void pipeline([["SET", keyFor(name), String(now), "PX", String(reprobeMs)]]);
+    },
+    markHealthy(name) {
+      const had = unhealthySince.delete(name);
+      // Solo un DEL cuando hubo transición real no-sano→sano (no en cada éxito).
+      if (had) void pipeline([["DEL", keyFor(name)]]);
+    },
+    async refresh(names, now) {
+      if (names.length === 0) return;
+      // Cache en memoria: dentro de la ventana, un solo espejo sirve todas las
+      // requests sin pegarle a Redis (≤1 round-trip por decisión).
+      if (now - lastRefresh < cacheTtlMs) return;
+      lastRefresh = now;
+      const data = await pipeline(names.map((n) => ["GET", keyFor(n)]));
+      if (data === null) return; // Redis caído: seguimos con el espejo local.
+      names.forEach((n, i) => {
+        const raw = data[i]?.result;
+        const since =
+          typeof raw === "string" ? Number(raw) : typeof raw === "number" ? raw : null;
+        if (since !== null && Number.isFinite(since)) {
+          // Estado compartido: otra instancia lo marcó no-sano.
+          unhealthySince.set(n, since);
+        } else {
+          // `null` en Redis = sano (expiró o lo limpiaron). No pisamos una marca
+          // local MÁS NUEVA que este refresh (carrera con un markUnhealthy que
+          // ocurrió durante el await): esa marca todavía no llegó al GET.
+          const local = unhealthySince.get(n);
+          if (local === undefined || local <= now) unhealthySince.delete(n);
+        }
+      });
+    },
+  };
+}
+
+/**
+ * Store del proceso (circuit-breaker real, ACTIVO): Upstash-compartido si hay
+ * `UPSTASH_REDIS_REST_URL`+`TOKEN`, si no in-memory por instancia (idéntico al
+ * comportamiento previo). Lazy + un solo log de aviso en el modo no-compartido.
+ */
+let processProviderHealth: ProviderHealthStore | undefined;
+let loggedNoUpstash = false;
+function getProcessProviderHealth(): ProviderHealthStore {
+  if (processProviderHealth) return processProviderHealth;
+  const restUrl = process.env.UPSTASH_REDIS_REST_URL;
+  const restToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (restUrl && restToken) {
+    processProviderHealth = createUpstashProviderHealthStore({ restUrl, restToken });
+  } else {
+    if (!loggedNoUpstash) {
+      loggedNoUpstash = true;
+      console.error(
+        "[provider-health] sin UPSTASH_REDIS_REST_URL/TOKEN: circuit-breaker de " +
+          "proveedores en memoria por instancia (no compartido entre instancias serverless)",
+      );
+    }
+    processProviderHealth = createProviderHealthStore();
+  }
+  return processProviderHealth;
+}
 
 // ---------- Resolución + retry + fallback ----------
 
@@ -355,11 +529,16 @@ export async function resolveProvider<T>(
 ): Promise<T> {
   const now = opts.now ?? Date.now();
   const env = opts.env ?? process.env;
-  const health = opts.healthStore ?? processProviderHealth;
+  const health = opts.healthStore ?? getProcessProviderHealth();
   const providers = parseProviderList(env);
   if (providers.length === 0) {
     throw new Error("[ai] resolveProvider: no hay proveedores configurados");
   }
+
+  // Estado COMPARTIDO: si el store lo soporta (Upstash), traer las marcas de
+  // otras instancias antes de decidir — UN round-trip (o cero si el espejo está
+  // fresco). `refresh` nunca lanza; ausente en el store in-memory (sin cambio).
+  if (health.refresh) await health.refresh(providers.map((p) => p.name), now);
 
   const usable = providers.filter((p) => health.isUsable(p.name, now));
   const tryOrder = usable.length > 0 ? usable : providers;
