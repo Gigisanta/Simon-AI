@@ -1,0 +1,17 @@
+{
+  "id": "memory-recall",
+  "memories": ["Le encanta el fútbol y es hincha de Boca Juniors."],
+  "turns": [
+    { "role": "user", "text": "che simón, ¿te acordás de qué hablamos la última vez?" },
+    {
+      "role": "assistant",
+      "text": "Sí, me acuerdo que sos re hincha de Boca y que te encanta el fútbol. ¿Jugaste esta semana o viste algún partido?"
+    }
+  ],
+  "checks": [
+    { "name": "memory-used", "weight": 2, "params": { "tokens": ["boca", "fútbol"] } },
+    { "name": "memory-not-recited", "weight": 1 },
+    { "name": "voseo", "weight": 1 },
+    { "name": "length", "weight": 1 }
+  ]
+}
