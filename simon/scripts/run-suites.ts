@@ -62,6 +62,7 @@ const SUITES = [
   "redteam",
   "retrieval-vector",
   "metrics",
+  "chaos",
 ] as const;
 
 const here = dirname(fileURLToPath(import.meta.url));

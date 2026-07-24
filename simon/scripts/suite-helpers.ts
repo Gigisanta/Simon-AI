@@ -27,6 +27,20 @@ export type Checker = {
   done: () => void;
 };
 
+/**
+ * Simula el shape de APICallError del SDK `ai` (statusCode + name). Compartido
+ * por retry-suite, provider-router-suite y chaos-suite — una sola fuente para
+ * no repetir el mismo fake en cada suite que necesita un "error HTTP" de proveedor.
+ */
+export function apiError(statusCode: number, message = "API error"): Error {
+  return Object.assign(new Error(message), { name: "APICallError", statusCode });
+}
+
+/** Simula un error de red de Node/undici (code, opcional cause). */
+export function netError(code: string, message = "network"): Error {
+  return Object.assign(new Error(message), { code });
+}
+
 export function createChecker(suiteName: string): Checker {
   let passed = 0;
   const failures: string[] = [];
