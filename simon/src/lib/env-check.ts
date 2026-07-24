@@ -20,6 +20,7 @@ export interface ProdEnvSnapshot {
   UPSTASH_REDIS_REST_URL?: string;
   UPSTASH_REDIS_REST_TOKEN?: string;
   AI_API_KEY?: string;
+  SITE_LOCK_KEY?: string;
   /** "production" | "preview" | "development" en Vercel; undefined self-hosted. */
   VERCEL_ENV?: string;
 }
@@ -88,6 +89,15 @@ export function evaluateProdEnv(env: ProdEnvSnapshot): ProdEnvReport {
         "sin configurar. Configurá el proveedor de IA para habilitar el chat.",
     );
   }
+  if (!env.SITE_LOCK_KEY) {
+    // No es hard-fail porque el proxy ya es fail-closed sin la clave (503 a
+    // todo): la app queda SEGURA aunque inaccesible; se advierte fuerte.
+    warnings.push(
+      "[env] SITE_LOCK_KEY no configurada — el candado de sitio queda " +
+        "FAIL-CLOSED: el proxy responde 503 a todo el tráfico en producción " +
+        "hasta configurarla (src/lib/site-lock.ts).",
+    );
+  }
   return { missing, warnings };
 }
 
@@ -116,6 +126,7 @@ export function assertProdEnv(): void {
     UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL,
     UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN,
     AI_API_KEY: process.env.AI_API_KEY,
+    SITE_LOCK_KEY: process.env.SITE_LOCK_KEY,
     VERCEL_ENV: process.env.VERCEL_ENV,
   });
   if (missing.length > 0) {

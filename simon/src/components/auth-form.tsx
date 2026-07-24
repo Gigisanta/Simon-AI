@@ -46,6 +46,10 @@ const inputClass =
   "min-h-11 rounded-2xl border border-line bg-card px-4 text-base text-ink outline-none placeholder:text-ink-soft focus:border-brand";
 
 export function AuthForm() {
+  // Registro OCULTO (no eliminado): con el flag activo no se ofrece el modo
+  // "signup" (y el proxy bloquea además el endpoint con 403, server-side).
+  // Next inlinea NEXT_PUBLIC_* en el bundle del cliente en build.
+  const signupHidden = process.env.NEXT_PUBLIC_SIGNUP_DISABLED === "1";
   const [audience, setAudience] = useState<Audience>("adult");
   const [mode, setMode] = useState<Mode>("signin");
   const [name, setName] = useState("");
@@ -271,13 +275,14 @@ export function AuthForm() {
         </button>
       )}
 
-      {audience === "adult" && (
+      {audience === "adult" && (!signupHidden || mode === "forgot") && (
         <button
           type="button"
           onClick={() => {
             // Desde "olvidé mi contraseña" se vuelve a iniciar sesión; en el
-            // resto se alterna signin↔signup como siempre.
-            setMode(mode === "signin" ? "signup" : "signin");
+            // resto se alterna signin↔signup como siempre (salvo registro
+            // oculto por flag: solo queda "volver a iniciar sesión").
+            setMode(mode === "signin" && !signupHidden ? "signup" : "signin");
             setError(null);
             setNotice(null);
           }}

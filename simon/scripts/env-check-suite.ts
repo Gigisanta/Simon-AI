@@ -26,6 +26,7 @@ const full: ProdEnvSnapshot = {
   UPSTASH_REDIS_REST_URL: "https://u.upstash.io",
   UPSTASH_REDIS_REST_TOKEN: "tok",
   AI_API_KEY: "ai_xxx",
+  SITE_LOCK_KEY: "clave-candado",
 };
 
 function has(list: string[], needle: string): boolean {
@@ -68,6 +69,12 @@ function has(list: string[], needle: string): boolean {
   check(r2.missing.length === 0, "warn: falta RESEND NO es hard-fail");
   check(has(r2.warnings, "RESEND_API_KEY"), "warn: falta RESEND advierte");
 
+  // SITE_LOCK_KEY: sin ella el candado queda fail-closed (503 a todo en prod),
+  // así que la app sigue SEGURA — es warn, nunca hard-fail (ver site-lock.ts).
+  const rLock = evaluateProdEnv({ ...full, SITE_LOCK_KEY: undefined });
+  check(rLock.missing.length === 0, "warn: falta SITE_LOCK_KEY NO es hard-fail (arranca)");
+  check(has(rLock.warnings, "SITE_LOCK_KEY"), "warn: falta SITE_LOCK_KEY advierte");
+
   // Upstash: falta cualquiera de las dos credenciales → warn en TODOS los
   // entornos (ADR-6 enmendado: el rate limit cae a Postgres compartido).
   const r3 = evaluateProdEnv({ ...full, UPSTASH_REDIS_REST_URL: undefined });
@@ -109,6 +116,7 @@ function has(list: string[], needle: string): boolean {
   check(has(r.warnings, "AI_API_KEY"), "combo: warn AI presente aun con hard-fail");
   check(has(r.warnings, "RESEND_API_KEY"), "combo: warn RESEND presente");
   check(has(r.warnings, "Upstash"), "combo: warn Upstash presente");
+  check(has(r.warnings, "SITE_LOCK_KEY"), "combo: warn SITE_LOCK_KEY presente");
 }
 
 done();
