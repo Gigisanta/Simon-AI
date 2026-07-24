@@ -1,6 +1,6 @@
 import { generateText } from "ai";
 import { prisma } from "@/lib/prisma";
-import { aiConfigured, generationTimeoutMs, smallModel } from "./provider";
+import { aiConfigured, generationTimeoutMs, resolveProvider } from "./provider";
 import { stripDelimiterSequences } from "./system-prompt";
 import { normalizeForSafety } from "@/lib/safety";
 import { safeTruncate } from "@/lib/text";
@@ -237,15 +237,19 @@ export async function summarizeStaleConversation(userId: string): Promise<void> 
         )
         .join("\n");
 
-      const generated = await generateText({
-        model: smallModel(),
-        prompt: summaryPrompt(transcript),
-        temperature: 0.2,
-        maxOutputTokens: 500,
-        // M3: acota la generación del resumen; si el modelo se cuelga se aborta
-        // y el catch de esta función lo traga (la memoria nunca rompe el chat).
-        abortSignal: AbortSignal.timeout(generationTimeoutMs()),
-      });
+      // ADR-3: tier "small" vía el router con fallback. La señal de timeout se
+      // crea DENTRO del callback: fresca por intento y por proveedor.
+      const generated = await resolveProvider("small", (client) =>
+        generateText({
+          model: client.model,
+          prompt: summaryPrompt(transcript),
+          temperature: 0.2,
+          maxOutputTokens: 500,
+          // M3: acota la generación del resumen; si el modelo se cuelga se aborta
+          // y el catch de esta función lo traga (la memoria nunca rompe el chat).
+          abortSignal: AbortSignal.timeout(generationTimeoutMs()),
+        }),
+      );
       const { summary, facts } = parseSummaryAndFacts(generated.text);
 
       // Aunque el parseo falle (summary null), se marca summarizedAt para no
@@ -417,13 +421,16 @@ export async function updateRollingSummary(conversationId: string): Promise<void
       )
       .join("\n");
 
-    const generated = await generateText({
-      model: smallModel(),
-      prompt: rollingSummaryPrompt(conv.rollingSummary, transcript),
-      temperature: 0.2,
-      maxOutputTokens: 500,
-      abortSignal: AbortSignal.timeout(generationTimeoutMs()),
-    });
+    // ADR-3: mismo router con fallback que el resumen de cierre.
+    const generated = await resolveProvider("small", (client) =>
+      generateText({
+        model: client.model,
+        prompt: rollingSummaryPrompt(conv.rollingSummary, transcript),
+        temperature: 0.2,
+        maxOutputTokens: 500,
+        abortSignal: AbortSignal.timeout(generationTimeoutMs()),
+      }),
+    );
     const summary = parseRollingSummary(generated.text);
     if (!summary) return; // no pisar el resumen previo con una salida ilegible
 

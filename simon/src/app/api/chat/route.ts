@@ -15,7 +15,8 @@ import {
 
 // Holgura para: generateText completo (respuesta corta ≤1000 tokens) + hasta
 // dos llamadas a la Moderation API (entrada y salida, timeout 3s c/u).
-// Peor caso teórico con withTransientRetry (generación ~25s ×2 + fallback ~8s ×2
+// Peor caso teórico con resolveProvider (ADR-3: retry + fallback de proveedor;
+// generación ~25s ×2 + fallback ~8s ×2
 // + moderación) ronda 65-70s, por lo que 60 quedaba justo: 90 da margen real
 // sin cambiar el timeout interno de cada llamada (ver lib/ai/retry.ts).
 // No streameamos: generamos completo, moderamos y mostramos

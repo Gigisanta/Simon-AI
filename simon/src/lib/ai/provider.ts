@@ -117,13 +117,17 @@ export function generationTimeoutMs(): number {
 // patrón que el re-probe de la key de OpenAI en moderation.ts
 // (`openAiKeyUsable`), aplicado por proveedor.
 //
-// HOY (un solo proveedor en env) la lista tiene un único elemento: esto deja
-// LISTA la interfaz del router multi-proveedor SIN activarlo — ningún call
-// site (chat-pipeline/generate.ts, ai/memory.ts) fue tocado, así que
-// chatModel()/chatModelId()/smallModel()/generationTimeoutMs() siguen
-// funcionando exactamente igual que antes de este bloque. El router
-// multi-modelo real (por riesgo/costo) queda para cuando exista un segundo
-// proveedor contratado — no se especula con esa config hoy.
+// ACTIVADO: los call sites (chat-pipeline/generate.ts, ai/memory.ts,
+// moderation.ts) pasan por `resolveProvider` desde que existe un segundo
+// proveedor real (MiMo v2.5 vía AI_FALLBACK_* — el primario OpenCode Go se
+// queda sin tokens de suscripción). Con UN solo proveedor en env el
+// comportamiento es observacionalmente idéntico al anterior (lista de 1).
+// chatModel()/smallModel() quedan para scripts/tests que quieran el primario
+// directo; chatModelId() sigue siendo el id del PRIMARIO y es lo que se
+// telemetría en chat-pipeline/run.ts — si el fallback atendió la request, el
+// console.error del router lo deja registrado (no se cambió el shape de la
+// telemetría por esto). El router multi-modelo por riesgo/costo sigue fuera
+// de alcance.
 // ---------------------------------------------------------------------------
 
 /** Snapshot de env para el parseo (inyectable en tests; default process.env). */
@@ -323,6 +327,15 @@ export interface ResolveProviderOpts {
   healthStore?: ProviderHealthStore;
   /** Reintento por proveedor — mismo módulo/patrón que moderation.ts. */
   retry?: RetryOpts;
+  /**
+   * Señal de la REQUEST del cliente (no el timeout por-intento). Si está
+   * abortada cuando un proveedor falla, el error se relanza tal cual SIN
+   * marcar el proveedor no-sano ni probar el siguiente: que un cliente cierre
+   * la pestaña no dice nada de la salud del proveedor, y hacer failover sería
+   * generar para nadie (además de abrir el circuit-breaker 5 min por un
+   * abort ajeno al proveedor).
+   */
+  signal?: AbortSignal;
 }
 
 /**
@@ -361,6 +374,9 @@ export async function resolveProvider<T>(
       return result;
     } catch (err) {
       lastErr = err;
+      // Desconexión del cliente: no es un fallo del proveedor. Relanzar sin
+      // marcar no-sano ni hacer failover (ver `ResolveProviderOpts.signal`).
+      if (opts.signal?.aborted) throw err;
       health.markUnhealthy(config.name, now);
       const next = tryOrder[i + 1];
       console.error(

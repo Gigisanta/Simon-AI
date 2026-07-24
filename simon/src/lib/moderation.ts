@@ -28,8 +28,7 @@
  */
 import { generateText } from "ai";
 import type { SafetyFlag } from "./safety";
-import { aiConfigured, smallModel } from "./ai/provider";
-import { withTransientRetry } from "./ai/retry";
+import { aiConfigured, resolveProvider } from "./ai/provider";
 import {
   runGuardrailCascade,
   type GuardrailCheck,
@@ -336,29 +335,24 @@ async function moderateLLM(text: string, signal?: AbortSignal): Promise<Moderati
   if (!aiConfigured()) return unavailable();
   const startedAt = Date.now();
   try {
-    // #36: 1 reintento corto SOLO ante error transitorio (5xx/red). El
-    // AbortController se crea DENTRO del factory → cada intento tiene su propio
-    // timeout fresco (LLM_TIMEOUT_MS); un abort/timeout NO se reintenta. Peor
-    // caso ≈ fallo-rápido + backoff + 1 intento (≤~16s), holgado dentro de la
-    // moderación (corre en paralelo con la generación en el chat).
-    const generated = await withTransientRetry(async () => {
+    // #36 + ADR-3: retry transitorio y fallback de proveedor viven en
+    // resolveProvider. El AbortController se crea DENTRO del callback → cada
+    // intento/proveedor tiene su propio timeout fresco (LLM_TIMEOUT_MS); un
+    // abort/timeout del cliente NO se reintenta ni dispara fallback.
+    const generated = await resolveProvider("small", (client) => {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
-      try {
-        return await generateText({
-          model: smallModel(),
-          system: LLM_SYSTEM_PROMPT,
-          prompt: `TEXTO A CLASIFICAR:\n"""\n${text}\n"""`,
-          temperature: 0,
-          maxOutputTokens: 60,
-          // #19-1: timeout propio + desconexión del cliente (signal).
-          abortSignal: signal
-            ? AbortSignal.any([signal, controller.signal])
-            : controller.signal,
-        });
-      } finally {
-        clearTimeout(timeout);
-      }
+      return generateText({
+        model: client.model,
+        system: LLM_SYSTEM_PROMPT,
+        prompt: `TEXTO A CLASIFICAR:\n"""\n${text}\n"""`,
+        temperature: 0,
+        maxOutputTokens: 60,
+        // #19-1: timeout propio + desconexión del cliente (signal).
+        abortSignal: signal
+          ? AbortSignal.any([signal, controller.signal])
+          : controller.signal,
+      }).finally(() => clearTimeout(timeout));
     });
     const result = parseLlmClassification(generated.text);
     const ms = Date.now() - startedAt;

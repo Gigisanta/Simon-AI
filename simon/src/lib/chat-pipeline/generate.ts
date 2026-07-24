@@ -1,6 +1,5 @@
 import { generateText, type ModelMessage } from "ai";
-import { chatModel, generationTimeoutMs } from "@/lib/ai/provider";
-import { withTransientRetry } from "@/lib/ai/retry";
+import { generationTimeoutMs, resolveProvider } from "@/lib/ai/provider";
 import type { GenerationResult } from "./types";
 
 /**
@@ -50,35 +49,44 @@ export function createReplyGenerator(args: {
   const { messages, temperature, maxOutputTokens, reqSignal } = args;
   return async function generateReply(sys: string): Promise<GenerationResult> {
     try {
-      // #36: 1 reintento corto SOLO ante error transitorio (5xx/red). El
-      // AbortSignal.timeout se crea DENTRO del factory → cada intento tiene su
-      // propia señal fresca (una ya abortada quedaría inservible). Un
-      // timeout/abort NO es transitorio → no se reintenta (es el tope de latencia
-      // aceptado). Peor caso real ≈ fallo-rápido + backoff + 1 intento completo,
-      // dentro del maxDuration de la ruta (CHAT_ROUTE_MAX_DURATION_S, ver
+      // ADR-3: router de proveedores con fallback (primary → AI_FALLBACK_*).
+      // El retry transitorio (#36) vive DENTRO de resolveProvider, por
+      // proveedor: 1 reintento corto SOLO ante error transitorio (5xx/red).
+      // El AbortSignal.timeout se crea DENTRO del callback → cada intento (y
+      // cada proveedor) tiene su propia señal fresca (una ya abortada quedaría
+      // inservible). Un timeout/abort NO es transitorio → no se reintenta en el
+      // MISMO proveedor (es el tope de latencia por intento), pero un primario
+      // colgado SÍ pasa al fallback: peor caso real con 2 proveedores ≈
+      // 2·timeout-por-intento + backoff, que entra en el maxDuration de la ruta
+      // (CHAT_ROUTE_MAX_DURATION_S=90 vs timeout default 25s — ver
       // lib/ai/retry.ts y lib/ai/limits.ts).
-      const g = await withTransientRetry(() =>
-        generateText({
-          model: chatModel(),
-          system: sys,
-          messages,
-          temperature,
-          maxOutputTokens, // por rol: corto para menores
-          // M3: un modelo colgado no puede dejar al menor esperando hasta el
-          // maxDuration de la ruta. Se aborta y el catch de acá abajo devuelve el
-          // fallback amable. Cubre la generación paralela y la regeneración por
-          // riesgo (ambas pasan por generateReply).
-          //
-          // #19-1: se combina con `req.signal` (AbortSignal.any): si el cliente
-          // corta la conexión (cerró la pestaña, navegó), se aborta la llamada
-          // cara al LLM en vez de seguir generando para nadie. La distinción
-          // entre timeout y desconexión se hace luego con `req.signal.aborted`
-          // (true SOLO si abortó el cliente; el timeout no lo marca).
-          abortSignal: AbortSignal.any([
-            reqSignal,
-            AbortSignal.timeout(generationTimeoutMs()),
-          ]),
-        }),
+      const g = await resolveProvider(
+        "main",
+        (client) =>
+          generateText({
+            model: client.model,
+            system: sys,
+            messages,
+            temperature,
+            maxOutputTokens, // por rol: corto para menores
+            // M3: un modelo colgado no puede dejar al menor esperando hasta el
+            // maxDuration de la ruta. Se aborta y el catch de acá abajo devuelve el
+            // fallback amable. Cubre la generación paralela y la regeneración por
+            // riesgo (ambas pasan por generateReply).
+            //
+            // #19-1: se combina con `req.signal` (AbortSignal.any): si el cliente
+            // corta la conexión (cerró la pestaña, navegó), se aborta la llamada
+            // cara al LLM en vez de seguir generando para nadie. La distinción
+            // entre timeout y desconexión se hace luego con `req.signal.aborted`
+            // (true SOLO si abortó el cliente; el timeout no lo marca).
+            abortSignal: AbortSignal.any([
+              reqSignal,
+              AbortSignal.timeout(generationTimeoutMs()),
+            ]),
+          }),
+        // La desconexión del cliente corta el loop del router: sin failover ni
+        // circuit-breaker abierto por un abort que no es culpa del proveedor.
+        { signal: reqSignal },
       );
       return {
         ok: true,
