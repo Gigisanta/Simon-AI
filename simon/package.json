@@ -18,6 +18,7 @@
     "moderation-suite": "tsx scripts/moderation-suite.ts",
     "guardrail-cascade-suite": "tsx scripts/guardrail-cascade-suite.ts",
     "retrieval-suite": "tsx scripts/retrieval-suite.ts",
+    "retrieval-vector-suite": "tsx scripts/retrieval-vector-suite.ts",
     "knowledge-cache-suite": "tsx scripts/knowledge-cache-suite.ts",
     "guardian-suite": "tsx scripts/guardian-suite.ts",
     "guardian-auth-suite": "tsx scripts/guardian-auth-suite.ts",

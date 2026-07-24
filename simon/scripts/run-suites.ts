@@ -60,6 +60,7 @@ const SUITES = [
   "provider-health-shared",
   "health",
   "redteam",
+  "retrieval-vector",
 ] as const;
 
 const here = dirname(fileURLToPath(import.meta.url));

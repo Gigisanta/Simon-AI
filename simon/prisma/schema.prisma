@@ -242,6 +242,32 @@ model KnowledgeCard {
   @@index([category])
 }
 
+// ---------- Embeddings (retrieval semántico pgvector — DETRÁS de flag) --------
+//
+// Cambio de schema COMENTADO a propósito: la tabla se crea con SQL crudo
+// (prisma/migrations/20260724000000_pgvector_embeddings) porque el tipo `vector`
+// de pgvector no es nativo de Prisma. Dejarlo comentado evita que `prisma
+// generate`/`migrate` intenten gestionarlo y mantiene el cliente y el gate
+// intactos mientras el retrieval semántico vive apagado (RETRIEVAL_PGVECTOR≠1).
+//
+// Para gestionarlo con Prisma en el futuro haría falta: (a) el preview feature
+// `postgresqlExtensions` + `extensions = [vector]` en el datasource, y (b)
+// mapear la columna como `Unsupported("vector(1536)")`. Referencia del modelo:
+//
+// model Embedding {
+//   id        String   @id @default(cuid())
+//   ownerType String                        // "card" | "memory"
+//   ownerId   String                        // KnowledgeCard.id | UserMemory.id
+//   model     String                        // id del modelo de embeddings
+//   embedding Unsupported("vector(1536)")   // dimensión configurable (default 1536)
+//   createdAt DateTime @default(now())
+//   updatedAt DateTime @updatedAt
+//
+//   @@unique([ownerType, ownerId, model])
+//   @@index([ownerType, ownerId])
+//   // Índice ANN (HNSW/IVFFlat) se crea por SQL crudo (ver migración).
+// }
+
 // ---------- Directorio de recursos reales ("Cerca tuyo") ----------
 
 // Recursos de ayuda REALES y georreferenciables: líneas nacionales, hospitales,
