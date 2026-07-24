@@ -226,6 +226,14 @@ export async function runChatPipeline(args: {
 
   let effectiveFlag: SafetyFlag = regexFlag; // null | "riesgo"
 
+  // La moderación de ENTRADA se LANZA acá (sin await), ANTES de las queries de
+  // contexto: solo necesita userText, así su latencia (~1.2-1.7s con el
+  // moderador LLM) se solapa también con la I/O de DB de buildChatContext y no
+  // solo con la generación. `moderate` NUNCA lanza (fail-open documentado en
+  // moderation.ts) → no hay riesgo de unhandled rejection entre el lanzamiento
+  // y el await del Promise.all de abajo.
+  const inputModPromise = moderate(userText, undefined, req.signal);
+
   // --- Contexto (fichas + memoria + resumen) + ventana de sesión, en paralelo ---
   const ctx = await buildChatContext({
     user,
@@ -259,9 +267,18 @@ export async function runChatPipeline(args: {
 
   // --- PARALELO: moderación de entrada + generación (si la IA está configurada) ---
   const configured = aiConfigured();
+  // Sesión vencida (sState === "over"): decideResponsePath corta en
+  // "session-limit" ANTES de aiReady, así que la generación paralela se
+  // descartaría SIEMPRE (la única rama que le gana es crisis de entrada, que
+  // tampoco la usa). No se lanza: ahorro directo de un prompt completo + salida
+  // por cada mensaje con la sesión vencida. La moderación de entrada SÍ corre
+  // igual: la precedencia de crisis sobre session-limit no cambia.
+  const skipGeneration = sState === "over";
   const [inputMod, parallelGen] = await Promise.all([
-    moderate(userText, undefined, req.signal),
-    configured ? generateReply(systemForParallel) : Promise.resolve(null),
+    inputModPromise,
+    configured && !skipGeneration
+      ? generateReply(systemForParallel)
+      : Promise.resolve(null),
   ]);
 
   // #32: la DECISIÓN de precedencia PRE-generación se centraliza en la función

@@ -108,14 +108,29 @@ function msg(id: string, role = "user"): HistoryMsg {
 // ---------- 6. trimHistory: conserva lo MÁS RECIENTE (cola), orden preservado ----------
 {
   const history = [msg("h1"), msg("h2"), msg("h3")]; // cronológico: viejo→nuevo, 5 c/u
+  // total 15 ≤ budget 15 → intacto (histéresis: mientras entra, NO se toca).
+  const all = trimHistory(history, 15);
+  check(
+    all.length === 3 && all[0].content.startsWith("h1"),
+    "total ≤ budget → historial intacto (sin recorte, prefijo cacheable)",
+  );
+  // total 15 > budget 10 → recorta al target (10 * 0.6 = 6): entra solo h3 (5 tok).
   const kept = trimHistory(history, 10);
   check(
-    kept.length === 2 && kept[0].content.startsWith("h2") && kept[1].content.startsWith("h3"),
-    "budget 10 → conserva los 2 más recientes, en orden cronológico",
+    kept.length === 1 && kept[0].content.startsWith("h3"),
+    "excede budget → recorta al target (60%), conserva lo más reciente",
   );
   const one = trimHistory(history, 1);
   check(one.length === 1 && one[0].content.startsWith("h3"), "budget < 1 msg → conserva el más reciente");
   check(trimHistory([], 100).length === 0, "sin historial → vacío");
+  // Histéresis: la ventana recortada absorbe mensajes nuevos SIN re-recortar
+  // mientras no vuelva a exceder el budget (la ventana queda fija entre busts).
+  const window = [...trimHistory(history, 12), msg("h4")]; // trim → [h3]; + h4 = 10 tok
+  const stable = trimHistory(window, 12);
+  check(
+    stable.length === 2 && stable[0].content.startsWith("h3") && stable[1].content.startsWith("h4"),
+    "histéresis: ventana recortada + msg nuevo ≤ budget → no re-recorta",
+  );
 }
 
 // ---------- 7. assembleContext: el mensaje ACTUAL nunca se recorta ----------

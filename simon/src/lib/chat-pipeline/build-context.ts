@@ -3,7 +3,11 @@ import { prisma } from "@/lib/prisma";
 import { createTtlSingleFlight } from "@/lib/single-flight";
 import { assembleContext } from "@/lib/ai/context-budget";
 import { historyToModelMessages, type HistoryRow } from "@/lib/chat-messages";
-import { buildSystemPrompt, selectRelevantCards } from "@/lib/ai/system-prompt";
+import {
+  buildCardsMessage,
+  buildSystemPrompt,
+  selectRelevantCards,
+} from "@/lib/ai/system-prompt";
 import { crisisSystemAddendum, type SafetyFlag } from "@/lib/safety";
 import { memoryTtlCutoff } from "@/lib/ai/memory";
 import {
@@ -171,8 +175,9 @@ export async function buildChatContext(args: {
   const dbHistory: ModelMessage[] = historyToModelMessages(context.history);
 
   // System prompt base + addendum de "riesgo" por REGEX (previo y gratis).
+  // #4: las FICHAS ya NO van acá — varían con cada userText y rompían el
+  // prefijo cacheable del proveedor. Van como mensaje system al final (abajo).
   const baseSystem = buildSystemPrompt({
-    cards: context.cards,
     memories: context.memories,
     userName: user.name ?? undefined,
     pastSummaries: context.pastSummaries,
@@ -189,8 +194,16 @@ export async function buildChatContext(args: {
   // Mensajes para el modelo (F1): historial reconstruido desde la DB + el
   // único mensaje del cliente que se acepta (userText, ya validado, moderado y
   // persistido). Strings planos: UserContent/AssistantContent los aceptan.
+  // #4: las FICHAS entran como mensaje system DESPUÉS del historial y antes
+  // del user — [system estable, ...historial, fichas?, user]. Los gateways de
+  // la cadena de fallback hablan protocolo OpenAI, que acepta rol system en
+  // cualquier posición. Sin fichas relevantes no se agrega mensaje (null).
+  const cardsMessage = buildCardsMessage(context.cards);
   const modelMessages: ModelMessage[] = [
     ...dbHistory,
+    ...(cardsMessage
+      ? [{ role: "system" as const, content: cardsMessage }]
+      : []),
     { role: "user", content: userText },
   ];
 

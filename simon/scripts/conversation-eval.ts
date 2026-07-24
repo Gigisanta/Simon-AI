@@ -15,7 +15,7 @@
  */
 import { generateText, type ModelMessage } from "ai";
 import { chatModel, smallModel, aiConfigured } from "../src/lib/ai/provider";
-import { buildSystemPrompt } from "../src/lib/ai/system-prompt";
+import { buildCardsMessage, buildSystemPrompt } from "../src/lib/ai/system-prompt";
 import { crisisSystemAddendum, detectSafetyFlag } from "../src/lib/safety";
 import type { KnowledgeCard, UserMemory } from "../src/generated/prisma/client";
 import { writeFileSync } from "node:fs";
@@ -398,7 +398,6 @@ function asCard(c: InjectedCard, i: number): KnowledgeCard {
 
 function buildSystemFor(scenario: Scenario, lastUserText: string): string {
   const base = buildSystemPrompt({
-    cards: (scenario.cards ?? []).map(asCard),
     memories: (scenario.memories ?? []).map(asMemory),
   });
   // Fidelidad con route.ts: cuando la regex marca "riesgo", prod antepone el
@@ -420,9 +419,24 @@ async function genOnce(system: string, messages: ModelMessage[]): Promise<string
   return g.text;
 }
 
+// #4: fidelidad con build-context.ts — las FICHAS ya no van en el system
+// prompt; entran como mensaje system entre el historial y el último mensaje
+// del usuario ([system estable, ...historial, fichas?, user]).
+function cardsMessageFor(scenario: Scenario): ModelMessage | null {
+  const text = buildCardsMessage((scenario.cards ?? []).map(asCard));
+  return text ? { role: "system", content: text } : null;
+}
+
+function withCards(messages: ModelMessage[], fichas: ModelMessage | null): ModelMessage[] {
+  const last = messages[messages.length - 1];
+  if (!fichas || !last) return messages;
+  return [...messages.slice(0, -1), fichas, last];
+}
+
 async function generateSimon(scenario: Scenario): Promise<string> {
   const lastUserText = [...scenario.turns].reverse().find((t) => t.role === "user")?.text ?? "";
   const system = buildSystemFor(scenario, lastUserText);
+  const fichas = cardsMessageFor(scenario);
 
   // Multi-turn: genera una respuesta REAL después de cada turno del usuario,
   // acumulando historia; devuelve la última (deriva de comportamiento). El
@@ -435,14 +449,14 @@ async function generateSimon(scenario: Scenario): Promise<string> {
       if (t.role !== "user") continue;
       history.push({ role: "user", content: t.text });
       const sys = buildSystemFor(scenario, t.text);
-      last = await genOnce(sys, history);
+      last = await genOnce(sys, withCards(history, fichas));
       history.push({ role: "assistant", content: last });
     }
     return last;
   }
 
   const messages: ModelMessage[] = scenario.turns.map((t) => ({ role: t.role, content: t.text }));
-  return genOnce(system, messages);
+  return genOnce(system, withCards(messages, fichas));
 }
 
 async function judge(scenario: Scenario, reply: string): Promise<Judgement | null> {

@@ -88,6 +88,18 @@ export function createReplyGenerator(args: {
         // circuit-breaker abierto por un abort que no es culpa del proveedor.
         { signal: reqSignal },
       );
+      // #6 (telemetría prefix-cache): visibilidad inmediata en logs del efecto
+      // de #4/#5 (system prompt estable + ventana con histéresis), sin esperar
+      // una query a InteractionLog (que ya persiste cacheReadTokens vía B4).
+      // Provider-dependiente: si el proveedor no reporta cached tokens, no
+      // logueamos nada (undefined) en vez de un 0% engañoso.
+      const cacheRead = g.usage?.inputTokenDetails?.cacheReadTokens;
+      const inputTok = g.usage?.inputTokens;
+      if (typeof cacheRead === "number" && typeof inputTok === "number" && inputTok > 0) {
+        console.info(
+          `[chat] prefix-cache: ${cacheRead}/${inputTok} input tokens cacheados (${Math.round((cacheRead / inputTok) * 100)}%)`,
+        );
+      }
       return {
         ok: true,
         text: g.text,

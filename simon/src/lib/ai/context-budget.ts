@@ -127,21 +127,38 @@ export function trimRollingSummary(
 }
 
 /**
+ * #5 (histéresis / prefix cache): si el recorte fuera exactamente al
+ * presupuesto, una conversación ya "llena" expulsaría al mensaje más viejo en
+ * CADA turno → la ventana se corre de a 1 y el prefijo cacheado del proveedor
+ * se invalida siempre. Al exceder el presupuesto se recorta a este porcentaje
+ * del budget: la ventana queda FIJA hasta acumular el ~40% restante en
+ * mensajes nuevos, y recién ahí vuelve a recortar (pocos busts, espaciados).
+ */
+export const HISTORY_TRIM_TARGET_RATIO = 0.6;
+
+/**
  * Historial: llega en orden cronológico (más viejo primero). Se conservan los
  * mensajes MÁS RECIENTES y se descartan los más viejos (desde el frente) para
  * entrar en el presupuesto. Se mantiene al menos el más reciente.
+ * Mientras el total entra en el budget NO se toca nada; al excederlo se
+ * recorta al target (budget * HISTORY_TRIM_TARGET_RATIO) — ver arriba.
  */
 export function trimHistory(
   history: HistoryMsg[],
   budget: number = CONTEXT_BUDGETS.history,
 ): HistoryMsg[] {
-  const kept: HistoryMsg[] = [];
   let total = 0;
+  for (const m of history) total += estimateTokens(m.content);
+  if (total <= budget) return [...history];
+
+  const target = budget * HISTORY_TRIM_TARGET_RATIO;
+  const kept: HistoryMsg[] = [];
+  let keptTotal = 0;
   for (let i = history.length - 1; i >= 0; i--) {
     const t = estimateTokens(history[i].content);
-    if (kept.length > 0 && total + t > budget) break;
+    if (kept.length > 0 && keptTotal + t > target) break;
     kept.unshift(history[i]);
-    total += t;
+    keptTotal += t;
   }
   return kept;
 }

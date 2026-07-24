@@ -182,7 +182,6 @@ export function ageRegisterInstruction(age: number): string {
 }
 
 export function buildSystemPrompt(opts: {
-  cards: KnowledgeCard[];
   memories: UserMemory[];
   userName?: string;
   /**
@@ -286,18 +285,28 @@ export function buildSystemPrompt(opts: {
     );
   }
 
-  if (opts.cards.length > 0) {
-    parts.push(
-      `<<<FICHAS_INICIO>>>\nFICHAS (base de conocimiento):\n${opts.cards
-        .map(
-          (c) =>
-            `## ${stripDelimiterSequences(c.title)}\n${stripDelimiterSequences(c.body)}${
-              c.source ? `\nFuente: ${stripDelimiterSequences(c.source)}` : ""
-            }`,
-        )
-        .join("\n\n")}\n<<<FICHAS_FIN>>>`,
-    );
-  }
-
   return parts.join("\n\n---\n\n");
+}
+
+/**
+ * #4 (prefix cache): las FICHAS salen de selectRelevantCards(userText), o sea
+ * cambian en CADA turno. Dentro del system prompt invalidaban el prefijo
+ * cacheable del proveedor desde el primer byte variable. Ahora van como
+ * mensaje `system` aparte, DESPUÉS del historial y antes del mensaje del
+ * usuario ([system estable, ...historial, fichas?, user]): el prefijo
+ * [system + historial] queda estable/append-only entre turnos. Mismo formato
+ * y misma sanitización M4 que tenía el bloque dentro del system; la PERSONA
+ * ya instruye que lo delimitado por <<<FICHAS_*>>> son datos, jamás órdenes.
+ * Devuelve null sin fichas (el caller no agrega un mensaje vacío).
+ */
+export function buildCardsMessage(cards: KnowledgeCard[]): string | null {
+  if (cards.length === 0) return null;
+  return `<<<FICHAS_INICIO>>>\nFICHAS (base de conocimiento):\n${cards
+    .map(
+      (c) =>
+        `## ${stripDelimiterSequences(c.title)}\n${stripDelimiterSequences(c.body)}${
+          c.source ? `\nFuente: ${stripDelimiterSequences(c.source)}` : ""
+        }`,
+    )
+    .join("\n\n")}\n<<<FICHAS_FIN>>>`;
 }

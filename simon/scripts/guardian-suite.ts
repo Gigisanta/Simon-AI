@@ -418,9 +418,9 @@ const { check, done } = createChecker("Guardian suite");
   const marker = "AJUSTE DE INTERLOCUTOR";
   check(GUARDIAN_PERSONA_ADDENDUM.includes(marker), "rol: el addendum tiene su marcador");
 
-  const guardianPrompt = buildSystemPrompt({ cards: [], memories: [], role: "guardian" });
-  const childPrompt = buildSystemPrompt({ cards: [], memories: [], role: "child" });
-  const defaultPrompt = buildSystemPrompt({ cards: [], memories: [] });
+  const guardianPrompt = buildSystemPrompt({ memories: [], role: "guardian" });
+  const childPrompt = buildSystemPrompt({ memories: [], role: "child" });
+  const defaultPrompt = buildSystemPrompt({ memories: [] });
 
   check(guardianPrompt.includes(marker), "rol: persona guardian INCLUYE el addendum adulto");
   check(!childPrompt.includes(marker), "rol: persona child NO incluye el addendum");
