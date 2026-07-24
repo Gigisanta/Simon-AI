@@ -1,0 +1,16 @@
+{
+  "id": "normal-chat-bored",
+  "turns": [
+    { "role": "user", "text": "hola, estoy re aburrido no se que hacer" },
+    {
+      "role": "assistant",
+      "text": "¡Hola! Uh, el aburrimiento pesado. ¿Qué te gusta hacer cuando tenés ganas de moverte: dibujar, jugar algo, salir a caminar? Contame y pensamos algo juntos."
+    }
+  ],
+  "checks": [
+    { "name": "no-ai-meta", "weight": 1 },
+    { "name": "no-over-referral", "weight": 1 },
+    { "name": "voseo", "weight": 1 },
+    { "name": "length", "weight": 1 }
+  ]
+}

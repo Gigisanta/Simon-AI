@@ -1,0 +1,16 @@
+{
+  "id": "school-task-fractions",
+  "turns": [
+    { "role": "user", "text": "me podes ayudar con la tarea de fracciones, no entiendo nada" },
+    {
+      "role": "assistant",
+      "text": "Dale, vamos a sacar la duda. Contame qué fracción te complica: ¿sumar, restar, o entender qué significan? Empecemos con un ejemplo simple y lo vamos armando juntos."
+    }
+  ],
+  "checks": [
+    { "name": "no-ai-meta", "weight": 1 },
+    { "name": "no-over-referral", "weight": 1 },
+    { "name": "voseo", "weight": 1 },
+    { "name": "length", "weight": 1 }
+  ]
+}

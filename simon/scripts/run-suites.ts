@@ -11,8 +11,9 @@
  * contamine a las demás. Cada suite ya sale con código 1 si falla; acá se
  * capturan esos códigos y se agregan.
  *
- * NO incluye conversation-eval (llama al LLM real, no es determinística): esa es
- * exploratoria, este runner es el gate de CI.
+ * NO incluye el modo con red de conversation-eval (llama al LLM real, no es
+ * determinística): ese sigue siendo exploratorio. Sí incluye "eval", que corre
+ * SOLO la rúbrica (scripts/eval-rubric.ts) sobre transcripts fixture — cero red.
  */
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -56,6 +57,7 @@ const SUITES = [
   "session-limit",
   "consent",
   "single-flight",
+  "eval",
 ] as const;
 
 const here = dirname(fileURLToPath(import.meta.url));
