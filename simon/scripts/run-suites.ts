@@ -56,6 +56,7 @@ const SUITES = [
   "session-limit",
   "consent",
   "single-flight",
+  "metrics",
 ] as const;
 
 const here = dirname(fileURLToPath(import.meta.url));

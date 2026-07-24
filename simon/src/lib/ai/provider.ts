@@ -1,5 +1,6 @@
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { withTransientRetry, type RetryOpts } from "./retry";
+import { classifyAiError, recordCall, type MetricStage } from "@/lib/metrics";
 
 /**
  * Proveedor de IA intercambiable.
@@ -336,6 +337,14 @@ export interface ResolveProviderOpts {
    * abort ajeno al proveedor).
    */
   signal?: AbortSignal;
+  /**
+   * Etapa para telemetría (metrics.ts, objetivo b). Default por `tier`:
+   * "generation" para "main", "memory" para "small" — moderation.ts pasa
+   * "moderation" explícito para su uso de tier "small" (el único caso donde
+   * el default por tier no alcanza). Nunca cambia el comportamiento del
+   * router, solo a qué etiqueta se atribuye el conteo/latencia.
+   */
+  stage?: MetricStage;
 }
 
 /**
@@ -356,6 +365,7 @@ export async function resolveProvider<T>(
   const now = opts.now ?? Date.now();
   const env = opts.env ?? process.env;
   const health = opts.healthStore ?? processProviderHealth;
+  const stage: MetricStage = opts.stage ?? (tier === "main" ? "generation" : "memory");
   const providers = parseProviderList(env);
   if (providers.length === 0) {
     throw new Error("[ai] resolveProvider: no hay proveedores configurados");
@@ -363,21 +373,36 @@ export async function resolveProvider<T>(
 
   const usable = providers.filter((p) => health.isUsable(p.name, now));
   const tryOrder = usable.length > 0 ? usable : providers;
+  // Si `usable` quedó vacío, TODOS los proveedores de la lista están no-sanos y
+  // este intento es el fallback de último recurso (ver comentario de la
+  // función): telemetría "breaker-open" en vez de clasificar el error, porque
+  // la señal que importa acá es "el breaker estaba abierto", no la causa
+  // puntual del fallo.
+  const allBreakerOpen = usable.length === 0;
 
   let lastErr: unknown;
   for (let i = 0; i < tryOrder.length; i += 1) {
     const config = tryOrder[i];
     const client = buildClient(config, tier);
+    const attemptStartedAt = Date.now();
     try {
       const result = await withTransientRetry(() => run(client), opts.retry);
       health.markHealthy(config.name);
+      recordCall(stage, config.name, Date.now() - attemptStartedAt);
       return result;
     } catch (err) {
       lastErr = err;
       // Desconexión del cliente: no es un fallo del proveedor. Relanzar sin
-      // marcar no-sano ni hacer failover (ver `ResolveProviderOpts.signal`).
+      // marcar no-sano ni hacer failover (ver `ResolveProviderOpts.signal`), y
+      // sin telemetría: un abort ajeno al proveedor no es una señal de su salud.
       if (opts.signal?.aborted) throw err;
       health.markUnhealthy(config.name, now);
+      recordCall(
+        stage,
+        config.name,
+        Date.now() - attemptStartedAt,
+        allBreakerOpen ? "breaker-open" : classifyAiError(err),
+      );
       const next = tryOrder[i + 1];
       console.error(
         `[ai] proveedor "${config.name}" falló` +

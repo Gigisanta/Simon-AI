@@ -34,6 +34,7 @@ import {
   type GuardrailCheck,
   type GuardrailVerdict,
 } from "./guardrails/cascade";
+import { classifyAiError, recordCall } from "@/lib/metrics";
 
 /**
  * Veredicto de la cascada de moderación. Es un `GuardrailVerdict` (ADR-2) con
@@ -174,6 +175,10 @@ async function moderateOpenAI(
 ): Promise<ModerationResult | null> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), OPENAI_TIMEOUT_MS);
+  // Telemetría (objetivo b): latencia + categoría de error del check OpenAI,
+  // stage "moderation", proveedor "openai" (no pasa por resolveProvider —
+  // llamada HTTP directa, no por el router de generateText).
+  const startedAt = Date.now();
   try {
     const res = await fetch("https://api.openai.com/v1/moderations", {
       method: "POST",
@@ -196,11 +201,13 @@ async function moderateOpenAI(
         `[moderation] OpenAI ${res.status}: OPENAI_API_KEY inválida — ` +
           "capa OpenAI desactivada por proceso; cae al moderador LLM.",
       );
+      recordCall("moderation", "openai", Date.now() - startedAt, "http");
       return null;
     }
     if (!res.ok) {
       // 5xx/429 u otros: transitorio. Cae al LLM esta vez, sin invalidar la key.
       console.error(`[moderation] OpenAI no-2xx transitorio: ${res.status}`);
+      recordCall("moderation", "openai", Date.now() - startedAt, "http");
       return null;
     }
 
@@ -213,6 +220,7 @@ async function moderateOpenAI(
       result.categories === null
     ) {
       console.error("[moderation] OpenAI: respuesta malformada");
+      recordCall("moderation", "openai", Date.now() - startedAt, "other");
       return null;
     }
 
@@ -224,6 +232,7 @@ async function moderateOpenAI(
         ? flaggedCats.reduce((a, b) => ((scores[b] ?? 0) > (scores[a] ?? 0) ? b : a))
         : undefined;
 
+    recordCall("moderation", "openai", Date.now() - startedAt);
     return {
       available: true,
       flagged: Boolean(result.flagged) || flaggedCats.length > 0,
@@ -237,6 +246,7 @@ async function moderateOpenAI(
       "[moderation] OpenAI red/timeout:",
       err instanceof Error ? err.message : err,
     );
+    recordCall("moderation", "openai", Date.now() - startedAt, classifyAiError(err));
     return null;
   } finally {
     clearTimeout(timeout);
@@ -353,7 +363,9 @@ async function moderateLLM(text: string, signal?: AbortSignal): Promise<Moderati
           ? AbortSignal.any([signal, controller.signal])
           : controller.signal,
       }).finally(() => clearTimeout(timeout));
-    });
+      // Stage explícito: tier "small" default a "memory" (ver ResolveProviderOpts
+      // en ai/provider.ts) — acá el uso es moderación, no memoria.
+    }, { stage: "moderation" });
     const result = parseLlmClassification(generated.text);
     const ms = Date.now() - startedAt;
     console.log(
@@ -363,6 +375,8 @@ async function moderateLLM(text: string, signal?: AbortSignal): Promise<Moderati
     );
     return result;
   } catch (err) {
+    // resolveProvider ya registra (stage "moderation", provider real) en
+    // provider.ts — acá no se duplica, solo se loguea para debug local.
     console.error(
       `[moderation] LLM red/timeout (${Date.now() - startedAt}ms):`,
       err instanceof Error ? err.message : err,
@@ -459,10 +473,18 @@ export async function moderate(
   now: number = Date.now(),
   signal?: AbortSignal,
 ): Promise<ModerationResult> {
-  return runGuardrailCascade(
+  const startedAt = Date.now();
+  const result = await runGuardrailCascade(
     MODERATION_CHECKS,
     { text, now },
     unavailable(),
     signal,
   );
+  // Categoría "moderation" (metrics.ts): NINGÚN check concluyó (ni OpenAI ni
+  // LLM) — degradación de la capa de seguridad 2 completa, no de un proveedor
+  // puntual (esos ya quedaron registrados por separado en cada check).
+  if (!result.available) {
+    recordCall("moderation", "cascade", Date.now() - startedAt, "moderation");
+  }
+  return result;
 }
