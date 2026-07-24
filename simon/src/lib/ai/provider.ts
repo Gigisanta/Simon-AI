@@ -471,7 +471,14 @@ function getProcessProviderHealth(): ProviderHealthStore {
 
 // ---------- Resolución + retry + fallback ----------
 
-function buildClient(config: ProviderConfig, tier: "main" | "small") {
+/**
+ * Arma un cliente concreto (proveedor + modelo del SDK) para UN elemento de la
+ * lista ordenada. Exportada para callers que necesitan probar un proveedor
+ * puntual SIN pasar por el failover/circuit-breaker de `resolveProvider` — p.ej.
+ * el health-check del cron (api/cron/health), que reporta el estado de cada
+ * proveedor por separado en vez de "el primero que responda".
+ */
+export function buildClient(config: ProviderConfig, tier: "main" | "small") {
   const modelId = tier === "small" ? (config.smallModel ?? config.model) : config.model;
   const provider = createOpenAICompatible({
     name: config.name,

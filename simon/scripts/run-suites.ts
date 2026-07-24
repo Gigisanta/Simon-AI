@@ -58,6 +58,7 @@ const SUITES = [
   "single-flight",
   "site-lock",
   "provider-health-shared",
+  "health",
 ] as const;
 
 const here = dirname(fileURLToPath(import.meta.url));
