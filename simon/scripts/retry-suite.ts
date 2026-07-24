@@ -19,20 +19,11 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { createChecker } from "./suite-helpers";
+import { createChecker, apiError, netError } from "./suite-helpers";
 import { isTransientError, withTransientRetry } from "../src/lib/ai/retry";
 import { CHAT_ROUTE_MAX_DURATION_S } from "../src/lib/ai/limits";
 
 const { check, done } = createChecker("Retry suite");
-
-// Simula el shape de APICallError del SDK `ai` (statusCode + name).
-function apiError(statusCode: number, message = "API error"): Error {
-  return Object.assign(new Error(message), { name: "APICallError", statusCode });
-}
-// Simula un error de red de Node/undici (code, opcional cause).
-function netError(code: string, message = "network"): Error {
-  return Object.assign(new Error(message), { code });
-}
 
 // ---------- 1. isTransientError ----------
 {

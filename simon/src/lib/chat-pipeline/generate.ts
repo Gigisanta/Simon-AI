@@ -15,6 +15,18 @@ const MAX_OUTPUT_TOKENS_CHILD = 700;
 const TEMPERATURE_GUARDIAN = 0.5;
 const TEMPERATURE_CHILD = 0.6;
 
+/**
+ * Contenido vacío/en blanco del proveedor (p.ej. un gateway en modo "thinking"
+ * que quema todo `max_tokens` en reasoning_content y devuelve `content` vacío —
+ * ver docstring de AI_EXTRA_BODY en lib/ai/provider.ts, bug real ya visto en
+ * prod). Pura y testeable sin red: se usa para tratar ese caso IGUAL que un
+ * fallo de generación (mismo sentinel ok:false → mismo fallback amable) en vez
+ * de persistirle/mostrarle al menor una respuesta en blanco.
+ */
+export function isBlankGenerationText(text: string | null | undefined): boolean {
+  return !text || text.trim().length === 0;
+}
+
 /** Parámetros de generación según el rol del interlocutor (B3). */
 export function generationParams(role: string | null | undefined): {
   maxOutputTokens: number;
@@ -99,6 +111,13 @@ export function createReplyGenerator(args: {
         console.info(
           `[chat] prefix-cache: ${cacheRead}/${inputTok} input tokens cacheados (${Math.round((cacheRead / inputTok) * 100)}%)`,
         );
+      }
+      // Contenido vacío/en blanco (ver isBlankGenerationText más arriba): se
+      // trata como fallo de generación — NUNCA se persiste/muestra un mensaje
+      // en blanco al menor, va por el MISMO fallback amable que un error real.
+      if (isBlankGenerationText(g.text)) {
+        console.error("[chat] generación con contenido vacío/en blanco — se trata como fallo");
+        return { ok: false };
       }
       return {
         ok: true,

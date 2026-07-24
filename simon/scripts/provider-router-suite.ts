@@ -17,7 +17,7 @@
  * debe ser observacionalmente idéntico — parseProviderList() con esa env da
  * una lista de 1 elemento. Sale con código 1 si algún caso falla (gate CI).
  */
-import { createChecker } from "./suite-helpers";
+import { createChecker, apiError } from "./suite-helpers";
 import {
   parseProviderList,
   providerUsable,
@@ -28,11 +28,6 @@ import {
 } from "../src/lib/ai/provider";
 
 const { check, done } = createChecker("Provider-router suite");
-
-// Simula el shape de APICallError del SDK `ai` (mismo helper que retry-suite).
-function apiError(statusCode: number, message = "API error"): Error {
-  return Object.assign(new Error(message), { name: "APICallError", statusCode });
-}
 
 // ---------- 1. parseProviderList ----------
 {
